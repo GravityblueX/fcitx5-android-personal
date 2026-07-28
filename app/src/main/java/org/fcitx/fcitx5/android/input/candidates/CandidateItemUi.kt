@@ -61,4 +61,9 @@ class CandidateItemUi(override val ctx: Context, val theme: Theme) : Ui {
             }
         }
     }
+
+    fun setContentScale(scale: Float) {
+        text.scaleX = scale
+        text.scaleY = scale
+    }
 }

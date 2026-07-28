@@ -11,7 +11,7 @@ import android.view.ViewGroup
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.Keep
-import androidx.appcompat.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
@@ -165,7 +165,7 @@ class ThemeListFragment : Fragment() {
             getString(R.string.import_from_file),
             getString(R.string.duplicate_builtin_theme)
         )
-        AlertDialog.Builder(ctx)
+        MaterialAlertDialogBuilder(ctx)
             .setTitle(R.string.new_theme)
             .setNegativeButton(android.R.string.cancel, null)
             .setItems(actions) { _, i ->
@@ -177,7 +177,7 @@ class ThemeListFragment : Fragment() {
                             // force AlertDialog's customPanel to grow
                             minimumHeight = Int.MAX_VALUE
                         }
-                        val dialog = AlertDialog.Builder(ctx)
+                        val dialog = MaterialAlertDialogBuilder(ctx)
                             .setTitle(getString(R.string.duplicate_builtin_theme).removeSuffix("…"))
                             .setNegativeButton(android.R.string.cancel, null)
                             .setView(view)
@@ -202,7 +202,7 @@ class ThemeListFragment : Fragment() {
     private fun selectTheme(theme: Theme) {
         if (followSystemDayNightTheme) {
             val ctx = requireContext()
-            AlertDialog.Builder(ctx)
+            MaterialAlertDialogBuilder(ctx)
                 .setIcon(ctx.styledDrawable(android.R.attr.alertDialogIcon))
                 .setTitle(R.string.configure)
                 .setMessage(R.string.theme_message_follow_system_day_night_mode_enabled)

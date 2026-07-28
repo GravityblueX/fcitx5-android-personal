@@ -29,11 +29,13 @@ import splitties.views.dsl.core.lParams
 import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.view
 import splitties.views.gravityCenter
+import kotlin.math.roundToInt
 
 abstract class CandidateTabActionsAdapter(val theme: Theme, val indicatorStyle: Boolean = false) :
     RecyclerView.Adapter<CandidateTabActionsAdapter.TabActionViewHolder>() {
 
     private var tabs = listOf<CandidateAction>()
+    private var contentScale = 1f
 
     @SuppressLint("NotifyDataSetChanged")
     fun updateTabs(newTabs: List<CandidateAction>) {
@@ -47,6 +49,7 @@ abstract class CandidateTabActionsAdapter(val theme: Theme, val indicatorStyle: 
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): TabActionViewHolder {
         val ui = TabActionUi(parent.context, theme, indicatorStyle)
+        ui.setContentScale(contentScale)
         ui.root.layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         )
@@ -55,11 +58,16 @@ abstract class CandidateTabActionsAdapter(val theme: Theme, val indicatorStyle: 
 
     override fun onBindViewHolder(holder: TabActionViewHolder, position: Int) {
         val tab = tabs.getOrNull(position) ?: return
+        holder.ui.setContentScale(contentScale)
         holder.update(tab)
     }
 
     override fun onViewRecycled(holder: TabActionViewHolder) {
         holder.clear()
+    }
+
+    fun setContentScale(scale: Float) {
+        contentScale = scale.coerceIn(0f, 1f)
     }
 
     inner class TabActionViewHolder(val ui: TabActionUi) : RecyclerView.ViewHolder(ui.root) {
@@ -94,6 +102,8 @@ abstract class CandidateTabActionsAdapter(val theme: Theme, val indicatorStyle: 
             setTextColor(theme.candidateTextColor)
         }
 
+        private var contentScale = 1f
+
         override val root = view(::CustomGestureView) {
             background = createBackground(false, indicatorStyle)
             add(label, lParams(matchParent, ctx.dp(36)) {
@@ -112,6 +122,16 @@ abstract class CandidateTabActionsAdapter(val theme: Theme, val indicatorStyle: 
             label.text = tab.text
             checkable = tab.isCheckable
             root.isActivated = tab.isChecked
+        }
+
+        fun setContentScale(scale: Float) {
+            contentScale = scale.coerceIn(0f, 1f)
+            label.scaleX = contentScale
+            label.scaleY = contentScale
+            label.layoutParams = label.layoutParams.apply {
+                height = (ctx.dp(36) * contentScale).roundToInt()
+            }
+            root.background = createBackground(checkable, indicatorStyle)
         }
 
         private fun createBackground(checkable: Boolean, indicatorStyle: Boolean): Drawable {
@@ -141,9 +161,13 @@ abstract class CandidateTabActionsAdapter(val theme: Theme, val indicatorStyle: 
                     pressHighlightDrawable(theme.keyPressHighlightColor)
                 )
             ).apply {
-                setLayerSize(0, ctx.dp(11), ctx.dp(2))
+                setLayerSize(
+                    0,
+                    (ctx.dp(11) * contentScale).roundToInt(),
+                    (ctx.dp(2) * contentScale).roundToInt()
+                )
                 setLayerGravity(0, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-                setLayerInsetBottom(0, ctx.dp(4))
+                setLayerInsetBottom(0, (ctx.dp(4) * contentScale).roundToInt())
             }
         }
     }

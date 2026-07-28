@@ -5,6 +5,8 @@
 package org.fcitx.fcitx5.android.input.picker
 
 import androidx.core.content.ContextCompat
+import androidx.core.view.children
+import androidx.recyclerview.widget.RecyclerView
 import androidx.transition.Transition
 import androidx.viewpager2.widget.ViewPager2
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
@@ -21,6 +23,7 @@ import org.fcitx.fcitx5.android.input.popup.PopupComponent
 import org.fcitx.fcitx5.android.input.wm.EssentialWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
+import org.fcitx.fcitx5.android.input.wm.ScalableInputWindow
 import org.mechdancer.dependency.manager.must
 
 class PickerWindow(
@@ -31,7 +34,7 @@ class PickerWindow(
     private val popupPreview: Boolean = true,
     private val followKeyBorder: Boolean = true,
     private val policy: PickerPolicy = DefaultPickerPolicy()
-) : InputWindow.ExtendedInputWindow<PickerWindow>(), EssentialWindow {
+) : InputWindow.ExtendedInputWindow<PickerWindow>(), EssentialWindow, ScalableInputWindow {
 
     enum class Key : EssentialWindow.Key {
         Symbol,
@@ -159,4 +162,23 @@ class PickerWindow(
     }
 
     override val showTitle = false
+
+    override fun setContentScale(scale: Float) {
+        pickerPagesAdapter.contentScale = scale
+        pickerLayout.setContentScale(scale)
+        val pages = pickerLayout.pager.getChildAt(0) as? RecyclerView
+        pages?.children?.forEach {
+            (pages.getChildViewHolder(it) as? PickerPagesAdapter.ViewHolder)
+                ?.ui
+                ?.setContentScale(scale)
+        }
+    }
+
+    override fun setToolbarScale(scale: Float) {
+        pickerLayout.tabsUi.setContentScale(scale)
+    }
+
+    override fun setUsePortraitKeyboardStyle(enabled: Boolean) {
+        pickerLayout.embeddedKeyboard.setUsePortraitStyle(enabled)
+    }
 }

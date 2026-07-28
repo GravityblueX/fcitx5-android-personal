@@ -13,6 +13,8 @@ import org.fcitx.fcitx5.android.data.theme.Theme
 abstract class StatusAreaAdapter : RecyclerView.Adapter<StatusAreaAdapter.Holder>() {
     inner class Holder(val ui: StatusAreaEntryUi) : RecyclerView.ViewHolder(ui.root)
 
+    var contentScale = 1f
+
     var entries: Array<StatusAreaEntry> = arrayOf()
         @SuppressLint("NotifyDataSetChanged")
         set(value) {
@@ -27,6 +29,7 @@ abstract class StatusAreaAdapter : RecyclerView.Adapter<StatusAreaAdapter.Holder
     override fun onBindViewHolder(holder: Holder, position: Int) {
         val entry = entries[position]
         holder.ui.setEntry(entry)
+        holder.ui.setContentScale(contentScale)
         holder.ui.root.setOnClickListener {
             onItemClick(it, entry)
         }

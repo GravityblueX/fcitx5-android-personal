@@ -4,16 +4,16 @@
  */
 package org.fcitx.fcitx5.android.input.clipboard
 
-import android.annotation.SuppressLint
 import android.content.Intent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.FrameLayout
 import android.widget.PopupMenu
+import android.widget.TextView
 import androidx.annotation.Keep
 import androidx.core.text.bold
 import androidx.core.text.buildSpannedString
 import androidx.core.text.color
+import androidx.core.view.children
 import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.lifecycleScope
 import androidx.paging.Pager
@@ -23,7 +23,6 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.google.android.material.snackbar.BaseTransientBottomBar.BaseCallback
 import com.google.android.material.snackbar.Snackbar
-import com.google.android.material.snackbar.SnackbarContentLayout
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.fcitx.fcitx5.android.R
@@ -45,6 +44,7 @@ import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
+import org.fcitx.fcitx5.android.input.wm.ScalableInputWindow
 import org.fcitx.fcitx5.android.utils.AppUtil
 import org.fcitx.fcitx5.android.utils.EventStateMachine
 import org.fcitx.fcitx5.android.utils.item
@@ -52,8 +52,9 @@ import org.mechdancer.dependency.manager.must
 import splitties.dimensions.dp
 import splitties.resources.styledColor
 import splitties.views.dsl.core.withTheme
+import kotlin.math.roundToInt
 
-class ClipboardWindow : InputWindow.ExtendedInputWindow<ClipboardWindow>() {
+class ClipboardWindow : InputWindow.ExtendedInputWindow<ClipboardWindow>(), ScalableInputWindow {
 
     private val service: FcitxInputMethodService by manager.inputMethodService()
     private val windowManager: InputWindowManager by manager.must()
@@ -63,6 +64,7 @@ class ClipboardWindow : InputWindow.ExtendedInputWindow<ClipboardWindow>() {
         context.withTheme(R.style.InputViewSnackbarTheme)
     }
     private var snackbarInstance: Snackbar? = null
+    private var contentScale = 1f
 
     private lateinit var stateMachine: EventStateMachine<ClipboardStateMachine.State, ClipboardStateMachine.TransitionEvent, ClipboardStateMachine.BooleanKey>
 
@@ -200,7 +202,19 @@ class ClipboardWindow : InputWindow.ExtendedInputWindow<ClipboardWindow>() {
 
     private val pendingDeleteIds = arrayListOf<Int>()
 
-    @SuppressLint("RestrictedApi")
+    private fun Snackbar.scaleContent(resetLetterSpacing: Boolean = false) {
+        listOfNotNull(
+            view.findViewById<TextView>(com.google.android.material.R.id.snackbar_text),
+            view.findViewById<TextView>(com.google.android.material.R.id.snackbar_action)
+        ).forEach {
+            if (resetLetterSpacing) {
+                it.letterSpacing = 0f
+            }
+            it.scaleX = contentScale
+            it.scaleY = contentScale
+        }
+    }
+
     private fun showUndoSnackbar(vararg id: Int) {
         id.forEach { pendingDeleteIds.add(it) }
         val str = context.resources.getString(R.string.num_items_deleted, pendingDeleteIds.size)
@@ -235,17 +249,14 @@ class ClipboardWindow : InputWindow.ExtendedInputWindow<ClipboardWindow>() {
                     }
                 }
             }).apply {
-                val hMargin = snackbarCtx.dp(24)
-                val vMargin = snackbarCtx.dp(16)
+                val hMargin = (snackbarCtx.dp(24) * contentScale).roundToInt()
+                val vMargin = (snackbarCtx.dp(16) * contentScale).roundToInt()
                 view.updateLayoutParams<ViewGroup.MarginLayoutParams> {
                     leftMargin = hMargin
                     rightMargin = hMargin
                     bottomMargin = vMargin
                 }
-                ((view as FrameLayout).getChildAt(0) as SnackbarContentLayout).apply {
-                    messageView.letterSpacing = 0f
-                    actionView.letterSpacing = 0f
-                }
+                scaleContent(resetLetterSpacing = true)
                 show()
             }
     }
@@ -288,4 +299,25 @@ class ClipboardWindow : InputWindow.ExtendedInputWindow<ClipboardWindow>() {
     }
 
     override fun onCreateBarExtension(): View = ui.extension
+
+    override fun setContentScale(scale: Float) {
+        contentScale = scale
+        adapter.contentScale = scale
+        ui.setContentScale(scale)
+        ui.recyclerView.children.forEach {
+            ui.recyclerView.getChildViewHolder(it)
+                .let { holder -> (holder as? ClipboardAdapter.ViewHolder)?.entryUi }
+                ?.setContentScale(scale)
+        }
+        snackbarInstance?.let {
+            val hMargin = (snackbarCtx.dp(24) * contentScale).roundToInt()
+            val vMargin = (snackbarCtx.dp(16) * contentScale).roundToInt()
+            it.view.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                leftMargin = hMargin
+                rightMargin = hMargin
+                bottomMargin = vMargin
+            }
+            it.scaleContent()
+        }
+    }
 }

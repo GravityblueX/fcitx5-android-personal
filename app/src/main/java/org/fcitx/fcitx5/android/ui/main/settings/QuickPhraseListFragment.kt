@@ -4,7 +4,7 @@
  */
 package org.fcitx.fcitx5.android.ui.main.settings
 
-import android.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.net.Uri
@@ -20,6 +20,7 @@ import androidx.core.app.NotificationCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.color.MaterialColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -43,7 +44,6 @@ import org.fcitx.fcitx5.android.utils.parcelable
 import org.fcitx.fcitx5.android.utils.queryFileName
 import org.fcitx.fcitx5.android.utils.str
 import splitties.resources.drawable
-import splitties.resources.styledColor
 import splitties.views.dsl.core.add
 import splitties.views.dsl.core.lParams
 import splitties.views.dsl.core.matchParent
@@ -124,7 +124,13 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
                     }
                 }
                 imageDrawable = drawable(icon)!!.apply {
-                    setTint(styledColor(android.R.attr.colorControlNormal))
+                    setTint(
+                        MaterialColors.getColor(
+                            requireContext(),
+                            com.google.android.material.R.attr.colorOnSurfaceVariant,
+                            QuickPhraseListFragment::class.java.simpleName
+                        )
+                    )
                 }
             }
         ) {
@@ -147,7 +153,7 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
                     getString(R.string.import_from_file),
                     getString(R.string.create_new)
                 )
-                AlertDialog.Builder(requireContext())
+                MaterialAlertDialogBuilder(requireContext())
                     .setTitle(R.string.quickphrase_editor)
                     .setItems(actions) { _, i ->
                         when (i) {
@@ -167,7 +173,7 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
                     setPaddingDp(20, 10, 20, 0)
                     add(inputLayout, lParams(matchParent))
                 }
-                AlertDialog.Builder(requireContext())
+                MaterialAlertDialogBuilder(requireContext())
                     .setTitle(R.string.create_new)
                     .setView(layout)
                     .setPositiveButton(android.R.string.ok, null)

@@ -144,6 +144,26 @@ abstract class BaseKeyboard(
         spaceSwipeMoveCursor.registerOnChangeListener(spaceSwipeChangeListener)
     }
 
+    fun setContentScale(
+        scale: Float,
+        horizontalScale: Float = scale,
+        verticalScale: Float = scale
+    ) {
+        keyRows.forEach { row ->
+            row.children.filterIsInstance<KeyView>().forEach {
+                it.setContentScale(scale, horizontalScale, verticalScale)
+            }
+        }
+    }
+
+    fun setUsePortraitStyle(enabled: Boolean) {
+        keyRows.forEach { row ->
+            row.children.filterIsInstance<KeyView>().forEach {
+                it.setUsePortraitStyle(enabled)
+            }
+        }
+    }
+
     private fun createKeyView(def: KeyDef): KeyView {
         return when (def.appearance) {
             is KeyDef.Appearance.AltText -> AltTextKeyView(context, theme, def.appearance)
@@ -258,7 +278,7 @@ abstract class BaseKeyboard(
                     is KeyDef.Popup.Menu -> {
                         setOnLongClickListener { view ->
                             view as KeyView
-                            onPopupAction(PopupAction.ShowMenuAction(view.id, it, view.bounds))
+                            onPopupAction(PopupAction.ShowMenuAction(view.id, it, view.currentBounds))
                             // do not consume this LongClick gesture
                             false
                         }
@@ -280,7 +300,9 @@ abstract class BaseKeyboard(
                     is KeyDef.Popup.Keyboard -> {
                         setOnLongClickListener { view ->
                             view as KeyView
-                            onPopupAction(PopupAction.ShowKeyboardAction(view.id, it, view.bounds))
+                            onPopupAction(
+                                PopupAction.ShowKeyboardAction(view.id, it, view.currentBounds)
+                            )
                             // do not consume this LongClick gesture
                             false
                         }
@@ -306,7 +328,11 @@ abstract class BaseKeyboard(
                             if (popupOnKeyPress) {
                                 when (event.type) {
                                     GestureType.Down -> onPopupAction(
-                                        PopupAction.PreviewAction(view.id, it.content, view.bounds)
+                                        PopupAction.PreviewAction(
+                                            view.id,
+                                            it.content,
+                                            view.currentBounds
+                                        )
                                     )
                                     GestureType.Move -> {
                                         val triggered = swipeSymbolDirection.checkY(event.totalY)
@@ -331,7 +357,11 @@ abstract class BaseKeyboard(
                             if (popupOnKeyPress) {
                                 when (event.type) {
                                     GestureType.Down -> onPopupAction(
-                                        PopupAction.PreviewAction(view.id, it.content, view.bounds)
+                                        PopupAction.PreviewAction(
+                                            view.id,
+                                            it.content,
+                                            view.currentBounds
+                                        )
                                     )
                                     GestureType.Up -> {
                                         onPopupAction(PopupAction.DismissAction(view.id))

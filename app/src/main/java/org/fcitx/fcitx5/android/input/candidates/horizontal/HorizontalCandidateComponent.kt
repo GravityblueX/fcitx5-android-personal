@@ -8,6 +8,7 @@ package org.fcitx.fcitx5.android.input.candidates.horizontal
 import android.content.res.Configuration
 import android.graphics.drawable.ShapeDrawable
 import android.graphics.drawable.shapes.RectShape
+import androidx.core.view.children
 import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.flexbox.FlexboxLayoutManager
@@ -57,6 +58,7 @@ class HorizontalCandidateComponent :
 
     private var layoutMinWidth = 0
     private var layoutFlexGrow = 1f
+    private var contentScale = 1f
 
     /**
      * (for [HorizontalCandidateMode.AutoFillWidth] only)
@@ -88,6 +90,7 @@ class HorizontalCandidateComponent :
         object : HorizontalCandidateViewAdapter(theme) {
             override fun onBindViewHolder(holder: CandidateViewHolder, position: Int) {
                 super.onBindViewHolder(holder, position)
+                holder.ui.setContentScale(contentScale)
                 holder.itemView.updateLayoutParams<FlexboxLayoutManager.LayoutParams> {
                     minWidth = layoutMinWidth
                     flexGrow = layoutFlexGrow
@@ -106,6 +109,14 @@ class HorizontalCandidateComponent :
                 holder.itemView.setOnLongClickListener(null)
                 super.onViewRecycled(holder)
             }
+        }
+    }
+
+    fun setContentScale(scale: Float) {
+        if (contentScale == scale) return
+        contentScale = scale
+        view.children.forEach {
+            (view.getChildViewHolder(it) as? CandidateViewHolder)?.ui?.setContentScale(scale)
         }
     }
 

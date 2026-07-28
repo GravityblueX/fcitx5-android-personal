@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name_release">Fcitx5</string>
-    <string name="app_name_debug">Fcitx5 (Debug)</string>
+    <string name="app_name_release">Fcitx17</string>
+    <string name="app_name_debug">Fcitx17 (Debug)</string>
     <string name="save">Speichern</string>
     <string name="input_methods">Eingabemethoden</string>
     <string name="add_input_method">Eingabemethode hinzufügen</string>
@@ -56,7 +56,13 @@
     <string name="delete">Löschen</string>
     <string name="clipboard">Zwischenablage</string>
     <string name="keyboard_height">Tastaturhöhe</string>
+    <string name="floating_keyboard">Schwebende Tastatur</string>
+    <string name="enable_floating_keyboard">Schwebende Tastatur aktivieren</string>
+    <string name="disable_floating_keyboard">Schwebende Tastatur deaktivieren</string>
+    <string name="floating_keyboard_drag">Schwebende Tastatur verschieben</string>
+    <string name="floating_keyboard_resize">Größe der schwebenden Tastatur ändern</string>
     <string name="virtual_keyboard">Tastatur</string>
+    <string name="always">Immer</string>
     <string name="version">Version</string>
     <string name="build_git_hash">Git Hash erzeugen</string>
     <string name="source_code">Quelltext</string>
@@ -92,9 +98,10 @@
     <string name="theme">Thema</string>
     <string name="brightness">Helligkeit</string>
     <string name="key_radius">Tastenradius</string>
+    <string name="floating_keyboard_corner_radius">Eckenradius der schwebenden Tastatur</string>
     <string name="key_horizontal_margin">Horizontaler Tastenrand</string>
     <string name="key_vertical_margin">Vertikaler Tastenrand</string>
-    <string name="choose_image">Bild wählen ...</string>
+    <string name="choose_image">Bild wählen …</string>
     <string name="dark_keys">Dunkle Tasten</string>
     <string name="recrop_image">Bild neu zuschneiden</string>
     <string name="navbar_background">Hintergrund der Navigationsleiste</string>
@@ -102,7 +109,7 @@
     <string name="navbar_bkg_full">Hintergrundbild der Tastatur</string>
     <string name="punctuation_pos_top_right">Oben rechts</string>
     <string name="disable_animation">Animation deaktivieren</string>
-    <string name="import_from_file">Aus Dataei importieren ...</string>
+    <string name="import_from_file">Aus Datei importieren …</string>
     <string name="exception_theme_unknown">Thema %1$s ist unbekannt</string>
     <string name="exception_theme_json">Kann json-Thema nicht finden</string>
     <string name="light_mode_theme">Thema für hellen Modus</string>
@@ -138,9 +145,9 @@
     <string name="table_already_exists">Konfigurationsdatei der Tabelleneingabemethode \"%1$s\" existiert schon</string>
     <string name="table_file_does_not_exist_title">Tabelle nicht auffindbar</string>
     <string name="import_table">Tabelle importieren</string>
-    <string name="table_from_zip">Aus ZIP-Datei...</string>
-    <string name="table_select_files">Aus getrennten Dateien ...</string>
-    <string name="table_file_placeholder">Datei auswählen ...</string>
+    <string name="table_from_zip">Aus ZIP-Datei…</string>
+    <string name="table_select_files">Aus getrennten Dateien …</string>
+    <string name="table_file_placeholder">Datei auswählen …</string>
     <string name="table_conf_select_title">Konfigurationsdatei (.conf oder .conf.in) der Eingabemethode</string>
     <string name="table_dict_select_title">Wörterbuch Tabelle (.dict oder .txt)</string>
     <string name="exception_table_dict_filename">Die Erweiterung von \"%1$s\" weist nicht auf ein Wörterbuch hin (.dict oder .txt)</string>

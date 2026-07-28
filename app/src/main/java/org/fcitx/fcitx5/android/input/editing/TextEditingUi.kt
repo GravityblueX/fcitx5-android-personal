@@ -89,6 +89,23 @@ class TextEditingUi(
         contentDescription = ctx.getString(R.string.backspace)
     }
 
+    private val buttons by lazy {
+        listOf(
+            upButton,
+            rightButton,
+            downButton,
+            leftButton,
+            selectButton,
+            homeButton,
+            endButton,
+            selectAllButton,
+            cutButton,
+            copyButton,
+            pasteButton,
+            backspaceButton
+        )
+    }
+
     override val root = constraintLayout {
         add(leftButton, lParams {
             topOfParent()
@@ -196,5 +213,9 @@ class TextEditingUi(
 
     val extension = horizontalLayout {
         add(clipboardButton, lParams(dp(40), dp(40)))
+    }
+
+    fun setContentScale(scale: Float) {
+        buttons.forEach { it.setContentScale(scale) }
     }
 }

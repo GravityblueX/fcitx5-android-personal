@@ -6,9 +6,14 @@
 package org.fcitx.fcitx5.android.input
 
 import android.annotation.SuppressLint
+import android.content.res.ColorStateList
 import android.content.res.Configuration
+import android.graphics.Outline
+import android.graphics.Rect
 import android.os.Build
+import android.view.RoundedCorner
 import android.view.View
+import android.view.ViewOutlineProvider
 import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InlineSuggestionsResponse
@@ -16,6 +21,7 @@ import android.widget.ImageView
 import androidx.annotation.Keep
 import androidx.annotation.RequiresApi
 import androidx.core.view.updateLayoutParams
+import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.CapabilityFlags
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.daemon.FcitxConnection
@@ -52,6 +58,8 @@ import splitties.views.dsl.constraintlayout.constraintLayout
 import splitties.views.dsl.constraintlayout.endOfParent
 import splitties.views.dsl.constraintlayout.endToStartOf
 import splitties.views.dsl.constraintlayout.lParams
+import splitties.views.dsl.constraintlayout.leftOfParent
+import splitties.views.dsl.constraintlayout.rightOfParent
 import splitties.views.dsl.constraintlayout.startOfParent
 import splitties.views.dsl.constraintlayout.startToEndOf
 import splitties.views.dsl.constraintlayout.topOfParent
@@ -61,12 +69,15 @@ import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.view
 import splitties.views.dsl.core.wrapContent
 import splitties.views.imageDrawable
+import kotlin.math.max
+import kotlin.math.min
 
 @SuppressLint("ViewConstructor")
-class InputView(
+class InputView internal constructor(
     service: FcitxInputMethodService,
     fcitx: FcitxConnection,
-    theme: Theme
+    theme: Theme,
+    floatingKeyboardSessionState: FloatingKeyboardSessionState
 ) : BaseInputView(service, fcitx, theme) {
 
     private val keyBorder by ThemeManager.prefs.keyBorder
@@ -74,6 +85,7 @@ class InputView(
     private val customBackground = imageView {
         scaleType = ImageView.ScaleType.CENTER_CROP
     }
+    private val floatingPanelBackground = theme.backgroundDrawable(keyBorder)
 
     private val placeholderOnClickListener = OnClickListener { }
 
@@ -135,6 +147,7 @@ class InputView(
     private val keyboardSidePaddingLandscape = keyboardPrefs.keyboardSidePaddingLandscape
     private val keyboardBottomPadding = keyboardPrefs.keyboardBottomPadding
     private val keyboardBottomPaddingLandscape = keyboardPrefs.keyboardBottomPaddingLandscape
+    private var navBarBottomInset = 0
 
     private val keyboardSizePrefs = listOf(
         keyboardHeightPercent,
@@ -152,6 +165,24 @@ class InputView(
                 else -> keyboardHeightPercent
             }.getValue()
             return resources.displayMetrics.heightPixels * percent / 100
+        }
+
+    private val portraitKeyboardContentWidthPx: Int
+        get() {
+            val metrics = resources.displayMetrics
+            val portraitDisplayWidth = min(metrics.widthPixels, metrics.heightPixels)
+            return (
+                portraitDisplayWidth - 2 * dp(keyboardSidePadding.getValue())
+                ).coerceAtLeast(1)
+        }
+
+    private val portraitKeyboardHeightPx: Int
+        get() {
+            val metrics = resources.displayMetrics
+            val portraitDisplayHeight = max(metrics.widthPixels, metrics.heightPixels)
+            return (
+                portraitDisplayHeight * keyboardHeightPercent.getValue() / 100f
+                ).toInt().coerceAtLeast(1)
         }
 
     private val keyboardSidePaddingPx: Int
@@ -180,6 +211,21 @@ class InputView(
     }
 
     val keyboardView: View
+    private val keyboardPanel: View
+    private val floatingControls: View
+    private val floatingDragHandle: View
+    private val floatingResizeHandle: View
+    private val floatingKeyboardLocation = IntArray(2)
+    private var floatingController: FloatingKeyboardController? = null
+    private var floatingUiReady = false
+    private var detectedDisplayCornerRatio: Float? = null
+
+    val isFloatingKeyboard: Boolean
+        get() = floatingController?.isFloating == true
+
+    fun toggleFloatingKeyboard() {
+        floatingController?.toggleFloating()
+    }
 
     init {
         // MUST call before any operation
@@ -241,30 +287,111 @@ class InputView(
 
         updateKeyboardSize()
 
-        add(preedit.ui.root, lParams(matchParent, wrapContent) {
-            above(keyboardView)
-            centerHorizontally()
-        })
-        add(keyboardView, lParams(matchParent, wrapContent) {
-            centerHorizontally()
-            bottomOfParent()
+        floatingDragHandle = imageView {
+            setImageResource(R.drawable.ic_baseline_drag_handle_24)
+            imageTintList = ColorStateList.valueOf(theme.keyTextColor)
+            contentDescription = context.getString(R.string.floating_keyboard_drag)
+            isClickable = true
+            setPadding(dp(16), dp(4), dp(16), dp(4))
+        }
+        floatingResizeHandle = imageView {
+            setImageResource(R.drawable.ic_resize_bottom_right)
+            imageTintList = ColorStateList.valueOf(theme.keyTextColor)
+            contentDescription = context.getString(R.string.floating_keyboard_resize)
+            isClickable = true
+            setPadding(dp(12), dp(4), dp(8), dp(4))
+        }
+        floatingControls = constraintLayout {
+            visibility = GONE
+            add(floatingDragHandle, lParams(dp(72), matchParent) {
+                centerHorizontally()
+                topOfParent()
+                bottomOfParent()
+            })
+            add(floatingResizeHandle, lParams(dp(48), matchParent) {
+                rightOfParent()
+                topOfParent()
+                bottomOfParent()
+            })
+        }
+        keyboardPanel = constraintLayout {
+            outlineProvider = object : ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: Outline) {
+                    val radius = min(view.width, view.height) * floatingCornerRatio()
+                    outline.setRoundRect(0, 0, view.width, view.height, radius)
+                }
+            }
+            add(preedit.ui.root, lParams(matchParent, wrapContent) {
+                topOfParent()
+                centerHorizontally()
+            })
+            add(keyboardView, lParams(matchParent, wrapContent) {
+                below(preedit.ui.root)
+                centerHorizontally()
+            })
+            add(floatingControls, lParams(matchParent, dp(FLOATING_CONTROLS_HEIGHT)) {
+                below(keyboardView)
+                bottomOfParent()
+                centerHorizontally()
+            })
+        }
+        preedit.ui.root.addOnLayoutChangeListener {
+                _, _, top, _, bottom, _, oldTop, _, oldBottom ->
+            floatingController?.onTopOverlayHeightChanged(
+                oldHeight = oldBottom - oldTop,
+                newHeight = bottom - top
+            )
+        }
+        keyboardPanel.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+            view.invalidateOutline()
+        }
+        add(keyboardPanel, lParams(matchParent, wrapContent) {
+            leftOfParent()
+            topOfParent()
         })
         add(popup.root, lParams(matchParent, matchParent) {
             centerVertically()
             centerHorizontally()
         })
+        floatingUiReady = true
+
+        val controller = FloatingKeyboardController(
+            host = this,
+            panel = keyboardPanel,
+            controls = floatingControls,
+            dragHandle = floatingDragHandle,
+            resizeHandle = floatingResizeHandle,
+            sessionState = floatingKeyboardSessionState,
+            onKeyboardHeightChanged = { updateKeyboardSize() },
+            onPanelWidthChanged = { updateKeyboardContentScale() },
+            onFloatingChanged = {
+                updateKeyboardSize()
+                kawaiiBar.updateFloatingKeyboardButton(it)
+            },
+            requestInsetsUpdate = {
+                service.window.window?.decorView?.requestLayout()
+            }
+        )
+        floatingController = controller
+        controller.start()
+        kawaiiBar.updateFloatingKeyboardButton(controller.isFloating)
 
         keyboardPrefs.registerOnChangeListener(onKeyboardSizeChangeListener)
     }
 
     private fun updateKeyboardSize() {
+        val floating = isFloatingKeyboard
+        val floatingHeight = if (floating) floatingController?.keyboardHeightPx else null
         windowManager.view.updateLayoutParams {
-            height = keyboardHeightPx
+            height = floatingHeight ?: keyboardHeightPx
         }
         bottomPaddingSpace.updateLayoutParams {
-            height = keyboardBottomPaddingPx
+            height = if (floating) 0 else keyboardBottomPaddingPx
         }
-        val sidePadding = keyboardSidePaddingPx
+        bottomPaddingSpace.updateLayoutParams<LayoutParams> {
+            bottomMargin = if (floating) 0 else navBarBottomInset
+        }
+        val sidePadding = if (floating) 0 else keyboardSidePaddingPx
         if (sidePadding == 0) {
             // hide side padding space views when unnecessary
             leftPaddingSpace.visibility = GONE
@@ -293,13 +420,105 @@ class InputView(
         }
         preedit.ui.root.setPadding(sidePadding, 0, sidePadding, 0)
         kawaiiBar.view.setPadding(sidePadding, 0, sidePadding, 0)
+        if (floatingUiReady) {
+            updateFloatingPresentation()
+        }
+    }
+
+    private fun updateFloatingPresentation() {
+        val floating = isFloatingKeyboard
+        keyboardWindow.setUsePortraitStyle(floating)
+        windowManager.setUsePortraitKeyboardStyle(floating)
+        kawaiiBar.setUsePortraitKeyboardStyle(floating)
+        keyboardPanel.background = if (floating) floatingPanelBackground else null
+        keyboardPanel.clipToOutline = floating
+        keyboardPanel.invalidateOutline()
+        customBackground.visibility = if (floating) GONE else VISIBLE
+        updateKeyboardContentScale()
+    }
+
+    private fun updateKeyboardContentScale() {
+        if (!isFloatingKeyboard) {
+            keyboardWindow.setContentScale(1f)
+            windowManager.setContentScale(1f)
+            kawaiiBar.setContentScale(1f, 1f)
+            preedit.ui.setContentScale(1f)
+            popup.setContentScale(1f)
+            return
+        }
+        val panelWidth = keyboardPanel.layoutParams.width.takeIf { it > 0 }
+            ?: keyboardPanel.width.takeIf { it > 0 }
+            ?: return
+        val availableWidth = portraitKeyboardContentWidthPx
+        val baseKeyboardHeight = portraitKeyboardHeightPx
+        val currentKeyboardHeight =
+            (floatingController?.keyboardHeightPx ?: baseKeyboardHeight).coerceAtLeast(1)
+        val widthScale = panelWidth.toFloat() / availableWidth
+        val heightScale = currentKeyboardHeight.toFloat() / baseKeyboardHeight
+        val contentScale = min(widthScale, heightScale).coerceIn(MIN_KEY_CONTENT_SCALE, 1f)
+        val toolbarScale = widthScale.coerceIn(MIN_TOOLBAR_CONTENT_SCALE, 1f)
+        val barTextScale = MIN_BAR_TEXT_SCALE +
+            (1f - MIN_BAR_TEXT_SCALE) * widthScale.coerceIn(0f, 1f)
+        keyboardWindow.setContentScale(
+            contentScale,
+            widthScale.coerceIn(0f, 1f),
+            heightScale.coerceIn(0f, 1f)
+        )
+        windowManager.setContentScale(contentScale, toolbarScale)
+        kawaiiBar.setContentScale(toolbarScale, barTextScale, contentScale)
+        preedit.ui.setContentScale(contentScale)
+        popup.setContentScale(contentScale)
     }
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
+        navBarBottomInset = getNavBarBottomInset(insets)
+        updateDetectedDisplayCornerRatio(insets)
         bottomPaddingSpace.updateLayoutParams<LayoutParams> {
-            bottomMargin = getNavBarBottomInset(insets)
+            bottomMargin = if (isFloatingKeyboard) 0 else navBarBottomInset
         }
+        floatingController?.updateWindowInsets(insets)
         return insets
+    }
+
+    private fun floatingCornerRatio(): Float {
+        val configured = ThemeManager.prefs.floatingKeyboardCornerRadius.getValue()
+        return if (configured > 0) configured / 100f
+        else detectedDisplayCornerRatio ?: DEFAULT_FLOATING_CORNER_RATIO
+    }
+
+    private fun updateDetectedDisplayCornerRatio(insets: WindowInsets) {
+        detectedDisplayCornerRatio =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                detectDisplayCornerRatio(insets)
+            } else {
+                null
+            }
+        if (floatingUiReady) keyboardPanel.invalidateOutline()
+    }
+
+    @RequiresApi(Build.VERSION_CODES.S)
+    private fun detectDisplayCornerRatio(insets: WindowInsets): Float? {
+        val displayShortEdge = min(width, height)
+        if (displayShortEdge <= 0) return null
+        val radius = intArrayOf(
+            RoundedCorner.POSITION_TOP_LEFT,
+            RoundedCorner.POSITION_TOP_RIGHT,
+            RoundedCorner.POSITION_BOTTOM_RIGHT,
+            RoundedCorner.POSITION_BOTTOM_LEFT
+        ).maxOfOrNull { insets.getRoundedCorner(it)?.radius ?: 0 } ?: 0
+        return radius.takeIf { it > 0 }?.toFloat()?.div(displayShortEdge)
+    }
+
+    fun getFloatingKeyboardBoundsInWindow(outBounds: Rect): Boolean {
+        if (!isFloatingKeyboard || keyboardPanel.width <= 0 || keyboardPanel.height <= 0) {
+            outBounds.setEmpty()
+            return false
+        }
+        keyboardPanel.getLocationInWindow(floatingKeyboardLocation)
+        val left = floatingKeyboardLocation[0]
+        val top = floatingKeyboardLocation[1]
+        outBounds.set(left, top, left + keyboardPanel.width, top + keyboardPanel.height)
+        return true
     }
 
     /**
@@ -360,10 +579,20 @@ class InputView(
     }
 
     override fun onDetachedFromWindow() {
+        floatingController?.destroy()
+        floatingController = null
         keyboardPrefs.unregisterOnChangeListener(onKeyboardSizeChangeListener)
         // clear DynamicScope, implies that InputView should not be attached again after detached.
         scope.clear()
         super.onDetachedFromWindow()
+    }
+
+    private companion object {
+        const val FLOATING_CONTROLS_HEIGHT = 32
+        const val MIN_KEY_CONTENT_SCALE = 0.5f
+        const val MIN_TOOLBAR_CONTENT_SCALE = 0.9f
+        const val MIN_BAR_TEXT_SCALE = 0.8f
+        const val DEFAULT_FLOATING_CORNER_RATIO = 0.06f
     }
 
 }

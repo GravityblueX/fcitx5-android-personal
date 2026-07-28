@@ -57,6 +57,7 @@ import org.fcitx.fcitx5.android.input.clipboard.ClipboardWindow
 import org.fcitx.fcitx5.android.input.dependency.UniqueViewComponent
 import org.fcitx.fcitx5.android.input.dependency.context
 import org.fcitx.fcitx5.android.input.dependency.inputMethodService
+import org.fcitx.fcitx5.android.input.dependency.inputView
 import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.editing.TextEditingWindow
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
@@ -90,6 +91,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     private val context by manager.context()
     private val theme by manager.theme()
     private val service by manager.inputMethodService()
+    private val inputView by manager.inputView()
     private val windowManager: InputWindowManager by manager.must()
     private val horizontalCandidate: HorizontalCandidateComponent by manager.must()
     private val commonKeyActionListener: CommonKeyActionListener by manager.must()
@@ -303,6 +305,9 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                 clipboardButton.setOnClickListener {
                     windowManager.attachWindow(ClipboardWindow())
                 }
+                floatingKeyboardButton.setOnClickListener {
+                    inputView.toggleFloatingKeyboard()
+                }
                 moreButton.setOnClickListener {
                     windowManager.attachWindow(StatusAreaWindow())
                 }
@@ -335,6 +340,9 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
 
     private val candidateUi by lazy {
         CandidateUi(context, theme, horizontalCandidate.view).apply {
+            clearButton.setOnClickListener {
+                service.postFcitxJob { reset() }
+            }
             expandButton.apply {
                 swipeEnabled = true
                 swipeThresholdY = dp(HEIGHT.toFloat())
@@ -407,6 +415,21 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         view.displayedChild = index
     }
 
+    fun setContentScale(
+        toolbarScale: Float,
+        textScale: Float,
+        candidateScale: Float = textScale
+    ) {
+        idleUi.setContentScale(toolbarScale, textScale)
+        candidateUi.setContentScale(toolbarScale)
+        horizontalCandidate.setContentScale(candidateScale)
+        titleUi.setContentScale(toolbarScale, textScale)
+    }
+
+    fun setUsePortraitKeyboardStyle(enabled: Boolean) {
+        idleUi.setUsePortraitKeyboardStyle(enabled)
+    }
+
     override val view by lazy {
         ViewAnimator(context).apply {
             backgroundColor =
@@ -429,6 +452,20 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         ClipboardManager.addOnUpdateListener(onClipboardUpdateListener)
         clipboardSuggestion.registerOnChangeListener(onClipboardSuggestionUpdateListener)
         clipboardItemTimeout.registerOnChangeListener(onClipboardTimeoutUpdateListener)
+    }
+
+    fun updateFloatingKeyboardButton(enabled: Boolean) {
+        idleUi.buttonsUi.floatingKeyboardButton.apply {
+            setIcon(
+                if (enabled) R.drawable.ic_mdi_keyboard_off_24
+                else R.drawable.ic_mdi_keyboard_close_24
+            )
+            alpha = 1f
+            contentDescription = context.getString(
+                if (enabled) R.string.disable_floating_keyboard
+                else R.string.enable_floating_keyboard
+            )
+        }
     }
 
     override fun onStartInput(info: EditorInfo, capFlags: CapabilityFlags) {

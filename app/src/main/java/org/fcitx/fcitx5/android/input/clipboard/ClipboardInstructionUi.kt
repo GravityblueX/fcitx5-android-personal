@@ -5,6 +5,8 @@
 package org.fcitx.fcitx5.android.input.clipboard
 
 import android.content.Context
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.updateLayoutParams
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.theme.Theme
 import splitties.dimensions.dp
@@ -23,8 +25,11 @@ import splitties.views.dsl.core.textView
 import splitties.views.dsl.core.wrapContent
 import splitties.views.imageDrawable
 import splitties.views.setPaddingDp
+import kotlin.math.roundToInt
 
 sealed class ClipboardInstructionUi(override val ctx: Context, protected val theme: Theme) : Ui {
+
+    abstract fun setContentScale(scale: Float)
 
     class Enable(ctx: Context, theme: Theme) : ClipboardInstructionUi(ctx, theme) {
 
@@ -52,6 +57,25 @@ sealed class ClipboardInstructionUi(override val ctx: Context, protected val the
                 endOfParent(dp(8))
             })
         }
+
+        override fun setContentScale(scale: Float) {
+            val scaled = scale.coerceIn(0f, 1f)
+            instructionText.apply {
+                scaleX = scaled
+                scaleY = scaled
+                setPadding(
+                    (ctx.dp(12) * scaled).roundToInt(),
+                    (ctx.dp(8) * scaled).roundToInt(),
+                    (ctx.dp(12) * scaled).roundToInt(),
+                    (ctx.dp(8) * scaled).roundToInt()
+                )
+            }
+            enableButton.scaleX = scaled
+            enableButton.scaleY = scaled
+            enableButton.updateLayoutParams<ConstraintLayout.LayoutParams> {
+                rightMargin = (ctx.dp(8) * scaled).roundToInt()
+            }
+        }
     }
 
     class Empty(ctx: Context, theme: Theme) : ClipboardInstructionUi(ctx, theme) {
@@ -78,6 +102,22 @@ sealed class ClipboardInstructionUi(override val ctx: Context, protected val the
                 startOfParent()
                 endOfParent()
             })
+        }
+
+        override fun setContentScale(scale: Float) {
+            val scaled = scale.coerceIn(0f, 1f)
+            icon.updateLayoutParams<ConstraintLayout.LayoutParams> {
+                width = (ctx.dp(90) * scaled).roundToInt()
+                height = (ctx.dp(90) * scaled).roundToInt()
+                topMargin = (ctx.dp(24) * scaled).roundToInt()
+            }
+            instructionText.apply {
+                scaleX = scaled
+                scaleY = scaled
+                updateLayoutParams<ConstraintLayout.LayoutParams> {
+                    topMargin = (ctx.dp(16) * scaled).roundToInt()
+                }
+            }
         }
     }
 }

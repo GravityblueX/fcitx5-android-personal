@@ -166,4 +166,8 @@ class ExpandedCandidateLayout(context: Context, theme: Theme) : ConstraintLayout
     fun resetPosition() {
         recyclerView.scrollToPosition(0)
     }
+
+    fun setContentScale(scale: Float) {
+        embeddedKeyboard.setContentScale(scale)
+    }
 }

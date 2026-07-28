@@ -9,6 +9,7 @@ import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.ShapeDrawable
 import android.graphics.drawable.shapes.OvalShape
+import android.graphics.Outline
 import android.os.Build
 import android.view.View
 import android.view.ViewOutlineProvider
@@ -68,8 +69,13 @@ class ThemeThumbnailUi(override val ctx: Context) : Ui {
     }
 
     override val root = constraintLayout {
-        outlineProvider = ViewOutlineProvider.BOUNDS
-        elevation = dp(2f)
+        clipToOutline = true
+        outlineProvider = object : ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: Outline) {
+                outline.setRoundRect(0, 0, view.width, view.height, ctx.dp(24f))
+            }
+        }
+        elevation = 0f
         add(bkg, lParams(matchParent, matchParent))
         add(bar, lParams(matchParent, dp(14)))
         add(spaceBar, lParams(height = dp(10)) {

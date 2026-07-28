@@ -4,6 +4,7 @@
  */
 package org.fcitx.fcitx5.android
 
+import android.annotation.SuppressLint
 import android.app.Application
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -80,6 +81,10 @@ class FcitxApplication : Application() {
             applicationContext
         }
 
+    // Release builds intentionally replace Android's crash handler so the in-app log screen can
+    // capture the stack trace before the process exits. Delegating would terminate the process
+    // before that activity can be launched.
+    @SuppressLint("DefaultUncaughtExceptionDelegation")
     override fun onCreate() {
         super.onCreate()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !userManager.isUserUnlocked) {

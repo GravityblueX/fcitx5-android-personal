@@ -7,6 +7,7 @@ package org.fcitx.fcitx5.android.input.bar.ui
 import android.content.Context
 import android.graphics.Typeface
 import android.view.View
+import android.view.ViewGroup
 import androidx.core.view.isVisible
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.theme.Theme
@@ -41,6 +42,7 @@ class TitleUi(override val ctx: Context, theme: Theme) : Ui {
     }
 
     private var extension: View? = null
+    private var toolbarScale = 1f
 
     override val root = constraintLayout {
         add(backButton, lParams(dp(40), dp(40)) {
@@ -65,6 +67,14 @@ class TitleUi(override val ctx: Context, theme: Theme) : Ui {
         titleText.text = title
     }
 
+    fun setContentScale(toolbarScale: Float, textScale: Float) {
+        this.toolbarScale = toolbarScale
+        backButton.setContentScale(toolbarScale)
+        titleText.scaleX = textScale
+        titleText.scaleY = textScale
+        extension?.let { scaleToolButtons(it, toolbarScale) }
+    }
+
     fun addExtension(view: View, showTitle: Boolean) {
         if (extension != null) {
             throw IllegalStateException("TitleBar extension is already present")
@@ -72,6 +82,7 @@ class TitleUi(override val ctx: Context, theme: Theme) : Ui {
         backButton.isVisible = showTitle
         titleText.isVisible = showTitle
         extension = view
+        scaleToolButtons(view, toolbarScale)
         root.run {
             add(view, lParams(matchConstraints, dp(40)) {
                 centerVertically()
@@ -88,6 +99,17 @@ class TitleUi(override val ctx: Context, theme: Theme) : Ui {
         extension?.let {
             root.removeView(it)
             extension = null
+        }
+    }
+
+    private fun scaleToolButtons(view: View, scale: Float) {
+        if (view is ToolButton) {
+            view.setContentScale(scale)
+        }
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) {
+                scaleToolButtons(view.getChildAt(index), scale)
+            }
         }
     }
 }

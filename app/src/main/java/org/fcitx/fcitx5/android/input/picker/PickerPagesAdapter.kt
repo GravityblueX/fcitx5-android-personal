@@ -25,6 +25,8 @@ class PickerPagesAdapter(
 
     class ViewHolder(val ui: PickerPageUi) : RecyclerView.ViewHolder(ui.root)
 
+    var contentScale: Float = 1f
+
     /**
      * list<`Category` to `[start, end]`>, starting with empty "RecentlyUsed" category
      */
@@ -98,10 +100,13 @@ class PickerPagesAdapter(
     override fun getItemCount() = pages.size
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        return ViewHolder(PickerPageUi(parent.context, theme, density, bordered))
+        return ViewHolder(PickerPageUi(parent.context, theme, density, bordered)).also {
+            it.ui.setContentScale(contentScale)
+        }
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        holder.ui.setContentScale(contentScale)
         if (position == 0) {
             // RecentlyUsed content should be displayed as-is, without popups
             holder.ui.setItems(recentlyUsed.items)

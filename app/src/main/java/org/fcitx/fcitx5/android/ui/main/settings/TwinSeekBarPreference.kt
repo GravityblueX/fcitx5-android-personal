@@ -7,14 +7,13 @@ package org.fcitx.fcitx5.android.ui.main.settings
 import android.content.Context
 import android.util.AttributeSet
 import android.view.View
-import android.widget.SeekBar
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.slider.Slider
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.edit
 import androidx.preference.DialogPreference
 import org.fcitx.fcitx5.android.R
-import org.fcitx.fcitx5.android.utils.setOnChangeListener
 import splitties.dimensions.dp
 import splitties.resources.resolveThemeAttribute
 import splitties.views.dsl.constraintlayout.below
@@ -27,8 +26,8 @@ import splitties.views.dsl.constraintlayout.startOfParent
 import splitties.views.dsl.constraintlayout.topOfParent
 import splitties.views.dsl.core.add
 import splitties.views.dsl.core.horizontalMargin
-import splitties.views.dsl.core.seekBar
 import splitties.views.dsl.core.textView
+import splitties.views.dsl.core.view
 import splitties.views.dsl.core.verticalMargin
 import splitties.views.dsl.core.wrapContent
 import splitties.views.textAppearance
@@ -98,20 +97,27 @@ class TwinSeekBarPreference @JvmOverloads constructor(
         initialValue: Int,
         defaultValue: Int? = null,
         belowView: View? = null
-    ): SeekBar {
+    ): Slider {
         val textLabel = textView {
             text = label
-            textAppearance = context.resolveThemeAttribute(android.R.attr.textAppearanceListItem)
+            textAppearance = context.resolveThemeAttribute(
+                com.google.android.material.R.attr.textAppearanceTitleMedium
+            )
         }
         val valueLabel = textView {
             text = textForValue(initialValue, defaultValue)
-            textAppearance = context.resolveThemeAttribute(android.R.attr.textAppearanceListItem)
+            textAppearance = context.resolveThemeAttribute(
+                com.google.android.material.R.attr.textAppearanceTitleMedium
+            )
         }
-        val seekBar = seekBar {
-            max = progressForValue(this@TwinSeekBarPreference.max)
-            progress = progressForValue(initialValue)
-            setOnChangeListener {
-                valueLabel.text = textForValue(valueForProgress(it), defaultValue)
+        val slider = view({ Slider(it) }) {
+            valueFrom = 0f
+            valueTo = progressForValue(this@TwinSeekBarPreference.max).toFloat()
+            stepSize = 1f
+            value = progressForValue(initialValue).toFloat()
+            addOnChangeListener { _, value, _ ->
+                valueLabel.text =
+                    textForValue(valueForProgress(value.toInt()), defaultValue)
             }
         }
         val textMargin = dp(24)
@@ -126,17 +132,17 @@ class TwinSeekBarPreference @JvmOverloads constructor(
             else below(belowView, textMargin)
             endOfParent(textMargin)
         })
-        add(seekBar, lParams(matchConstraints, wrapContent) {
+        add(slider, lParams(matchConstraints, wrapContent) {
             below(valueLabel, seekBarMargin)
             centerHorizontally(seekBarMargin)
         })
-        return seekBar
+        return slider
     }
 
     private fun showDialog() {
         var messageText: TextView? = null
-        val primarySeekBar: SeekBar
-        val secondarySeekBar: SeekBar
+        val primarySeekBar: Slider
+        val secondarySeekBar: Slider
         val dialogContent = context.constraintLayout {
             if (dialogMessage != null) {
                 messageText = textView { text = dialogMessage }
@@ -148,12 +154,12 @@ class TwinSeekBarPreference @JvmOverloads constructor(
             primarySeekBar = addSeekBar(label, value, default, messageText)
             secondarySeekBar = addSeekBar(secondaryLabel, secondaryValue, secondaryDefault, primarySeekBar)
         }
-        AlertDialog.Builder(context)
+        MaterialAlertDialogBuilder(context)
             .setTitle(this@TwinSeekBarPreference.dialogTitle)
             .setView(dialogContent)
             .setPositiveButton(android.R.string.ok) { _, _ ->
-                val primary = valueForProgress(primarySeekBar.progress)
-                val secondary = valueForProgress(secondarySeekBar.progress)
+                val primary = valueForProgress(primarySeekBar.value.toInt())
+                val secondary = valueForProgress(secondarySeekBar.value.toInt())
                 setValue(primary, secondary)
             }
             .setNeutralButton(R.string.default_) { _, _ ->

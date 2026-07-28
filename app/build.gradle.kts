@@ -10,10 +10,13 @@ plugins {
 }
 
 android {
+    // Keep the source namespace unchanged because native/JNI entry points and plugin-facing
+    // implementation classes use it. The application ID is independent and allows this build
+    // to coexist with the official org.fcitx.fcitx5.android package.
     namespace = "org.fcitx.fcitx5.android"
 
     defaultConfig {
-        applicationId = "org.fcitx.fcitx5.android"
+        applicationId = "org.fcitx.fcitx17.android"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         @Suppress("UnstableApiUsage")
@@ -40,21 +43,22 @@ android {
 
     buildTypes {
         release {
-            resValue("mipmap", "app_icon", "@mipmap/ic_launcher")
-            resValue("mipmap", "app_icon_round", "@mipmap/ic_launcher_round")
-            resValue("string", "app_name", "@string/app_name_release")
             proguardFile("proguard-rules.pro")
         }
         debug {
-            resValue("mipmap", "app_icon", "@mipmap/ic_launcher_debug")
-            resValue("mipmap", "app_icon_round", "@mipmap/ic_launcher_round_debug")
-            resValue("string", "app_name", "@string/app_name_debug")
+            applicationIdSuffix = ".debug"
         }
     }
 
     androidResources {
         @Suppress("UnstableApiUsage")
         generateLocaleConfig = true
+    }
+
+    lint {
+        // Translation coverage is inherited technical debt. Keep it in a baseline so newly
+        // introduced untranslated strings still fail lint instead of disabling the rule globally.
+        baseline = file("lint-baseline.xml")
     }
 }
 

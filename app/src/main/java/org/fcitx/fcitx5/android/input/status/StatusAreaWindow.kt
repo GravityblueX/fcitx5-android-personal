@@ -8,6 +8,7 @@ import android.os.Build
 import android.view.View
 import android.widget.PopupMenu
 import android.widget.Toast
+import androidx.core.view.children
 import androidx.core.text.buildSpannedString
 import androidx.core.text.color
 import androidx.lifecycle.lifecycleScope
@@ -32,6 +33,7 @@ import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.Reload
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.ThemeList
 import org.fcitx.fcitx5.android.input.wm.InputWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
+import org.fcitx.fcitx5.android.input.wm.ScalableInputWindow
 import org.fcitx.fcitx5.android.utils.AppUtil
 import org.fcitx.fcitx5.android.utils.DeviceUtil
 import org.fcitx.fcitx5.android.utils.alpha
@@ -46,7 +48,7 @@ import splitties.views.dsl.recyclerview.recyclerView
 import splitties.views.recyclerview.gridLayoutManager
 
 class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
-    InputBroadcastReceiver {
+    InputBroadcastReceiver, ScalableInputWindow {
 
     private val service: FcitxInputMethodService by manager.inputMethodService()
     private val fcitx: FcitxConnection by manager.fcitx()
@@ -205,6 +207,15 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
     }
 
     override fun onCreateBarExtension() = barExtension
+
+    override fun setContentScale(scale: Float) {
+        adapter.contentScale = scale
+        view.children.forEach {
+            (view.getChildViewHolder(it) as? StatusAreaAdapter.Holder)
+                ?.ui
+                ?.setContentScale(scale)
+        }
+    }
 
     override fun onAttached() {
         fcitx.launchOnReady {

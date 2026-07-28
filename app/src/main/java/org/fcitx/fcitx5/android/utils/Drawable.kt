@@ -30,6 +30,14 @@ fun borderlessRippleDrawable(
     radius = r
 }
 
+fun circleRippleDrawable(
+    @ColorInt color: Int
+): Drawable = RippleDrawable(
+    ColorStateList.valueOf(color),
+    null,
+    ShapeDrawable(OvalShape()).apply { paint.color = Color.WHITE }
+)
+
 fun pressHighlightDrawable(
     @ColorInt color: Int
 ): Drawable = StateListDrawable().apply {

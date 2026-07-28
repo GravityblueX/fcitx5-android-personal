@@ -21,6 +21,13 @@
         <intent>
             <action android:name="${applicationId}.plugin.MANIFEST" />
         </intent>
+        <!-- Official release/debug plugins keep the upstream discovery actions. -->
+        <intent>
+            <action android:name="org.fcitx.fcitx5.android.plugin.MANIFEST" />
+        </intent>
+        <intent>
+            <action android:name="org.fcitx.fcitx5.android.debug.plugin.MANIFEST" />
+        </intent>
         <intent>
             <action android:name="android.view.InputMethod" />
         </intent>
@@ -35,6 +42,12 @@
         android:protectionLevel="signature" />
 
     <uses-permission android:name="${applicationId}.permission.PLUGIN" />
+    <!-- Requested for official service plugins; Android grants it only when their permission
+         definition permits this signing certificate. Static data plugins do not need it. -->
+    <uses-permission android:name="org.fcitx.fcitx5.android.permission.PLUGIN" />
+    <uses-permission
+        android:name="org.fcitx.fcitx5.android.debug.permission.PLUGIN"
+        tools:ignore="CustomPermissionTypo" />
 
     <application
         android:name=".FcitxApplication"

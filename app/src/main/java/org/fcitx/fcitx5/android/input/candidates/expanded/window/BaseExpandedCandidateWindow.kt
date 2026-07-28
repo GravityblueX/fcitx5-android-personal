@@ -9,6 +9,7 @@ import android.graphics.drawable.ShapeDrawable
 import android.graphics.drawable.shapes.RectShape
 import android.view.View
 import androidx.lifecycle.lifecycleScope
+import androidx.core.view.children
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.recyclerview.widget.RecyclerView
@@ -41,13 +42,14 @@ import org.fcitx.fcitx5.android.input.keyboard.KeyActionListener
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
+import org.fcitx.fcitx5.android.input.wm.ScalableInputWindow
 import org.mechdancer.dependency.manager.must
 import splitties.dimensions.dp
 import splitties.views.recyclerview.verticalLayoutManager
 import kotlin.math.max
 
 abstract class BaseExpandedCandidateWindow<T : BaseExpandedCandidateWindow<T>> :
-    InputWindow.SimpleInputWindow<T>(), InputBroadcastReceiver {
+    InputWindow.SimpleInputWindow<T>(), InputBroadcastReceiver, ScalableInputWindow {
 
     protected val service by manager.inputMethodService()
     protected val theme by manager.theme()
@@ -210,6 +212,33 @@ abstract class BaseExpandedCandidateWindow<T : BaseExpandedCandidateWindow<T>> :
 
     override fun onInputPanelUpdate(data: FcitxEvent.InputPanelEvent.Data) {
         updateTabs(data.tabs)
+    }
+
+    override fun setContentScale(scale: Float) {
+        adapter.setContentScale(scale)
+        tabsAdapter.setContentScale(scale)
+        pinnedTabsAdapter.setContentScale(scale)
+        candidateLayout.setContentScale(scale)
+        candidateLayout.recyclerView.children.forEach {
+            (candidateLayout.recyclerView.getChildViewHolder(it) as? CandidateViewHolder)
+                ?.let(adapter::applyContentScale)
+        }
+        candidateLayout.scrollableTabs.children.forEach {
+            (candidateLayout.scrollableTabs.getChildViewHolder(it)
+                    as? CandidateTabActionsAdapter.TabActionViewHolder)
+                ?.ui
+                ?.setContentScale(scale)
+        }
+        candidateLayout.pinnedTabs.children.forEach {
+            (candidateLayout.pinnedTabs.getChildViewHolder(it)
+                    as? CandidateTabActionsAdapter.TabActionViewHolder)
+                ?.ui
+                ?.setContentScale(scale)
+        }
+    }
+
+    override fun setUsePortraitKeyboardStyle(enabled: Boolean) {
+        candidateLayout.embeddedKeyboard.setUsePortraitStyle(enabled)
     }
 
 }

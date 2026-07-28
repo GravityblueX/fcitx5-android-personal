@@ -15,6 +15,7 @@ import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView
 import org.fcitx.fcitx5.android.utils.borderlessRippleDrawable
 import org.fcitx.fcitx5.android.utils.circlePressHighlightDrawable
+import org.fcitx.fcitx5.android.utils.circleRippleDrawable
 import splitties.dimensions.dp
 import splitties.views.dsl.core.add
 import splitties.views.dsl.core.imageView
@@ -56,6 +57,11 @@ class ToolButton(context: Context) : CustomGestureView(context) {
         image.imageResource = icon
     }
 
+    fun setContentScale(scale: Float) {
+        image.scaleX = scale
+        image.scaleY = scale
+    }
+
     fun setPressHighlightColor(@ColorInt color: Int) {
         background = if (disableAnimation) {
             circlePressHighlightDrawable(color)
@@ -63,4 +69,13 @@ class ToolButton(context: Context) : CustomGestureView(context) {
             borderlessRippleDrawable(color, dp(20))
         }
     }
+
+    fun setBoundedPressHighlightColor(@ColorInt color: Int) {
+        background = if (disableAnimation) {
+            circlePressHighlightDrawable(color)
+        } else {
+            circleRippleDrawable(color)
+        }
+    }
+
 }

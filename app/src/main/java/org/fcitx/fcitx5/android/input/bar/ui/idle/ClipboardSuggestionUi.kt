@@ -71,4 +71,11 @@ class ClipboardSuggestionUi(override val ctx: Context, private val theme: Theme)
             verticalMargin = dp(4)
         })
     }
+
+    fun setContentScale(iconScale: Float, textScale: Float) {
+        icon.scaleX = iconScale
+        icon.scaleY = iconScale
+        text.scaleX = textScale
+        text.scaleY = textScale
+    }
 }

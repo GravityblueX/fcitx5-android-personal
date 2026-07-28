@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name_release">Fcitx5</string>
-    <string name="app_name_debug">Fcitx5 (depuración)</string>
+    <string name="app_name_release">Fcitx17</string>
+    <string name="app_name_debug">Fcitx17 (depuración)</string>
     <string name="save">Guardar</string>
     <string name="input_methods">Métodos de entrada</string>
     <string name="add_input_method">Añadir método de entrada</string>
@@ -42,7 +42,13 @@
     <string name="delete">Eliminar</string>
     <string name="clipboard">Portapapeles</string>
     <string name="keyboard_height">Altura de teclado</string>
+    <string name="floating_keyboard">Teclado flotante</string>
+    <string name="enable_floating_keyboard">Activar teclado flotante</string>
+    <string name="disable_floating_keyboard">Desactivar teclado flotante</string>
+    <string name="floating_keyboard_drag">Mover teclado flotante</string>
+    <string name="floating_keyboard_resize">Cambiar el tamaño del teclado flotante</string>
     <string name="virtual_keyboard">Teclado</string>
+    <string name="always">Siempre</string>
     <string name="version">Versión</string>
     <string name="source_code">Código fuente</string>
     <string name="privacy_policy">Normativa de privacidad</string>
@@ -69,8 +75,9 @@
     <string name="input_method_options">Opciones de método de entrada</string>
     <string name="theme">Tema</string>
     <string name="brightness">Brillo</string>
+    <string name="floating_keyboard_corner_radius">Radio de esquina del teclado flotante</string>
     <string name="configure">Configurar</string>
-    <string name="choose_image">Elegir imagen...</string>
+    <string name="choose_image">Elegir imagen…</string>
     <string name="dark_keys">Teclas oscuras</string>
     <string name="navbar_background">Fondo de barra de navegación</string>
     <string name="navbar_bkg_none">Sin fondo</string>
@@ -79,7 +86,7 @@
     <string name="punctuation_position">Posición de puntuación</string>
     <string name="expand_toolbar_by_default">Expandir barra de htas. de manera predeterminada</string>
     <string name="disable_animation">Desactivar animación</string>
-    <string name="import_from_file">Importar desde archivo...</string>
+    <string name="import_from_file">Importar desde archivo…</string>
     <string name="light_mode_theme">Tema en modo claro</string>
     <string name="dark_mode_theme">Tema en modo oscuro</string>
     <string name="new_theme">Tema nuevo</string>
@@ -97,9 +104,9 @@
     <string name="delete_all_pinned_items">¿Quiere eliminar todos los elementos anclados?</string>
     <string name="table_file_does_not_exist_title">Tabla no disponible</string>
     <string name="import_table">Importar tabla</string>
-    <string name="table_from_zip">Desde ZIP...</string>
-    <string name="table_select_files">Desde archivos separados...</string>
-    <string name="table_file_placeholder">Seleccionar archivo...</string>
+    <string name="table_from_zip">Desde ZIP…</string>
+    <string name="table_select_files">Desde archivos separados…</string>
+    <string name="table_file_placeholder">Seleccionar archivo…</string>
     <string name="table_dict_select_title">Diccionario de tablas (.dict o .txt)</string>
     <string name="space_behavior_none">Ninguno</string>
     <string name="space_behavior_enumerate">Enumerar métodos de entrada</string>

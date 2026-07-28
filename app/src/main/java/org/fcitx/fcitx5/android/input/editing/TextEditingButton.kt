@@ -46,28 +46,80 @@ class TextEditingButton(
     // !bordered
     private val lineWidth = max(1, dp(1) / 2)
 
+    private var activatedStateEnabled = false
+
     init {
+        updateBackground(1f)
+    }
+
+    private fun updateBackground(scale: Float) {
+        val scaledRadius = radius * scale
+        val scaledShadowWidth = max(1, (shadowWidth * scale).toInt())
+        val scaledHInset = (hInset * scale).toInt()
+        val scaledVInset = (vInset * scale).toInt()
+        val scaledLineWidth = max(1, (lineWidth * scale).toInt())
         if (bordered) {
             val bkgColor = if (altStyle) theme.altKeyBackgroundColor else theme.keyBackgroundColor
-            background = shadowedKeyBackgroundDrawable(
-                bkgColor, theme.keyShadowColor,
-                radius, shadowWidth, hInset, vInset
-            )
+            background = if (activatedStateEnabled) {
+                StateListDrawable().apply {
+                    addState(
+                        intArrayOf(android.R.attr.state_activated),
+                        shadowedKeyBackgroundDrawable(
+                            theme.genericActiveBackgroundColor, theme.keyShadowColor,
+                            scaledRadius, scaledShadowWidth, scaledHInset, scaledVInset
+                        )
+                    )
+                    addState(
+                        intArrayOf(android.R.attr.state_enabled),
+                        shadowedKeyBackgroundDrawable(
+                            bkgColor, theme.keyShadowColor,
+                            scaledRadius, scaledShadowWidth, scaledHInset, scaledVInset
+                        )
+                    )
+                }
+            } else {
+                shadowedKeyBackgroundDrawable(
+                    bkgColor, theme.keyShadowColor,
+                    scaledRadius, scaledShadowWidth, scaledHInset, scaledVInset
+                )
+            }
             foreground = if (rippled) {
                 RippleDrawable(
                     ColorStateList.valueOf(theme.keyPressHighlightColor), null,
-                    insetRadiusDrawable(hInset, vInset, radius)
+                    insetRadiusDrawable(scaledHInset, scaledVInset, scaledRadius)
                 )
             } else {
                 StateListDrawable().apply {
                     addState(
                         intArrayOf(android.R.attr.state_pressed),
-                        insetRadiusDrawable(hInset, vInset, radius, theme.keyPressHighlightColor)
+                        insetRadiusDrawable(
+                            scaledHInset,
+                            scaledVInset,
+                            scaledRadius,
+                            theme.keyPressHighlightColor
+                        )
                     )
                 }
             }
         } else {
-            background = borderDrawable(lineWidth, theme.dividerColor)
+            background = if (activatedStateEnabled) {
+                StateListDrawable().apply {
+                    addState(
+                        intArrayOf(android.R.attr.state_activated),
+                        borderDrawable(
+                            scaledLineWidth,
+                            theme.dividerColor,
+                            theme.genericActiveBackgroundColor
+                        )
+                    )
+                    addState(
+                        intArrayOf(android.R.attr.state_enabled),
+                        borderDrawable(scaledLineWidth, theme.dividerColor)
+                    )
+                }
+            } else {
+                borderDrawable(scaledLineWidth, theme.dividerColor)
+            }
             foreground =
                 if (rippled) rippleDrawable(theme.keyPressHighlightColor)
                 else pressHighlightDrawable(theme.keyPressHighlightColor)
@@ -100,6 +152,7 @@ class TextEditingButton(
     }
 
     fun enableActivatedState() {
+        activatedStateEnabled = true
         textView.setTextColor(
             ColorStateList(
                 arrayOf(
@@ -122,38 +175,15 @@ class TextEditingButton(
                 theme.altKeyTextColor
             )
         )
-        background = if (bordered) {
-            StateListDrawable().apply {
-                addState(
-                    intArrayOf(android.R.attr.state_activated),
-                    shadowedKeyBackgroundDrawable(
-                        theme.genericActiveBackgroundColor, theme.keyShadowColor,
-                        radius, shadowWidth, hInset, vInset
-                    )
-                )
-                addState(
-                    intArrayOf(android.R.attr.state_enabled),
-                    shadowedKeyBackgroundDrawable(
-                        theme.keyBackgroundColor, theme.keyShadowColor,
-                        radius, shadowWidth, hInset, vInset
-                    )
-                )
-            }
-        } else {
-            StateListDrawable().apply {
-                addState(
-                    intArrayOf(android.R.attr.state_activated),
-                    borderDrawable(
-                        lineWidth,
-                        theme.dividerColor,
-                        theme.genericActiveBackgroundColor
-                    )
-                )
-                addState(
-                    intArrayOf(android.R.attr.state_enabled),
-                    borderDrawable(lineWidth, theme.dividerColor)
-                )
-            }
-        }
+        updateBackground(1f)
+    }
+
+    fun setContentScale(scale: Float) {
+        val scaled = scale.coerceIn(0f, 1f)
+        textView.scaleX = scaled
+        textView.scaleY = scaled
+        imageView.scaleX = scaled
+        imageView.scaleY = scaled
+        updateBackground(scaled)
     }
 }

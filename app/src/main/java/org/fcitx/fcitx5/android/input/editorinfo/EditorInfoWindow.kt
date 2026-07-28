@@ -11,6 +11,7 @@ import org.fcitx.fcitx5.android.input.bar.ui.ToolButton
 import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.wm.InputWindow
+import org.fcitx.fcitx5.android.input.wm.ScalableInputWindow
 import org.fcitx.fcitx5.android.utils.clipboardManager
 import org.fcitx.fcitx5.android.utils.toast
 import splitties.dimensions.dp
@@ -18,7 +19,8 @@ import splitties.views.dsl.core.add
 import splitties.views.dsl.core.horizontalLayout
 import splitties.views.dsl.core.lParams
 
-class EditorInfoWindow : InputWindow.ExtendedInputWindow<EditorInfoWindow>() {
+class EditorInfoWindow : InputWindow.ExtendedInputWindow<EditorInfoWindow>(),
+    ScalableInputWindow {
 
     private val service: FcitxInputMethodService by manager.inputMethodService()
     private val theme by manager.theme()
@@ -69,4 +71,8 @@ class EditorInfoWindow : InputWindow.ExtendedInputWindow<EditorInfoWindow>() {
     }
 
     override fun onDetached() {}
+
+    override fun setContentScale(scale: Float) {
+        ui.setContentScale(scale)
+    }
 }

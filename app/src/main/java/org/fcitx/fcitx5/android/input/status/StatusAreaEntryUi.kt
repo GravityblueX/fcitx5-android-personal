@@ -14,6 +14,8 @@ import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.updateLayoutParams
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.AutoScaleTextView
 import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView
@@ -37,6 +39,7 @@ import splitties.views.dsl.core.view
 import splitties.views.dsl.core.wrapContent
 import splitties.views.gravityCenter
 import splitties.views.imageDrawable
+import kotlin.math.roundToInt
 
 class StatusAreaEntryUi(override val ctx: Context, private val theme: Theme) : Ui {
 
@@ -67,28 +70,49 @@ class StatusAreaEntryUi(override val ctx: Context, private val theme: Theme) : U
         setTextColor(theme.keyTextColor)
     }
 
-    override val root = object : CustomGestureView(ctx) {
-        val content = constraintLayout {
-            add(bkg, lParams(dp(48), dp(48)) {
-                topOfParent(dp(4))
-                centerHorizontally()
-                above(label)
-            })
-            add(icon, lParams {
-                centerOn(bkg)
-            })
-            add(textIcon, lParams(wrapContent, wrapContent) {
-                centerOn(bkg)
-            })
-            add(label, lParams(wrapContent, wrapContent) {
-                below(bkg, dp(6))
-                centerHorizontally()
-            })
-        }
+    private val content = constraintLayout {
+        add(bkg, lParams(dp(48), dp(48)) {
+            topOfParent(dp(4))
+            centerHorizontally()
+            above(label)
+        })
+        add(icon, lParams {
+            centerOn(bkg)
+        })
+        add(textIcon, lParams(wrapContent, wrapContent) {
+            centerOn(bkg)
+        })
+        add(label, lParams(wrapContent, wrapContent) {
+            below(bkg, dp(6))
+            centerHorizontally()
+        })
+    }
 
+    override val root = object : CustomGestureView(ctx) {
         init {
             add(content, lParams(matchParent, matchParent))
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(96))
+        }
+    }
+
+    fun setContentScale(scale: Float) {
+        val scaled = scale.coerceIn(0f, 1f)
+        bkg.updateLayoutParams<ConstraintLayout.LayoutParams> {
+            width = (ctx.dp(48) * scaled).roundToInt()
+            height = (ctx.dp(48) * scaled).roundToInt()
+            topMargin = (ctx.dp(4) * scaled).roundToInt()
+        }
+        label.updateLayoutParams<ConstraintLayout.LayoutParams> {
+            topMargin = (ctx.dp(6) * scaled).roundToInt()
+        }
+        icon.scaleX = scaled
+        icon.scaleY = scaled
+        textIcon.scaleX = scaled
+        textIcon.scaleY = scaled
+        label.scaleX = scaled
+        label.scaleY = scaled
+        root.layoutParams = root.layoutParams.apply {
+            height = (ctx.dp(96) * scaled).roundToInt()
         }
     }
 

@@ -57,23 +57,54 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
     val bordered: Boolean
     val borderStroke: Boolean
     val rippled: Boolean
-    val radius: Float
-    val hMargin: Int
-    val vMargin: Int
+    private val baseRadius: Float
+    private var baseHMargin = 0
+    private var baseVMargin = 0
+    private var usePortraitStyle = false
+    var radius: Float
+        private set
+    var hMargin: Int
+        private set
+    var vMargin: Int
+        private set
+    protected var contentScale = 1f
+        private set
+    private var horizontalContentScale = 1f
+    private var verticalContentScale = 1f
 
     init {
         val prefs = ThemeManager.prefs
         bordered = prefs.keyBorder.getValue()
         borderStroke = prefs.keyBorderStroke.getValue()
         rippled = prefs.keyRippleEffect.getValue()
-        radius = dp(prefs.keyRadius.getValue().toFloat())
-        val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        baseRadius = dp(prefs.keyRadius.getValue().toFloat())
+        updateBaseMargins(styleOrientation())
+        radius = baseRadius
+        hMargin = baseHMargin
+        vMargin = baseVMargin
+    }
+
+    private fun updateBaseMargins(orientation: Int) {
+        val prefs = ThemeManager.prefs
+        val landscape = orientation == Configuration.ORIENTATION_LANDSCAPE
         val hMarginPref =
             if (landscape) prefs.keyHorizontalMarginLandscape else prefs.keyHorizontalMargin
         val vMarginPref =
             if (landscape) prefs.keyVerticalMarginLandscape else prefs.keyVerticalMargin
-        hMargin = if (def.margin) dp(hMarginPref.getValue()) else 0
-        vMargin = if (def.margin) dp(vMarginPref.getValue()) else 0
+        baseHMargin = if (def.margin) dp(hMarginPref.getValue()) else 0
+        baseVMargin = if (def.margin) dp(vMarginPref.getValue()) else 0
+    }
+
+    protected fun styleOrientation(
+        systemOrientation: Int = resources.configuration.orientation
+    ): Int =
+        if (usePortraitStyle) Configuration.ORIENTATION_PORTRAIT else systemOrientation
+
+    fun setUsePortraitStyle(enabled: Boolean) {
+        if (usePortraitStyle == enabled) return
+        usePortraitStyle = enabled
+        updateBaseMargins(styleOrientation())
+        setContentScale(contentScale, horizontalContentScale, verticalContentScale)
     }
 
     private val cachedLocation = intArrayOf(0, 0)
@@ -82,6 +113,16 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
     val bounds: Rect
         get() = cachedBounds.also {
             if (!boundsValid) updateBounds()
+        }
+
+    /**
+     * A fresh bounds snapshot for overlays. Unlike layout, translating the floating keyboard
+     * does not invalidate [bounds].
+     */
+    val currentBounds: Rect
+        get() {
+            val (x, y) = cachedLocation.also { appearanceView.getLocationInWindow(it) }
+            return Rect(x, y, x + appearanceView.width, y + appearanceView.height)
         }
 
     /**
@@ -117,6 +158,11 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
         if (def.viewId > 0) {
             id = def.viewId
         }
+        updateKeyAppearance()
+        add(appearanceView, lParams(matchParent, matchParent))
+    }
+
+    private fun updateKeyAppearance() {
         // key border
         if ((bordered && def.border != Border.Off) || def.border == Border.On) {
             val bkgColor = when (def.variant) {
@@ -124,7 +170,7 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
                 Variant.Alternative -> theme.altKeyBackgroundColor
                 Variant.Accent -> theme.accentKeyBackgroundColor
             }
-            val borderOrShadowWidth = dp(1)
+            val borderOrShadowWidth = scaledDp(1).coerceAtLeast(1)
             // background: key border
             appearanceView.background = if (borderStroke) borderedKeyBackgroundDrawable(
                 bkgColor, theme.keyShadowColor,
@@ -142,7 +188,6 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
                 setupPressHighlight()
             }
         }
-        add(appearanceView, lParams(matchParent, matchParent))
     }
 
     private fun setupPressHighlight(mask: Drawable? = null) {
@@ -158,7 +203,7 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
                     intArrayOf(android.R.attr.state_pressed),
                     borderedKeyBackgroundDrawable(
                         Color.TRANSPARENT, theme.keyShadowColor,
-                        radius, dp(2), hMargin, vMargin
+                        radius, scaledDp(2).coerceAtLeast(1), hMargin, vMargin
                     )
                 )
             }
@@ -182,6 +227,50 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
         super.setEnabled(enabled)
         appearanceView.alpha = if (enabled) 1f else styledFloat(android.R.attr.disabledAlpha)
     }
+
+    open fun setContentScale(
+        scale: Float,
+        horizontalScale: Float = scale,
+        verticalScale: Float = scale
+    ) {
+        val newScale = scale.coerceIn(0f, 1f)
+        val newHorizontalScale = horizontalScale.coerceIn(0f, 1f)
+        val newVerticalScale = verticalScale.coerceIn(0f, 1f)
+        val newRadius = baseRadius * newScale
+        val newHMargin = (baseHMargin * newHorizontalScale).roundToInt()
+        val newVMargin = (baseVMargin * newVerticalScale).roundToInt()
+        val geometryChanged =
+            radius != newRadius ||
+                hMargin != newHMargin ||
+                vMargin != newVMargin ||
+                horizontalContentScale != newHorizontalScale ||
+                verticalContentScale != newVerticalScale
+        contentScale = newScale
+        horizontalContentScale = newHorizontalScale
+        verticalContentScale = newVerticalScale
+        radius = newRadius
+        hMargin = newHMargin
+        vMargin = newVMargin
+        if (geometryChanged) {
+            updateKeyAppearance()
+            updateSpecialBackground(width, height)
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        updateBaseMargins(styleOrientation(newConfig.orientation))
+        setContentScale(contentScale, horizontalContentScale, verticalContentScale)
+    }
+
+    protected fun scaledDp(value: Int): Int =
+        (dp(value) * contentScale).roundToInt()
+
+    protected fun scaledHorizontalDp(value: Int): Int =
+        (dp(value) * horizontalContentScale).roundToInt()
+
+    protected fun scaledVerticalDp(value: Int): Int =
+        (dp(value) * verticalContentScale).roundToInt()
 
     fun updateBounds() {
         val (x, y) = cachedLocation.also { appearanceView.getLocationInWindow(it) }
@@ -210,13 +299,19 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        updateSpecialBackground(w, h)
+    }
+
+    private fun updateSpecialBackground(w: Int, h: Int) {
         if (bordered) return
         when (def.viewId) {
             R.id.button_space -> {
-                val bkgRadius = dp(3f)
-                val minHeight = dp(26)
-                val hInset = dp(10)
-                val vInset = if (h < minHeight) 0 else min((h - minHeight) / 2, dp(16))
+                val bkgRadius = dp(3f) * contentScale
+                val minHeight = scaledVerticalDp(26)
+                val hInset = scaledHorizontalDp(10)
+                val vInset =
+                    if (h < minHeight) 0
+                    else min((h - minHeight) / 2, scaledVerticalDp(16))
                 appearanceView.background = insetRadiusDrawable(
                     hInset, vInset, bkgRadius, theme.spaceBarColor
                 )
@@ -231,7 +326,7 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
                 )
             }
             R.id.button_return -> {
-                val drawableSize = min(min(w, h), dp(35))
+                val drawableSize = min(min(w, h), scaledDp(35))
                 val hInset = (w - drawableSize) / 2
                 val vInset = (h - drawableSize) / 2
                 appearanceView.background = insetOvalDrawable(
@@ -276,6 +371,12 @@ open class TextKeyView(ctx: Context, theme: Theme, def: KeyDef.Appearance.Text) 
             })
         }
     }
+
+    override fun setContentScale(scale: Float, horizontalScale: Float, verticalScale: Float) {
+        super.setContentScale(scale, horizontalScale, verticalScale)
+        mainText.scaleX = contentScale
+        mainText.scaleY = contentScale
+    }
 }
 
 @SuppressLint("ViewConstructor")
@@ -301,7 +402,7 @@ class AltTextKeyView(ctx: Context, theme: Theme, def: KeyDef.Appearance.AltText)
         appearanceView.apply {
             add(altText, lParams(wrapContent, wrapContent))
         }
-        applyLayout(resources.configuration.orientation)
+        applyLayout(styleOrientation())
     }
 
     private fun applyTopRightAltTextPosition() {
@@ -320,7 +421,7 @@ class AltTextKeyView(ctx: Context, theme: Theme, def: KeyDef.Appearance.AltText)
             // set
             topToTop = parentId; topMargin = vMargin
             leftToLeft = unset
-            rightToRight = parentId; rightMargin = hMargin + dp(4)
+            rightToRight = parentId; rightMargin = hMargin + scaledHorizontalDp(4)
         }
     }
 
@@ -340,7 +441,7 @@ class AltTextKeyView(ctx: Context, theme: Theme, def: KeyDef.Appearance.AltText)
             // set
             leftToLeft = parentId
             rightToRight = parentId
-            bottomToBottom = parentId; bottomMargin = vMargin + dp(2)
+            bottomToBottom = parentId; bottomMargin = vMargin + scaledVerticalDp(2)
         }
     }
 
@@ -368,10 +469,14 @@ class AltTextKeyView(ctx: Context, theme: Theme, def: KeyDef.Appearance.AltText)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
-        if (ThemeManager.prefs.punctuationPosition.getValue() == PunctuationPosition.TopRight) {
-            return
-        }
-        applyLayout(newConfig.orientation)
+        super.onConfigurationChanged(newConfig)
+    }
+
+    override fun setContentScale(scale: Float, horizontalScale: Float, verticalScale: Float) {
+        super.setContentScale(scale, horizontalScale, verticalScale)
+        altText.scaleX = contentScale
+        altText.scaleY = contentScale
+        applyLayout(styleOrientation())
     }
 }
 
@@ -386,6 +491,12 @@ class ImageKeyView(ctx: Context, theme: Theme, def: KeyDef.Appearance.Image) :
                 centerInParent()
             })
         }
+    }
+
+    override fun setContentScale(scale: Float, horizontalScale: Float, verticalScale: Float) {
+        super.setContentScale(scale, horizontalScale, verticalScale)
+        img.scaleX = contentScale
+        img.scaleY = contentScale
     }
 }
 
@@ -416,38 +527,45 @@ class ImageTextKeyView(ctx: Context, theme: Theme, def: KeyDef.Appearance.ImageT
         mainText.updateLayoutParams<ConstraintLayout.LayoutParams> {
             centerHorizontally()
             bottomToBottom = parentId
-            bottomMargin = vMargin + dp(4)
+            bottomMargin = vMargin + scaledVerticalDp(4)
             topToTop = unset
         }
         img.updateLayoutParams<ConstraintLayout.LayoutParams> {
             centerHorizontally()
             topToTop = parentId
         }
-        updateMargins(resources.configuration.orientation)
+        updateMargins(styleOrientation())
     }
 
     private fun updateMargins(orientation: Int) {
         when (orientation) {
             Configuration.ORIENTATION_LANDSCAPE -> {
                 mainText.updateLayoutParams<ConstraintLayout.LayoutParams> {
-                    bottomMargin = vMargin + dp(2)
+                    bottomMargin = vMargin + scaledVerticalDp(2)
                 }
                 img.updateLayoutParams<ConstraintLayout.LayoutParams> {
-                    topMargin = vMargin + dp(4)
+                    topMargin = vMargin + scaledVerticalDp(4)
                 }
             }
             else -> {
                 mainText.updateLayoutParams<ConstraintLayout.LayoutParams> {
-                    bottomMargin = vMargin + dp(4)
+                    bottomMargin = vMargin + scaledVerticalDp(4)
                 }
                 img.updateLayoutParams<ConstraintLayout.LayoutParams> {
-                    topMargin = vMargin + dp(8)
+                    topMargin = vMargin + scaledVerticalDp(8)
                 }
             }
         }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
-        updateMargins(newConfig.orientation)
+        super.onConfigurationChanged(newConfig)
+    }
+
+    override fun setContentScale(scale: Float, horizontalScale: Float, verticalScale: Float) {
+        super.setContentScale(scale, horizontalScale, verticalScale)
+        img.scaleX = contentScale
+        img.scaleY = contentScale
+        updateMargins(styleOrientation())
     }
 }

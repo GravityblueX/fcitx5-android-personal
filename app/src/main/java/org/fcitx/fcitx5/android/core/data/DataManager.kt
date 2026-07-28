@@ -5,8 +5,10 @@
 package org.fcitx.fcitx5.android.core.data
 
 import android.annotation.SuppressLint
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ResolveInfo
 import android.content.res.AssetManager
 import android.os.Build
 import kotlinx.serialization.encodeToString
@@ -35,6 +37,16 @@ object DataManager {
     )
 
     const val PLUGIN_INTENT = "${BuildConfig.APPLICATION_ID}.plugin.MANIFEST"
+    private const val OFFICIAL_PLUGIN_INTENT =
+        "org.fcitx.fcitx5.android.plugin.MANIFEST"
+    private const val OFFICIAL_DEBUG_PLUGIN_INTENT =
+        "org.fcitx.fcitx5.android.debug.plugin.MANIFEST"
+
+    private val compatiblePluginIntents = linkedSetOf(
+        PLUGIN_INTENT,
+        OFFICIAL_PLUGIN_INTENT,
+        OFFICIAL_DEBUG_PLUGIN_INTENT
+    )
 
     private val lock = ReentrantLock()
 
@@ -84,20 +96,30 @@ object DataManager {
     fun addOnNextSyncedCallback(block: () -> Unit) =
         callbacks.add(block)
 
+    private fun queryPluginActivities(pm: PackageManager): List<ResolveInfo> =
+        compatiblePluginIntents.flatMap { action ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.queryIntentActivities(
+                    Intent(action),
+                    PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong())
+                )
+            } else {
+                pm.queryIntentActivities(Intent(action), PackageManager.MATCH_ALL)
+            }
+        }.distinctBy { it.activityInfo.packageName }
+
+    fun findPluginActivity(packageName: String): ComponentName? =
+        queryPluginActivities(appContext.packageManager)
+            .firstOrNull { it.activityInfo.packageName == packageName }
+            ?.let { ComponentName(it.activityInfo.packageName, it.activityInfo.name) }
+
     fun detectPlugins(): PluginSet {
         val toLoad = mutableSetOf<PluginDescriptor>()
         val preloadFailed = mutableMapOf<String, PluginLoadFailed>()
 
         val pm = appContext.packageManager
 
-        val pluginPackages = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            pm.queryIntentActivities(
-                Intent(PLUGIN_INTENT),
-                PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong())
-            )
-        } else {
-            pm.queryIntentActivities(Intent(PLUGIN_INTENT), PackageManager.MATCH_ALL)
-        }.map {
+        val pluginPackages = queryPluginActivities(pm).map {
             it.activityInfo.packageName
         }
 

@@ -11,8 +11,14 @@ import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.PreferenceScreen
+import androidx.recyclerview.widget.RecyclerView
 
 abstract class MyPreferenceFragment : PreferenceFragmentCompat() {
+    override fun onCreateAdapter(
+        preferenceScreen: PreferenceScreen
+    ): RecyclerView.Adapter<*> = ExpressivePreferenceGroupAdapter(preferenceScreen)
+
     @Suppress("DEPRECATION")
     @SuppressLint("RestrictedApi")
     override fun onDisplayPreferenceDialog(preference: Preference) {

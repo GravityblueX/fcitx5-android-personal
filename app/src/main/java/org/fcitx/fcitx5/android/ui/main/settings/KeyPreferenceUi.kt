@@ -8,6 +8,7 @@ import android.content.Context
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import androidx.core.widget.addTextChangedListener
+import com.google.android.material.color.MaterialColors
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.Key
 import org.fcitx.fcitx5.android.core.KeyState
@@ -112,7 +113,13 @@ class KeyPreferenceUi(override val ctx: Context) : Ui {
     private val clearButton = imageButton {
         background = styledDrawable(android.R.attr.actionBarItemBackground)
         imageDrawable = drawable(R.drawable.ic_baseline_delete_24)!!.apply {
-            setTint(styledColor(android.R.attr.colorControlNormal))
+            setTint(
+                MaterialColors.getColor(
+                    ctx,
+                    com.google.android.material.R.attr.colorOnSurfaceVariant,
+                    KeyPreferenceUi::class.java.simpleName
+                )
+            )
         }
         setOnClickListener {
             setKey(Key.None)

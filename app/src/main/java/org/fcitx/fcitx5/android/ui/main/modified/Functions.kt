@@ -12,6 +12,7 @@ import androidx.preference.ListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceDialogFragmentCompat
 import androidx.preference.SwitchPreference
+import androidx.preference.SwitchPreferenceCompat
 import splitties.dimensions.dp
 import splitties.views.dsl.core.verticalMargin
 
@@ -43,6 +44,14 @@ fun <T : ListPreference> T.restore() {
 }
 
 fun <T : SwitchPreference> T.restore() {
+    (def() as? Boolean)?.let {
+        if (callChangeListener(it)) {
+            isChecked = it
+        }
+    }
+}
+
+fun <T : SwitchPreferenceCompat> T.restore() {
     (def() as? Boolean)?.let {
         if (callChangeListener(it)) {
             isChecked = it

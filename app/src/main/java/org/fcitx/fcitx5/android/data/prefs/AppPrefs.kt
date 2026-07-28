@@ -16,6 +16,7 @@ import org.fcitx.fcitx5.android.input.candidates.expanded.ExpandedCandidateStyle
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesMode
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrientation
 import org.fcitx.fcitx5.android.input.candidates.horizontal.HorizontalCandidateMode
+import org.fcitx.fcitx5.android.input.keyboard.FloatingKeyboardMode
 import org.fcitx.fcitx5.android.input.keyboard.LangSwitchBehavior
 import org.fcitx.fcitx5.android.input.keyboard.SpaceLongPressBehavior
 import org.fcitx.fcitx5.android.input.keyboard.SwipeSymbolDirection
@@ -35,6 +36,15 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         val pid = int("pid", 0)
         val editorInfoInspector = bool("editor_info_inspector", false)
         val needNotifications = bool("need_notifications", true)
+        val floatingKeyboardX = float("floating_keyboard_x", 0.5f)
+        val floatingKeyboardY = float("floating_keyboard_y", 0.85f)
+        val floatingKeyboardWidth = float("floating_keyboard_width", 0.65f)
+        val floatingKeyboardHeight = float("floating_keyboard_height", 0.48f)
+        val floatingKeyboardSizeCustomized =
+            bool("floating_keyboard_size_customized", false)
+        val floatingKeyboardWidthDp = float("floating_keyboard_width_dp", 0f)
+        val floatingKeyboardHeightDp = float("floating_keyboard_height_dp", 0f)
+        val floatingKeyboardSizeFormat = int("floating_keyboard_size_format", 0)
     }
 
     inner class Advanced : ManagedPreferenceCategory(R.string.advanced, sharedPreferences) {
@@ -53,6 +63,12 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
     }
 
     inner class Keyboard : ManagedPreferenceCategory(R.string.virtual_keyboard, sharedPreferences) {
+        val floatingKeyboardMode = enumList(
+            R.string.floating_keyboard,
+            "floating_keyboard_mode",
+            FloatingKeyboardMode.Landscape
+        )
+
         val hapticOnKeyPress =
             enumList(
                 R.string.button_haptic_feedback,

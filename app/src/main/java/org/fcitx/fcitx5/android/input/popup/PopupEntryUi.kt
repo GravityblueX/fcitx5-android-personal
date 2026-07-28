@@ -21,7 +21,13 @@ import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.view
 import splitties.views.gravityCenter
 
-class PopupEntryUi(override val ctx: Context, theme: Theme, keyHeight: Int, radius: Float) : Ui {
+class PopupEntryUi(
+    override val ctx: Context,
+    theme: Theme,
+    keyHeight: Int,
+    radius: Float,
+    contentScale: Float
+) : Ui {
 
     var lastShowTime = -1L
 
@@ -29,6 +35,8 @@ class PopupEntryUi(override val ctx: Context, theme: Theme, keyHeight: Int, radi
         textSize = 23f
         gravity = gravityCenter
         setTextColor(theme.popupTextColor)
+        scaleX = contentScale
+        scaleY = contentScale
     }
 
     override val root = constraintLayout {

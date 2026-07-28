@@ -49,7 +49,7 @@ import splitties.views.dsl.core.matchParent
 class PickerPageUi(
     override val ctx: Context,
     theme: Theme,
-    density: Density,
+    private val density: Density,
     bordered: Boolean = false
 ) : Ui {
 
@@ -239,6 +239,18 @@ class PickerPageUi(
         }
     }
 
+    fun setContentScale(scale: Float) {
+        keyViews.forEach {
+            it.setContentScale(scale)
+            if (density.autoScale) {
+                it.mainText.setPadding(it.hMargin, it.vMargin, it.hMargin, it.vMargin)
+            }
+        }
+        if (density.showBackspace) {
+            backspaceKey.setContentScale(scale)
+        }
+    }
+
     private fun onItemClick(item: String) {
         keyActionListener?.onKeyAction(CommitAction(item), Source.Keyboard)
     }
@@ -253,7 +265,7 @@ class PickerPageUi(
             // the actual bounds on press. see [^1] as well
             view.updateBounds()
         }
-        onPopupAction(PopupAction.ShowKeyboardAction(view.id, popup, view.bounds))
+        onPopupAction(PopupAction.ShowKeyboardAction(view.id, popup, view.currentBounds))
     }
 
     private fun onPopupShow(view: KeyView, item: String) {
@@ -263,7 +275,7 @@ class PickerPageUi(
         // e.g. it's inside the next page of ViewPager
         // so update bounds when it's pressed
         view.updateBounds()
-        onPopupAction(PopupAction.PreviewAction(view.id, item, view.bounds))
+        onPopupAction(PopupAction.PreviewAction(view.id, item, view.currentBounds))
         return
     }
 

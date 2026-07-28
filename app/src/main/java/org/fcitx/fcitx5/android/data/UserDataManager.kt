@@ -26,7 +26,21 @@ import java.util.zip.ZipOutputStream
 
 object UserDataManager {
 
+    private const val PRODUCT_PACKAGE_NAME = "org.fcitx.fcitx17.android"
+    private const val OFFICIAL_PACKAGE_NAME = "org.fcitx.fcitx5.android"
+    private const val OFFICIAL_DEBUG_PACKAGE_NAME = "$OFFICIAL_PACKAGE_NAME.debug"
+    private const val LEGACY_PERSONAL_PACKAGE_NAME =
+        "$OFFICIAL_PACKAGE_NAME.debug17yizuka"
+
     private val json = Json { prettyPrint = true }
+
+    private val compatiblePackageNames = setOf(
+        BuildConfig.APPLICATION_ID,
+        PRODUCT_PACKAGE_NAME,
+        OFFICIAL_PACKAGE_NAME,
+        OFFICIAL_DEBUG_PACKAGE_NAME,
+        LEGACY_PERSONAL_PACKAGE_NAME
+    )
 
     @Serializable
     data class Metadata(
@@ -90,6 +104,23 @@ object UserDataManager {
         }
     }
 
+    /**
+     * Android's default SharedPreferences filename contains the application ID. Backups made by
+     * the official package therefore need to be renamed before they can be read by Fcitx17.
+     */
+    private fun migrateDefaultSharedPreferences(sourceDir: File, sourcePackageName: String) {
+        if (sourcePackageName == BuildConfig.APPLICATION_ID) return
+        listOf(".xml", ".xml.bak").forEach { suffix ->
+            val source = sourceDir.resolve("${sourcePackageName}_preferences$suffix")
+            if (!source.isFile) return@forEach
+            val target = sourceDir.resolve("${BuildConfig.APPLICATION_ID}_preferences$suffix")
+            source.copyTo(target, overwrite = true)
+            if (!source.delete()) {
+                Timber.w("Failed to remove migrated preference file: ${source.path}")
+            }
+        }
+    }
+
     fun import(src: InputStream) = runCatching {
         ZipInputStream(src).use { zipStream ->
             withTempDir { tempDir ->
@@ -97,9 +128,11 @@ object UserDataManager {
                 val metadataFile = extracted.find { it.name == "metadata.json" }
                     ?: errorRuntime(R.string.exception_user_data_metadata)
                 val metadata = json.decodeFromString<Metadata>(metadataFile.readText())
-                if (metadata.packageName != BuildConfig.APPLICATION_ID)
+                if (metadata.packageName !in compatiblePackageNames)
                     errorRuntime(R.string.exception_user_data_package_name_mismatch)
-                copyDir(File(tempDir, "shared_prefs"), sharedPrefsDir)
+                val importedSharedPrefsDir = File(tempDir, "shared_prefs")
+                migrateDefaultSharedPreferences(importedSharedPrefsDir, metadata.packageName)
+                copyDir(importedSharedPrefsDir, sharedPrefsDir)
                 copyDir(File(tempDir, "databases"), dataBasesDir)
                 copyDir(File(tempDir, "external"), externalDir)
                 // keep importing recently_used for backwords compatibility

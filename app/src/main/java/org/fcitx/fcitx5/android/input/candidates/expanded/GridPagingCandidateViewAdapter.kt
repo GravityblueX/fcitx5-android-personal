@@ -14,6 +14,7 @@ import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.candidates.CandidateViewHolder
 import splitties.dimensions.dp
 import splitties.views.dsl.core.matchParent
+import kotlin.math.roundToInt
 
 abstract class GridPagingCandidateViewAdapter(theme: Theme) : PagingCandidateViewAdapter(theme) {
 
@@ -40,8 +41,19 @@ abstract class GridPagingCandidateViewAdapter(theme: Theme) : PagingCandidateVie
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CandidateViewHolder {
         return super.onCreateViewHolder(parent, viewType).apply {
             itemView.apply {
-                layoutParams = GridLayoutManager.LayoutParams(matchParent, dp(40))
+                layoutParams = GridLayoutManager.LayoutParams(
+                    matchParent,
+                    (dp(40) * contentScale).roundToInt()
+                )
             }
+        }
+    }
+
+    override fun applyContentScale(holder: CandidateViewHolder) {
+        super.applyContentScale(holder)
+        val params = holder.itemView.layoutParams ?: return
+        holder.itemView.layoutParams = params.apply {
+            height = (holder.itemView.context.dp(40) * contentScale).roundToInt()
         }
     }
 }

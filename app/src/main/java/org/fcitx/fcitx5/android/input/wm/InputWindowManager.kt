@@ -36,6 +36,9 @@ class InputWindowManager : UniqueViewComponent<InputWindowManager, FrameLayout>(
 
     private var currentWindow: InputWindow? = null
     private var currentView: View? = null
+    private var contentScale = 1f
+    private var toolbarScale = 1f
+    private var usePortraitKeyboardStyle = false
 
     private val disableAnimation by AppPrefs.getInstance().advanced.disableAnimation
 
@@ -123,6 +126,11 @@ class InputWindowManager : UniqueViewComponent<InputWindowManager, FrameLayout>(
             scope += window
             window.onCreateView()
         }
+        (window as? ScalableInputWindow)?.apply {
+            setUsePortraitKeyboardStyle(usePortraitKeyboardStyle)
+            setContentScale(contentScale)
+            setToolbarScale(toolbarScale)
+        }
         if (currentWindow != null) {
             val oldWindow = currentWindow!!
             val oldView = currentView!!
@@ -164,4 +172,20 @@ class InputWindowManager : UniqueViewComponent<InputWindowManager, FrameLayout>(
     }
 
     fun isAttached(window: InputWindow) = currentWindow === window
+
+    fun setContentScale(scale: Float, toolbarScale: Float = scale) {
+        if (contentScale == scale && this.toolbarScale == toolbarScale) return
+        contentScale = scale
+        this.toolbarScale = toolbarScale
+        (currentWindow as? ScalableInputWindow)?.apply {
+            setContentScale(scale)
+            setToolbarScale(toolbarScale)
+        }
+    }
+
+    fun setUsePortraitKeyboardStyle(enabled: Boolean) {
+        if (usePortraitKeyboardStyle == enabled) return
+        usePortraitKeyboardStyle = enabled
+        (currentWindow as? ScalableInputWindow)?.setUsePortraitKeyboardStyle(enabled)
+    }
 }

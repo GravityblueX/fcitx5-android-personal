@@ -67,6 +67,13 @@ open class PreeditUi(
         view.visibility = if (visible) View.VISIBLE else View.GONE
     }
 
+    fun setContentScale(scale: Float) {
+        upView.scaleX = scale
+        upView.scaleY = scale
+        downView.scaleX = scale
+        downView.scaleY = scale
+    }
+
     fun update(inputPanel: FcitxEvent.InputPanelEvent.Data) {
         val activeBkg = theme.genericActiveBackgroundColor
         val upString: SpannedString

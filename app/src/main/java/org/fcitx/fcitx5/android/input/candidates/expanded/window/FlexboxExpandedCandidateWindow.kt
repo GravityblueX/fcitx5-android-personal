@@ -18,7 +18,7 @@ import org.fcitx.fcitx5.android.input.candidates.expanded.PagingCandidateViewAda
 import org.fcitx.fcitx5.android.input.candidates.expanded.decoration.FlexboxHorizontalDecoration
 import splitties.dimensions.dp
 import splitties.views.dsl.core.wrapContent
-import splitties.views.setPaddingDp
+import kotlin.math.roundToInt
 
 class FlexboxExpandedCandidateWindow :
     BaseExpandedCandidateWindow<FlexboxExpandedCandidateWindow>() {
@@ -28,10 +28,27 @@ class FlexboxExpandedCandidateWindow :
             override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CandidateViewHolder {
                 return super.onCreateViewHolder(parent, viewType).apply {
                     itemView.apply {
-                        minimumWidth = dp(40)
-                        setPaddingDp(10, 0, 10, 0)
-                        layoutParams = FlexboxLayoutManager.LayoutParams(wrapContent, dp(40))
+                        minimumWidth = (dp(40) * contentScale).roundToInt()
+                        val horizontalPadding = (dp(10) * contentScale).roundToInt()
+                        setPadding(horizontalPadding, 0, horizontalPadding, 0)
+                        layoutParams = FlexboxLayoutManager.LayoutParams(
+                            wrapContent,
+                            (dp(40) * contentScale).roundToInt()
+                        )
                             .apply { flexGrow = 1f }
+                    }
+                }
+            }
+
+            override fun applyContentScale(holder: CandidateViewHolder) {
+                super.applyContentScale(holder)
+                holder.itemView.apply {
+                    minimumWidth = (dp(40) * contentScale).roundToInt()
+                    val horizontalPadding = (dp(10) * contentScale).roundToInt()
+                    setPadding(horizontalPadding, 0, horizontalPadding, 0)
+                    val params = layoutParams ?: return
+                    layoutParams = params.apply {
+                        height = (dp(40) * contentScale).roundToInt()
                     }
                 }
             }

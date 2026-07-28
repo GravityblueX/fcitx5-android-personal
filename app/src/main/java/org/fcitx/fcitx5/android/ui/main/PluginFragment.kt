@@ -6,13 +6,10 @@ package org.fcitx.fcitx5.android.ui.main
 
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.lifecycle.lifecycleScope
@@ -174,20 +171,10 @@ class PluginFragment : PaddingPreferenceFragment() {
 
     private fun startPluginAboutActivity(pkg: String): Boolean {
         val ctx = requireContext()
-        val pm = ctx.packageManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            pm.queryIntentActivities(
-                Intent(DataManager.PLUGIN_INTENT),
-                PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong())
-            )
-        } else {
-            pm.queryIntentActivities(Intent(DataManager.PLUGIN_INTENT), PackageManager.MATCH_ALL)
-        }.firstOrNull {
-            it.activityInfo.packageName == pkg
-        }?.also {
+        DataManager.findPluginActivity(pkg)?.also {
             ctx.startActivity(Intent().apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                component = ComponentName(it.activityInfo.packageName, it.activityInfo.name)
+                component = it
             })
         } ?: run {
             // fallback to settings app info page if activity not found

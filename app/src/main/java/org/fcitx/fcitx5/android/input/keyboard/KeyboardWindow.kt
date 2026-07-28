@@ -116,6 +116,22 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
         }
     }
 
+    fun setContentScale(
+        scale: Float,
+        horizontalScale: Float = scale,
+        verticalScale: Float = scale
+    ) {
+        keyboards.values.forEach {
+            it.setContentScale(scale, horizontalScale, verticalScale)
+        }
+    }
+
+    fun setUsePortraitStyle(enabled: Boolean) {
+        keyboards.values.forEach {
+            it.setUsePortraitStyle(enabled)
+        }
+    }
+
     fun switchLayout(to: String, remember: Boolean = true) {
         val target = to.ifEmpty { lastSymbolType }
         ContextCompat.getMainExecutor(service).execute {

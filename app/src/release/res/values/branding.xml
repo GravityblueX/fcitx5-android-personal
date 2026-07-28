@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="app_icon" type="mipmap">@mipmap/ic_launcher</item>
+    <item name="app_icon_round" type="mipmap">@mipmap/ic_launcher_round</item>
+    <string name="app_name" translatable="false">@string/app_name_release</string>
+</resources>

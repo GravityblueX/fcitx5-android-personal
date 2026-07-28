@@ -21,6 +21,7 @@ import splitties.views.dsl.core.imageView
 import splitties.views.dsl.core.lParams
 import splitties.views.imageDrawable
 import kotlin.math.floor
+import kotlin.math.roundToInt
 
 class PopupMenuUi(
     override val ctx: Context,
@@ -28,16 +29,17 @@ class PopupMenuUi(
     outerBounds: Rect,
     triggerBounds: Rect,
     onDismissSelf: PopupContainerUi.() -> Unit = {},
-    private val items: Array<KeyDef.Popup.Menu.Item>
+    private val items: Array<KeyDef.Popup.Menu.Item>,
+    private val contentScale: Float
 ) : PopupContainerUi(ctx, theme, outerBounds, triggerBounds, onDismissSelf) {
 
-    private val keySize = ctx.dp(48)
+    private val keySize = (ctx.dp(48) * contentScale).roundToInt()
 
     private val inactiveBackground = InsetDrawable(
         ShapeDrawable(OvalShape()).apply {
             paint.color = theme.accentKeyBackgroundColor
         },
-        (keySize - ctx.dp(33)) / 2
+        (keySize - (ctx.dp(33) * contentScale).roundToInt()) / 2
     )
 
     private val activeBackground = InsetDrawable(
@@ -47,7 +49,7 @@ class PopupMenuUi(
                 theme.accentKeyBackgroundColor
             )
         },
-        (keySize - ctx.dp(34)) / 2
+        (keySize - (ctx.dp(34) * contentScale).roundToInt()) / 2
     )
 
     private val columnCount = items.size
@@ -55,7 +57,7 @@ class PopupMenuUi(
         calcInitialFocusedColumn(columnCount, keySize, outerBounds, triggerBounds)
 
     override val offsetX = ((triggerBounds.width() - keySize) / 2) - (keySize * focusColumn)
-    override val offsetY = ctx.dp(-52)
+    override val offsetY = (ctx.dp(-52) * contentScale).roundToInt()
 
     private val columnOrder = createColumnOrder(columnCount, focusColumn)
 
@@ -68,6 +70,8 @@ class PopupMenuUi(
             imageDrawable = drawable(it.icon)!!.apply {
                 setTint(theme.accentKeyTextColor)
             }
+            scaleX = contentScale
+            scaleY = contentScale
         }
     }
 

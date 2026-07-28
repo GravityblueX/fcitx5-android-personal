@@ -135,6 +135,18 @@ class IdleUi(
         add(numberRow, lParams(matchParent, matchParent))
     }
 
+    fun setContentScale(toolbarScale: Float, textScale: Float) {
+        menuButton.setContentScale(toolbarScale)
+        hideKeyboardButton.setContentScale(toolbarScale)
+        buttonsUi.setContentScale(toolbarScale)
+        numberRow.setContentScale(toolbarScale)
+        clipboardUi.setContentScale(toolbarScale, textScale)
+    }
+
+    fun setUsePortraitKeyboardStyle(enabled: Boolean) {
+        numberRow.setUsePortraitStyle(enabled)
+    }
+
     fun privateMode(activate: Boolean = true) {
         if (activate == inPrivate) return
         inPrivate = activate

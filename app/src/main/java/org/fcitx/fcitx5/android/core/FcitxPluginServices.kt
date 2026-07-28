@@ -20,6 +20,16 @@ import timber.log.Timber
 object FcitxPluginServices {
 
     const val PLUGIN_SERVICE_ACTION = "${BuildConfig.APPLICATION_ID}.plugin.SERVICE"
+    private const val OFFICIAL_PLUGIN_SERVICE_ACTION =
+        "org.fcitx.fcitx5.android.plugin.SERVICE"
+    private const val OFFICIAL_DEBUG_PLUGIN_SERVICE_ACTION =
+        "org.fcitx.fcitx5.android.debug.plugin.SERVICE"
+
+    private val compatiblePluginServiceActions = linkedSetOf(
+        PLUGIN_SERVICE_ACTION,
+        OFFICIAL_PLUGIN_SERVICE_ACTION,
+        OFFICIAL_DEBUG_PLUGIN_SERVICE_ACTION
+    )
 
     class PluginServiceConnection(
         private val pluginId: String,
@@ -57,23 +67,28 @@ object FcitxPluginServices {
     private val connections = mutableMapOf<String, PluginServiceConnection>()
 
     private fun connectPlugin(descriptor: PluginDescriptor) {
-        val connection = PluginServiceConnection(descriptor.name) {
-            disconnectPlugin(descriptor.name)
+        for (action in compatiblePluginServiceActions) {
+            val connection = PluginServiceConnection(descriptor.name) {
+                disconnectPlugin(descriptor.name)
+            }
+            try {
+                val result = appContext.bindService(
+                    Intent(action).apply { setPackage(descriptor.packageName) },
+                    connection,
+                    Context.BIND_AUTO_CREATE
+                )
+                if (result) {
+                    connections[descriptor.name] = connection
+                    Timber.d("Bound to plugin ${descriptor.name} with action $action")
+                    return
+                }
+            } catch (e: Exception) {
+                // Official service plugins may require the official app's signature permission.
+                Timber.w("Cannot bind to plugin ${descriptor.name} with action $action")
+                Timber.w(e)
+            }
         }
-        try {
-            val result = appContext.bindService(
-                Intent(PLUGIN_SERVICE_ACTION).apply { setPackage(descriptor.packageName) },
-                connection,
-                Context.BIND_AUTO_CREATE
-            )
-            if (!result) throw Exception("Couldn't find service or not enough permission")
-            connections[descriptor.name] = connection
-            Timber.d("Bind to plugin: ${descriptor.name}")
-        } catch (e: Exception) {
-            appContext.unbindService(connection)
-            Timber.w("Cannot bind to plugin: ${descriptor.name}")
-            Timber.w(e)
-        }
+        Timber.w("No compatible service found for plugin: ${descriptor.name}")
     }
 
     fun connectAll() {

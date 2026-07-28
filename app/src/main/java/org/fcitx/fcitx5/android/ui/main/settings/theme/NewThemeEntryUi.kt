@@ -6,6 +6,8 @@ package org.fcitx.fcitx5.android.ui.main.settings.theme
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Outline
+import android.view.View
 import android.view.ViewOutlineProvider
 import androidx.constraintlayout.widget.ConstraintLayout
 import org.fcitx.fcitx5.android.R
@@ -41,8 +43,13 @@ class NewThemeEntryUi(override val ctx: Context) : Ui {
     override val root = constraintLayout {
         foreground = styledDrawable(android.R.attr.selectableItemBackground)
         background = ctx.drawable(R.drawable.bkg_theme_choose_image)
-        outlineProvider = ViewOutlineProvider.BOUNDS
-        elevation = dp(2f)
+        clipToOutline = true
+        outlineProvider = object : ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: Outline) {
+                outline.setRoundRect(0, 0, view.width, view.height, ctx.dp(24f))
+            }
+        }
+        elevation = 0f
         add(icon, lParams(dp(24), dp(24)) {
             topOfParent()
             centerHorizontally()

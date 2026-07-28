@@ -16,6 +16,14 @@ import org.mechdancer.dependency.ScopeEvent
 import org.mechdancer.dependency.manager.DependencyManager
 import kotlin.reflect.KClass
 
+interface ScalableInputWindow {
+    fun setContentScale(scale: Float)
+
+    fun setToolbarScale(scale: Float) {}
+
+    fun setUsePortraitKeyboardStyle(enabled: Boolean) {}
+}
+
 sealed class InputWindow : Dependent {
 
     protected val manager: DependencyManager = DependencyManager()

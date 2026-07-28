@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name_release">Fcitx5</string>
-    <string name="app_name_debug">Fcitx5 (디버그)</string>
+    <string name="app_name_release">Fcitx17</string>
+    <string name="app_name_debug">Fcitx17 (디버그)</string>
     <string name="save">저장</string>
     <string name="input_methods">입력기</string>
     <string name="add_input_method">입력기 추가</string>
@@ -55,7 +55,13 @@
     <string name="delete">삭제</string>
     <string name="clipboard">클립보드</string>
     <string name="keyboard_height">키보드 높이</string>
+    <string name="floating_keyboard">플로팅 키보드</string>
+    <string name="enable_floating_keyboard">플로팅 키보드 사용</string>
+    <string name="disable_floating_keyboard">플로팅 키보드 사용 중지</string>
+    <string name="floating_keyboard_drag">플로팅 키보드 이동</string>
+    <string name="floating_keyboard_resize">플로팅 키보드 크기 조절</string>
     <string name="virtual_keyboard">키보드</string>
+    <string name="always">항상</string>
     <string name="version">버전</string>
     <string name="build_time">빌드 시간</string>
     <string name="build_git_hash">Git 해시 빌드</string>
@@ -91,4 +97,5 @@
     <string name="quickphrase_phrase">구문</string>
     <string name="reload_config">구성 새로고침</string>
     <string name="input_method_options">입력기 옵션</string>
-    </resources>
+    <string name="floating_keyboard_corner_radius">플로팅 키보드 모서리 비율</string>
+</resources>

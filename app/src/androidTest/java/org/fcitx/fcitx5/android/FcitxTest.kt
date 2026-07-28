@@ -4,6 +4,7 @@
  */
 package org.fcitx.fcitx5.android
 
+import android.os.Process
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.channels.Channel
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.fcitx.fcitx5.android.core.Fcitx
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.core.RawConfig
@@ -30,7 +32,9 @@ class FcitxTest {
     private companion object {
 
         lateinit var fcitx: Fcitx
-        val fcitxEventChannel = Channel<FcitxEvent<*>>(capacity = Channel.CONFLATED)
+        // Fcitx emits a commit event followed by several panel/status events. A conflated channel
+        // can overwrite that commit before the test consumes it and then wait forever.
+        val fcitxEventChannel = Channel<FcitxEvent<*>>(capacity = Channel.UNLIMITED)
         val scope = MainScope()
 
         @BeforeClass
@@ -48,7 +52,13 @@ class FcitxTest {
             // wait fcitx started
             runBlocking {
                 receiveFirst<FcitxEvent.ReadyEvent>()
+                // The production IME creates and focuses an Android input context from
+                // onBindInput/onStartInput. Instrumentation tests do not go through that
+                // lifecycle, so create the equivalent context explicitly before sending keys.
+                fcitx.activate(Process.myUid(), context.packageName)
+                fcitx.focus()
                 fcitx.setEnabledIme(arrayOf("pinyin"))
+                fcitx.activateIme("pinyin")
                 fcitx.setGlobalConfig(
                     RawConfig(
                         arrayOf(
@@ -77,7 +87,9 @@ class FcitxTest {
         }
 
         private suspend inline fun <reified T : FcitxEvent<*>> receiveFirst(): T? =
-            fcitxEventChannel.receiveAsFlow().mapNotNull { it as? T }.firstOrNull()
+            withTimeout(30_000L) {
+                fcitxEventChannel.receiveAsFlow().mapNotNull { it as? T }.firstOrNull()
+            }
 
         private suspend fun receiveFirstCandidateList() =
             receiveFirst<FcitxEvent.CandidateListEvent>()
@@ -89,6 +101,16 @@ class FcitxTest {
 
         private suspend fun receiveFirstInputPanelAux() =
             receiveFirst<FcitxEvent.InputPanelEvent>()
+
+        private suspend fun selectCandidate(text: String) {
+            val candidates = fcitx.getCandidates(0, 64)
+            val index = candidates.indexOfFirst { it.text == text }
+            Assert.assertTrue(
+                "Candidate '$text' was not found in: ${candidates.joinToString { it.text }}",
+                index >= 0
+            )
+            Assert.assertTrue(fcitx.select(index))
+        }
 
     }
 
@@ -107,10 +129,11 @@ class FcitxTest {
     @Test
     fun testWbx(): Unit = runBlocking {
         fcitx.setEnabledIme(arrayOf("wbx"))
+        fcitx.activateIme("wbx")
         sendString("wqvb")
         val expected = "你好"
-        fcitx.select(0)
-        val commitString = receiveFirstCommitString()?.data
+        selectCandidate(expected)
+        val commitString = receiveFirstCommitString()?.data?.text
         Timber.i("commitString is $commitString")
         Assert.assertEquals(expected, commitString)
         fcitx.reset()
@@ -119,10 +142,11 @@ class FcitxTest {
     @Test
     fun testPinyin(): Unit = runBlocking {
         fcitx.setEnabledIme(arrayOf("pinyin"))
+        fcitx.activateIme("pinyin")
         sendString("nihaoshijie")
         val expected = "你好世界"
-        fcitx.select(0)
-        val commitString = receiveFirstCommitString()?.data
+        selectCandidate(expected)
+        val commitString = receiveFirstCommitString()?.data?.text
         Timber.i("commitString is $commitString")
         Assert.assertEquals(expected, commitString)
         fcitx.reset()

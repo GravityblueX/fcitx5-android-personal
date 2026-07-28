@@ -24,6 +24,8 @@ abstract class ClipboardAdapter(
     private val maskSensitive: Boolean
 ) : PagingDataAdapter<ClipboardEntry, ClipboardAdapter.ViewHolder>(diffCallback) {
 
+    var contentScale: Float = 1f
+
     companion object {
         private val diffCallback = object : DiffUtil.ItemCallback<ClipboardEntry>() {
             override fun areItemsTheSame(
@@ -86,11 +88,14 @@ abstract class ClipboardAdapter(
     class ViewHolder(val entryUi: ClipboardEntryUi) : RecyclerView.ViewHolder(entryUi.root)
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder =
-        ViewHolder(ClipboardEntryUi(parent.context, theme, entryRadius))
+        ViewHolder(ClipboardEntryUi(parent.context, theme, entryRadius)).also {
+            it.entryUi.setContentScale(contentScale)
+        }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val entry = getItem(position) ?: return
         with(holder.entryUi) {
+            setContentScale(contentScale)
             setEntry(excerptText(entry.text, entry.sensitive && maskSensitive), entry.pinned)
             root.setOnClickListener {
                 onPaste(entry)

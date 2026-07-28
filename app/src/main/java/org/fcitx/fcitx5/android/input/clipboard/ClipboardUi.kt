@@ -26,11 +26,14 @@ import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.view
 import splitties.views.dsl.recyclerview.recyclerView
 import timber.log.Timber
+import kotlin.math.roundToInt
 
 class ClipboardUi(override val ctx: Context, private val theme: Theme) : Ui {
 
+    private val spaces = SpacesItemDecoration(ctx.dp(4))
+
     val recyclerView = recyclerView {
-        addItemDecoration(SpacesItemDecoration(dp(4)))
+        addItemDecoration(spaces)
     }
 
     val enableUi = ClipboardInstructionUi.Enable(ctx, theme)
@@ -83,5 +86,13 @@ class ClipboardUi(override val ctx: Context, private val theme: Theme) : Ui {
                 setDeleteButtonShown(false)
             }
         }
+    }
+
+    fun setContentScale(scale: Float) {
+        val scaled = scale.coerceIn(0f, 1f)
+        spaces.space = (ctx.dp(4) * scaled).roundToInt()
+        recyclerView.invalidateItemDecorations()
+        enableUi.setContentScale(scaled)
+        emptyUi.setContentScale(scaled)
     }
 }

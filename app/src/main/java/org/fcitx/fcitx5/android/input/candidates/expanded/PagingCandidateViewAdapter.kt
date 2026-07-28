@@ -16,6 +16,9 @@ import org.fcitx.fcitx5.android.input.candidates.CandidateViewHolder
 open class PagingCandidateViewAdapter(val theme: Theme) :
     PagingDataAdapter<CandidateWord, CandidateViewHolder>(diffCallback) {
 
+    var contentScale = 1f
+        private set
+
     companion object {
         /**
          * Always re-bind all [CandidateViewHolder]s every time to make sure `idx` is up-to-date.
@@ -36,11 +39,24 @@ open class PagingCandidateViewAdapter(val theme: Theme) :
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CandidateViewHolder {
-        return CandidateViewHolder(CandidateItemUi(parent.context, theme))
+        return CandidateViewHolder(CandidateItemUi(parent.context, theme)).also {
+            // Subclasses assign their layout params after this method returns. Calling the
+            // overridable applyContentScale() here would access those params too early.
+            it.ui.setContentScale(contentScale)
+        }
     }
 
     override fun onBindViewHolder(holder: CandidateViewHolder, position: Int) {
+        applyContentScale(holder)
         val candidate = getItem(position) ?: CandidateWord.Empty
         holder.update(position + offset, candidate)
+    }
+
+    fun setContentScale(scale: Float) {
+        contentScale = scale.coerceIn(0f, 1f)
+    }
+
+    open fun applyContentScale(holder: CandidateViewHolder) {
+        holder.ui.setContentScale(contentScale)
     }
 }

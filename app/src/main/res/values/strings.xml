@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name_release">Fcitx5</string>
-    <string name="app_name_debug">Fcitx5 (Debug)</string>
+    <string name="app_name_release">Fcitx17</string>
+    <string name="app_name_debug">Fcitx17 (Debug)</string>
     <string name="save">Save</string>
     <string name="input_methods">Input Methods</string>
     <string name="add_input_method">Add Input Method</string>
@@ -62,6 +62,11 @@
     <string name="delete">Delete</string>
     <string name="clipboard">Clipboard</string>
     <string name="keyboard_height">Keyboard height</string>
+    <string name="floating_keyboard">Floating keyboard</string>
+    <string name="enable_floating_keyboard">Enable floating keyboard</string>
+    <string name="disable_floating_keyboard">Disable floating keyboard</string>
+    <string name="floating_keyboard_drag">Move floating keyboard</string>
+    <string name="floating_keyboard_resize">Resize floating keyboard</string>
     <string name="virtual_keyboard">Virtual Keyboard</string>
     <string name="clipboard_suggestion_timeout">Clipboard suggestion timeout</string>
     <string name="version">Version</string>
@@ -107,6 +112,7 @@
     <string name="key_border">Enable key border</string>
     <string name="brightness">Brightness</string>
     <string name="key_radius">Key radius</string>
+    <string name="floating_keyboard_corner_radius">Floating keyboard corner radius</string>
     <string name="text_editing_button_radius">Text editing button radius</string>
     <string name="clipboard_entry_radius">Clipboard entry radius</string>
     <string name="key_horizontal_margin">Key horizontal margin</string>
@@ -241,7 +247,7 @@
     <string name="reset_keyboard_on_focus_change">Switch back to keyboard when the focus changes</string>
     <string name="export_user_data">Export user data</string>
     <string name="import_user_data">Import user data</string>
-    <string name="exception_user_data_filename">The filename extension of %1$s does not indicate fcitx5-android user data</string>
+    <string name="exception_user_data_filename">The filename extension of %1$s does not indicate Fcitx17 user data</string>
     <string name="exception_user_data_metadata">Unable to find metadata of user data</string>
     <string name="exception_user_data_package_name_mismatch">User data does not match current application</string>
     <string name="user_data_imported">User data on %1$s has been imported, restarting…</string>
@@ -275,6 +281,7 @@
     <string name="follow_input_device">Depends on input device</string>
     <string name="candidates_orientation">Candidates list orientation</string>
     <string name="automatic">Automatic</string>
+    <string name="always">Always</string>
     <string name="horizontal">Horizontal</string>
     <string name="vertical">Vertical</string>
     <string name="candidates_font_size">Candidate word font size</string>

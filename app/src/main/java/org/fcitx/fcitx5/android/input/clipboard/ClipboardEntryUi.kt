@@ -10,7 +10,10 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.text.TextUtils
+import android.util.TypedValue
 import android.view.View
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.updateLayoutParams
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView
@@ -30,8 +33,13 @@ import splitties.views.dsl.core.textView
 import splitties.views.dsl.core.wrapContent
 import splitties.views.imageDrawable
 import splitties.views.setPaddingDp
+import kotlin.math.roundToInt
 
-class ClipboardEntryUi(override val ctx: Context, private val theme: Theme, radius: Float) : Ui {
+class ClipboardEntryUi(
+    override val ctx: Context,
+    private val theme: Theme,
+    private val radius: Float
+) : Ui {
 
     val textView = textView {
         minLines = 1
@@ -41,6 +49,7 @@ class ClipboardEntryUi(override val ctx: Context, private val theme: Theme, radi
         ellipsize = TextUtils.TruncateAt.END
         setTextColor(theme.keyTextColor)
     }
+    private val baseTextSize = textView.textSize
 
     val pin = imageView {
         imageDrawable = drawable(R.drawable.ic_baseline_push_pin_24)!!.apply {
@@ -59,25 +68,50 @@ class ClipboardEntryUi(override val ctx: Context, private val theme: Theme, radi
         })
     }
 
+    private val rippleMask = GradientDrawable().apply {
+        cornerRadius = radius
+        setColor(Color.WHITE)
+    }
+
+    private val entryBackground = GradientDrawable().apply {
+        cornerRadius = radius
+        setColor(theme.clipboardEntryColor)
+    }
+
     override val root = CustomGestureView(ctx).apply {
         isClickable = true
         minimumHeight = dp(30)
         foreground = RippleDrawable(
-            ColorStateList.valueOf(theme.keyPressHighlightColor), null,
-            GradientDrawable().apply {
-                cornerRadius = radius
-                setColor(Color.WHITE)
-            }
+            ColorStateList.valueOf(theme.keyPressHighlightColor), null, rippleMask
         )
-        background = GradientDrawable().apply {
-            cornerRadius = radius
-            setColor(theme.clipboardEntryColor)
-        }
+        background = entryBackground
         add(layout, lParams(matchParent, matchParent))
     }
 
     fun setEntry(text: String, pinned: Boolean) {
         textView.text = text
         pin.visibility = if (pinned) View.VISIBLE else View.GONE
+    }
+
+    fun setContentScale(scale: Float) {
+        val scaled = scale.coerceIn(0f, 1f)
+        textView.apply {
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, baseTextSize * scaled)
+            setPadding(
+                (ctx.dp(8) * scaled).roundToInt(),
+                (ctx.dp(4) * scaled).roundToInt(),
+                (ctx.dp(8) * scaled).roundToInt(),
+                (ctx.dp(4) * scaled).roundToInt()
+            )
+        }
+        pin.updateLayoutParams<ConstraintLayout.LayoutParams> {
+            width = (ctx.dp(12) * scaled).roundToInt()
+            height = (ctx.dp(12) * scaled).roundToInt()
+            rightMargin = (ctx.dp(2) * scaled).roundToInt()
+            bottomMargin = (ctx.dp(2) * scaled).roundToInt()
+        }
+        root.minimumHeight = (ctx.dp(30) * scaled).roundToInt()
+        rippleMask.cornerRadius = radius * scaled
+        entryBackground.cornerRadius = radius * scaled
     }
 }

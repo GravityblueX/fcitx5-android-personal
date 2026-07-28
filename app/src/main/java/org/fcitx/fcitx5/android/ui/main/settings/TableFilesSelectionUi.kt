@@ -7,10 +7,10 @@ package org.fcitx.fcitx5.android.ui.main.settings
 import android.content.Context
 import android.view.ViewGroup
 import androidx.annotation.StringRes
+import com.google.android.material.color.MaterialColors
 import org.fcitx.fcitx5.android.R
 import splitties.dimensions.dp
 import splitties.resources.resolveThemeAttribute
-import splitties.resources.styledColor
 import splitties.resources.styledDimenPxSize
 import splitties.resources.styledDrawable
 import splitties.views.dsl.constraintlayout.above
@@ -37,13 +37,25 @@ class TableFilesSelectionUi(override val ctx: Context) : Ui {
 
         val title = textView {
             textAppearance = ctx.resolveThemeAttribute(android.R.attr.textAppearanceListItem)
-            setTextColor(styledColor(android.R.attr.textColorPrimary))
+            setTextColor(
+                MaterialColors.getColor(
+                    ctx,
+                    com.google.android.material.R.attr.colorOnSurface,
+                    TableFilesSelectionUi::class.java.simpleName
+                )
+            )
             setText(titleRes)
         }
 
         val summary = textView {
             textAppearance = ctx.resolveThemeAttribute(android.R.attr.textAppearanceSmall)
-            setTextColor(styledColor(android.R.attr.textColorSecondary))
+            setTextColor(
+                MaterialColors.getColor(
+                    ctx,
+                    com.google.android.material.R.attr.colorOnSurfaceVariant,
+                    TableFilesSelectionUi::class.java.simpleName
+                )
+            )
             setText(R.string.table_file_placeholder)
         }
 

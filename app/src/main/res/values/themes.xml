@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
 
-    <style name="Theme.FcitxAppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+    <style name="FcitxAppThemeBase" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar">
+        <item name="android:colorAccent">?attr/colorPrimary</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="colorAccent">?attr/colorPrimary</item>
+        <item name="preferenceTheme">@style/PreferenceThemeOverlay.Fcitx17.Material3</item>
+        <item name="toolbarStyle">@style/Widget.Material3Expressive.Toolbar.Surface</item>
         <item name="colorLogFatal">@color/red_A700</item>
         <item name="colorLogError">@color/red_400</item>
         <item name="colorLogWarning">@color/yellow_800</item>
@@ -10,9 +16,78 @@
         <item name="colorLogVerbose">@color/grey_700</item>
     </style>
 
+    <style name="Theme.FcitxAppTheme" parent="@style/FcitxAppThemeBase" />
+
     <style name="Theme.InputViewTheme" parent="@android:style/Theme.DeviceDefault.Settings" />
 
     <style name="Theme.DialogTheme" parent="@android:style/Theme.DeviceDefault.Light.Dialog" />
 
     <style name="InputViewSnackbarTheme" parent="Theme.MaterialComponents.Light.NoActionBar" />
+
+    <style name="PreferenceThemeOverlay.Fcitx17.Material3" parent="PreferenceThemeOverlay.v14.Material">
+        <item name="preferenceCategoryStyle">@style/Preference.Fcitx17.Category.Material3</item>
+        <item name="preferenceStyle">@style/Preference.Fcitx17.Material3</item>
+        <item name="dialogPreferenceStyle">@style/Preference.Fcitx17.Dialog.Material3</item>
+        <item name="editTextPreferenceStyle">@style/Preference.Fcitx17.EditText.Material3</item>
+        <item name="preferenceScreenStyle">@style/Preference.Fcitx17.Screen.Material3</item>
+        <item name="switchPreferenceCompatStyle">@style/Preference.Fcitx17.Switch.Material3</item>
+        <item name="switchPreferenceStyle">@style/Preference.Fcitx17.Switch.Material3</item>
+        <item name="preferenceFragmentCompatStyle">@style/PreferenceFragment.Fcitx17.Material3</item>
+        <item name="preferenceFragmentListStyle">@style/PreferenceFragmentList.Fcitx17.Material3</item>
+    </style>
+
+    <style name="Preference.Fcitx17.Material3" parent="Preference.Material">
+        <item name="android:layout">@layout/preference_material3</item>
+        <item name="allowDividerAbove">false</item>
+        <item name="allowDividerBelow">false</item>
+        <item name="iconSpaceReserved">false</item>
+        <item name="singleLineTitle">false</item>
+    </style>
+
+    <style name="Preference.Fcitx17.Dialog.Material3" parent="Preference.DialogPreference.Material">
+        <item name="android:layout">@layout/preference_material3</item>
+        <item name="allowDividerAbove">false</item>
+        <item name="allowDividerBelow">false</item>
+        <item name="iconSpaceReserved">false</item>
+    </style>
+
+    <style name="Preference.Fcitx17.EditText.Material3" parent="Preference.DialogPreference.EditTextPreference.Material">
+        <item name="android:layout">@layout/preference_material3</item>
+        <item name="allowDividerAbove">false</item>
+        <item name="allowDividerBelow">false</item>
+        <item name="iconSpaceReserved">false</item>
+    </style>
+
+    <style name="Preference.Fcitx17.Screen.Material3" parent="Preference.PreferenceScreen.Material">
+        <item name="android:layout">@layout/preference_material3</item>
+        <item name="allowDividerAbove">false</item>
+        <item name="allowDividerBelow">false</item>
+        <item name="iconSpaceReserved">false</item>
+    </style>
+
+    <style name="Preference.Fcitx17.Switch.Material3" parent="Preference.SwitchPreferenceCompat.Material">
+        <item name="android:layout">@layout/preference_material3</item>
+        <item name="android:widgetLayout">@layout/preference_widget_material3_switch</item>
+        <item name="allowDividerAbove">false</item>
+        <item name="allowDividerBelow">false</item>
+        <item name="iconSpaceReserved">false</item>
+        <item name="singleLineTitle">false</item>
+    </style>
+
+    <style name="Preference.Fcitx17.Category.Material3" parent="Preference.Category.Material">
+        <item name="android:layout">@layout/preference_category_material3</item>
+        <item name="allowDividerAbove">false</item>
+        <item name="allowDividerBelow">false</item>
+        <item name="iconSpaceReserved">false</item>
+    </style>
+
+    <style name="PreferenceFragment.Fcitx17.Material3" parent="PreferenceFragment.Material">
+        <item name="android:divider">@null</item>
+        <item name="allowDividerAfterLastItem">false</item>
+    </style>
+
+    <style name="PreferenceFragmentList.Fcitx17.Material3" parent="PreferenceFragmentList.Material">
+        <item name="android:clipToPadding">false</item>
+        <item name="android:paddingTop">8dp</item>
+    </style>
 </resources>

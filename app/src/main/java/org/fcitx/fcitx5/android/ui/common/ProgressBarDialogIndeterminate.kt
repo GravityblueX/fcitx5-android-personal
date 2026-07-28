@@ -11,6 +11,7 @@ import android.os.Build
 import android.provider.Settings
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.lifecycle.LifecycleCoroutineScope
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
@@ -30,9 +31,9 @@ import splitties.views.dsl.core.verticalMargin
 import splitties.views.textAppearance
 
 @Suppress("FunctionName")
-fun Context.ProgressBarDialogIndeterminate(@StringRes title: Int): AlertDialog.Builder {
+fun Context.ProgressBarDialogIndeterminate(@StringRes title: Int): MaterialAlertDialogBuilder {
     val androidStyles = AndroidStyles(this)
-    return AlertDialog.Builder(this)
+    return MaterialAlertDialogBuilder(this)
         .setTitle(title)
         .setView(verticalLayout {
             val shouldAnimate = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

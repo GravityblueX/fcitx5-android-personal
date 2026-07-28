@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name_release">Fcitx5</string>
-    <string name="app_name_debug">Fcitx5 (デバッグ)</string>
+    <string name="app_name_release">Fcitx17</string>
+    <string name="app_name_debug">Fcitx17 (デバッグ)</string>
     <string name="save">保存</string>
     <string name="input_methods">インプットメソッド</string>
     <string name="add_input_method">インプットメソッドの追加</string>
@@ -61,7 +61,13 @@
     <string name="delete">削除</string>
     <string name="clipboard">クリップボード</string>
     <string name="keyboard_height">キーボードの高さ</string>
+    <string name="floating_keyboard">フローティング キーボード</string>
+    <string name="enable_floating_keyboard">フローティング キーボードを有効にする</string>
+    <string name="disable_floating_keyboard">フローティング キーボードを無効にする</string>
+    <string name="floating_keyboard_drag">フローティング キーボードを移動</string>
+    <string name="floating_keyboard_resize">フローティング キーボードのサイズを変更</string>
     <string name="virtual_keyboard">ソフトウェアキーボード</string>
+    <string name="always">常に</string>
     <string name="clipboard_suggestion_timeout">クリップボード候補のタイムアウト</string>
     <string name="version">バージョン</string>
     <string name="build_time">ビルド時間</string>
@@ -106,6 +112,7 @@
     <string name="key_border">キーの枠を有効にする</string>
     <string name="brightness">明るさ</string>
     <string name="key_radius">キーの角半径</string>
+    <string name="floating_keyboard_corner_radius">フローティングキーボードの角丸率</string>
     <string name="key_horizontal_margin">キーの左右間隔</string>
     <string name="key_vertical_margin">キーの上下間隔</string>
     <string name="configure">設定</string>
@@ -224,7 +231,7 @@
     <string name="restarting_fcitx">Fcitxを再起動中</string>
     <string name="plugin_needs_reload">プラグインの変更を除去しました。ここをクリックして再読み込みします</string>
     <string name="no_plugins">利用可能なプラグインはありません</string>
-    <string name="removed_n_items">%1$s 個のアイテムを削除しました</string>
+    <string name="removed_n_items">%1$d 個のアイテムを削除しました</string>
     <string name="whether_reset_switch_preference">この設定をデフォルトの設定にリセットしますか？</string>
     <string name="enabled">有効</string>
     <string name="following_system_settings">システム設定に従う</string>
@@ -234,7 +241,7 @@
     <string name="disable_it">無効にする</string>
     <string name="export_user_data">ユーザーデータをエクスポートする</string>
     <string name="import_user_data">ユーザーデータをインポートする</string>
-    <string name="exception_user_data_filename">%1$s のファイル拡張子はfcitx5-androidのユーザーデータを示していません</string>
+    <string name="exception_user_data_filename">%1$s のファイル拡張子は Fcitx17 のユーザーデータを示していません</string>
     <string name="exception_user_data_metadata">ユーザーデータのメタデータが見つかりません</string>
     <string name="exception_user_data_package_name_mismatch">ユーザーデータが現在のアプリに適合しません</string>
     <string name="user_data_imported">%1$s のユーザーデータをインポートしました。再起動します…</string>

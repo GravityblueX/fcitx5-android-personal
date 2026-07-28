@@ -29,6 +29,7 @@ import splitties.views.dsl.core.add
 import splitties.views.dsl.core.frameLayout
 import splitties.views.dsl.core.lParams
 import java.util.LinkedList
+import kotlin.math.roundToInt
 
 class PopupComponent :
     UniqueComponent<PopupComponent>(), Dependent, ManagedHandler by managedHandler() {
@@ -44,21 +45,19 @@ class PopupComponent :
 
     private val showingContainerUi = HashMap<Int, PopupContainerUi>()
 
-    private val keyBottomMargin by lazy {
-        context.dp(ThemeManager.prefs.keyVerticalMargin.getValue())
-    }
-    private val popupWidth by lazy {
-        context.dp(38)
-    }
-    private val popupHeight by lazy {
-        context.dp(116)
-    }
-    private val popupKeyHeight by lazy {
-        context.dp(48)
-    }
-    private val popupRadius by lazy {
-        context.dp(ThemeManager.prefs.keyRadius.getValue()).toFloat()
-    }
+    private var contentScale = 1f
+
+    private val keyBottomMargin: Int
+        get() = (context.dp(ThemeManager.prefs.keyVerticalMargin.getValue()) *
+            contentScale).roundToInt()
+    private val popupWidth: Int
+        get() = (context.dp(38) * contentScale).roundToInt()
+    private val popupHeight: Int
+        get() = (context.dp(116) * contentScale).roundToInt()
+    private val popupKeyHeight: Int
+        get() = (context.dp(48) * contentScale).roundToInt()
+    private val popupRadius: Float
+        get() = context.dp(ThemeManager.prefs.keyRadius.getValue()) * contentScale
     private val hideThreshold = 100L
 
     private val rootLocation = intArrayOf(0, 0)
@@ -70,6 +69,8 @@ class PopupComponent :
             layoutDirection = View.LAYOUT_DIRECTION_LTR
             isClickable = false
             isFocusable = false
+            // Floating keyboard panel has elevation, so the preview layer must stay above it.
+            elevation = context.dp(12).toFloat()
 
             addOnLayoutChangeListener { v, left, top, right, bottom, _, _, _, _ ->
                 val (x, y) = rootLocation.also { v.getLocationInWindow(it) }
@@ -90,14 +91,20 @@ class PopupComponent :
             return
         }
         val popup = (freeEntryUi.poll()
-            ?: PopupEntryUi(context, theme, popupKeyHeight, popupRadius)).apply {
+            ?: PopupEntryUi(
+                context,
+                theme,
+                popupKeyHeight,
+                popupRadius,
+                contentScale
+            )).apply {
             lastShowTime = System.currentTimeMillis()
             setText(content)
         }
         popup.root.layoutParams = FrameLayout.LayoutParams(popupWidth, popupHeight).apply {
             // align popup bottom with key border bottom [^1]
-            topMargin = bounds.bottom - popupHeight - keyBottomMargin
-            leftMargin = (bounds.left + bounds.right - popupWidth) / 2
+            topMargin = bounds.bottom - rootBounds.top - popupHeight - keyBottomMargin
+            leftMargin = (bounds.left + bounds.right - popupWidth) / 2 - rootBounds.left
         }
         // make sure that popup.root does not have parent view before adding it under root container
         // it's wired that on some devices it would have a parent view despite it was newly created
@@ -144,6 +151,7 @@ class PopupComponent :
             popupKeyHeight,
             // position popup keyboard higher, because of [^1]
             popupHeight + keyBottomMargin,
+            contentScale,
             keys,
             labels
         )
@@ -161,6 +169,7 @@ class PopupComponent :
             bounds,
             { dismissPopup(viewId) },
             menu.items,
+            contentScale
         )
         showPopupContainer(viewId, menuUi)
     }
@@ -229,6 +238,14 @@ class PopupComponent :
             freeEntryUi.add(entry)
         }
         showingEntryUi.clear()
+    }
+
+    fun setContentScale(scale: Float) {
+        val scaled = scale.coerceIn(0f, 1f)
+        if (contentScale == scaled) return
+        contentScale = scaled
+        dismissAll()
+        freeEntryUi.clear()
     }
 
     val listener = PopupActionListener { action ->

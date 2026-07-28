@@ -15,8 +15,11 @@ import org.fcitx.fcitx5.android.input.bar.ui.ToolButton
 import splitties.dimensions.dp
 import splitties.views.dsl.core.Ui
 import splitties.views.dsl.core.view
+import kotlin.math.roundToInt
 
 class ButtonsBarUi(override val ctx: Context, private val theme: Theme) : Ui {
+
+    private val toolButtons = mutableListOf<ToolButton>()
 
     override val root = view(::FlexboxLayout) {
         alignItems = AlignItems.CENTER
@@ -24,8 +27,9 @@ class ButtonsBarUi(override val ctx: Context, private val theme: Theme) : Ui {
     }
 
     private fun toolButton(@DrawableRes icon: Int) = ToolButton(ctx, icon, theme).also {
-        val size = ctx.dp(40)
+        val size = ctx.dp(BUTTON_SIZE_DP)
         root.addView(it, FlexboxLayout.LayoutParams(size, size))
+        toolButtons.add(it)
     }
 
     val undoButton = toolButton(R.drawable.ic_baseline_undo_24).apply {
@@ -44,8 +48,27 @@ class ButtonsBarUi(override val ctx: Context, private val theme: Theme) : Ui {
         contentDescription = ctx.getString(R.string.clipboard)
     }
 
+    val floatingKeyboardButton = toolButton(R.drawable.ic_mdi_keyboard_close_24)
+
     val moreButton = toolButton(R.drawable.ic_baseline_more_horiz_24).apply {
         contentDescription = ctx.getString(R.string.status_area)
     }
 
+    fun setContentScale(scale: Float) {
+        val buttonSize = (ctx.dp(BUTTON_SIZE_DP) * scale)
+            .roundToInt()
+            .coerceAtLeast(ctx.dp(MIN_BUTTON_SIZE_DP))
+        toolButtons.forEach {
+            it.setContentScale(scale)
+            it.layoutParams = (it.layoutParams as FlexboxLayout.LayoutParams).apply {
+                width = buttonSize
+                height = buttonSize
+            }
+        }
+    }
+
+    private companion object {
+        const val BUTTON_SIZE_DP = 40
+        const val MIN_BUTTON_SIZE_DP = 30
+    }
 }

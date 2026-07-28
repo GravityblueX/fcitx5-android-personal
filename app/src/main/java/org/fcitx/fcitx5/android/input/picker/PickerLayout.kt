@@ -7,6 +7,7 @@ package org.fcitx.fcitx5.android.input.picker
 import android.annotation.SuppressLint
 import android.content.Context
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.updateLayoutParams
 import androidx.viewpager2.widget.ViewPager2
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.theme.Theme
@@ -22,6 +23,8 @@ import splitties.views.dsl.constraintlayout.topOfParent
 import splitties.views.dsl.core.add
 import splitties.views.dsl.core.view
 import splitties.views.imageResource
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 @SuppressLint("ViewConstructor")
 class PickerLayout(context: Context, theme: Theme, switchKey: KeyDef) :
@@ -83,5 +86,14 @@ class PickerLayout(context: Context, theme: Theme, switchKey: KeyDef) :
             centerHorizontally()
             below(pager, dp(-1))
         })
+    }
+
+    fun setContentScale(scale: Float) {
+        val scaled = scale.coerceIn(0f, 1f)
+        embeddedKeyboard.setContentScale(scaled)
+        paginationUi.root.updateLayoutParams<ConstraintLayout.LayoutParams> {
+            height = max(1, (context.dp(2) * scaled).roundToInt())
+            topMargin = (context.dp(-1) * scaled).roundToInt()
+        }
     }
 }

@@ -90,6 +90,7 @@ class PickerTabsUi(override val ctx: Context, val theme: Theme) : Ui {
 
     private var tabs: Array<TabUi> = arrayOf()
     private var selected = -1
+    private var contentScale = 1f
 
     private var onTabClick: (TabUi.(Int) -> Unit)? = null
 
@@ -105,6 +106,10 @@ class PickerTabsUi(override val ctx: Context, val theme: Theme) : Ui {
                 if (category.icon != 0) setIcon(category.icon)
                 else setLabel(category.label)
                 setActive(false)
+                label.scaleX = contentScale
+                label.scaleY = contentScale
+                icon.scaleX = contentScale
+                icon.scaleY = contentScale
             }
         }
         tabs.forEachIndexed { i, tabUi ->
@@ -131,5 +136,15 @@ class PickerTabsUi(override val ctx: Context, val theme: Theme) : Ui {
 
     fun setOnTabClickListener(listener: (TabUi.(Int) -> Unit)? = null) {
         onTabClick = listener
+    }
+
+    fun setContentScale(scale: Float) {
+        contentScale = scale.coerceIn(0f, 1f)
+        tabs.forEach {
+            it.label.scaleX = contentScale
+            it.label.scaleY = contentScale
+            it.icon.scaleX = contentScale
+            it.icon.scaleY = contentScale
+        }
     }
 }

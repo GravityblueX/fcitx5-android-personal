@@ -11,6 +11,7 @@ import android.content.pm.ActivityInfo
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
@@ -100,6 +101,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private lateinit var contentView: FrameLayout
     private var inputView: InputView? = null
     private var candidatesView: CandidatesView? = null
+    private val floatingKeyboardSessionState = FloatingKeyboardSessionState()
 
     private val navbarMgr = NavigationBarManager()
     private val inputDeviceMgr = InputDeviceManager { isVirtualKeyboard ->
@@ -147,7 +149,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     )
 
     private fun replaceInputView(theme: Theme): InputView {
-        val newInputView = InputView(this, fcitx, theme)
+        val newInputView = InputView(this, fcitx, theme, floatingKeyboardSessionState)
         setInputView(newInputView)
         inputDeviceMgr.setInputView(newInputView)
         inputView = newInputView
@@ -547,6 +549,11 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 ActivityInfo.CONFIG_KEYBOARD_HIDDEN or
                 ActivityInfo.CONFIG_UI_MODE
         val diff = lastKnownConfig.diff(newConfig)
+        val inputViewConfigChanges = ActivityInfo.CONFIG_ORIENTATION or
+                ActivityInfo.CONFIG_SCREEN_SIZE or
+                ActivityInfo.CONFIG_SMALLEST_SCREEN_SIZE
+        val shouldReplaceInputViews = diff and inputViewConfigChanges != 0
+        val shouldRestoreInputView = shouldReplaceInputViews && isInputViewShown
         Timber.d("onConfigurationChanged diff=$diff")
         /**
          * perform `super.onConfigurationChanged` only when `newConfig` diff fall outside "skipped" flags
@@ -555,6 +562,26 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
          */
         if (diff and f != diff) {
             super.onConfigurationChanged(newConfig)
+        }
+        if (shouldReplaceInputViews) {
+            // The IME declares rotation-related changes as handled. Rebuild our themed views
+            // directly without InputMethodService.resetStateForNewConfiguration(), whose
+            // hide/show cycle can drop the editor connection and cursor on some vendor ROMs.
+            decorLocationUpdated = false
+            replaceInputViews(ThemeManager.activeTheme)
+            if (shouldRestoreInputView) {
+                decorView.post {
+                    if (!isInputViewShown) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            requestShowSelf(0)
+                        } else {
+                            // requestShowSelf() was added in API 28. On older Android versions,
+                            // restore the already-connected input view directly.
+                            showWindow(true)
+                        }
+                    }
+                }
+            }
         }
         lastKnownConfig = newConfig
     }
@@ -598,14 +625,29 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     private var inputViewLocation = intArrayOf(0, 0)
+    private val floatingKeyboardBounds = Rect()
 
     override fun onComputeInsets(outInsets: Insets) {
         if (inputDeviceMgr.isVirtualKeyboard) {
-            inputView?.keyboardView?.getLocationInWindow(inputViewLocation)
-            outInsets.apply {
-                contentTopInsets = inputViewLocation[1]
-                visibleTopInsets = inputViewLocation[1]
-                touchableInsets = Insets.TOUCHABLE_INSETS_VISIBLE
+            val view = inputView
+            if (
+                view?.isFloatingKeyboard == true &&
+                view.getFloatingKeyboardBoundsInWindow(floatingKeyboardBounds)
+            ) {
+                outInsets.apply {
+                    // A floating keyboard must not resize or pan the editor behind it.
+                    contentTopInsets = decorView.height
+                    visibleTopInsets = decorView.height
+                    touchableInsets = Insets.TOUCHABLE_INSETS_REGION
+                    touchableRegion.set(floatingKeyboardBounds)
+                }
+            } else {
+                view?.keyboardView?.getLocationInWindow(inputViewLocation)
+                outInsets.apply {
+                    contentTopInsets = inputViewLocation[1]
+                    visibleTopInsets = inputViewLocation[1]
+                    touchableInsets = Insets.TOUCHABLE_INSETS_VISIBLE
+                }
             }
         } else {
             val n = decorView.findViewById<View>(android.R.id.navigationBarBackground)?.height ?: 0

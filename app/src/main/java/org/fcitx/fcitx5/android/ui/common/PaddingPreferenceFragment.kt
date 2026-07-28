@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.annotation.CallSuper
+import com.google.android.material.color.MaterialColors
 import org.fcitx.fcitx5.android.ui.main.modified.MyPreferenceFragment
 import org.fcitx.fcitx5.android.utils.applyNavBarInsetsBottomPadding
 
@@ -19,6 +20,17 @@ abstract class PaddingPreferenceFragment : MyPreferenceFragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ) = super.onCreateView(inflater, container, savedInstanceState).apply {
+        setBackgroundColor(
+            MaterialColors.getColor(
+                this,
+                com.google.android.material.R.attr.colorSurface
+            )
+        )
+        listView.apply {
+            clipToPadding = false
+            itemAnimator = null
+            overScrollMode = android.view.View.OVER_SCROLL_IF_CONTENT_SCROLLS
+        }
         listView.applyNavBarInsetsBottomPadding()
     }
 }

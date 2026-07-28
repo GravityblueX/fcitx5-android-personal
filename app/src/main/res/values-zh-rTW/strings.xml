@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name_release">小企鵝輸入法</string>
-    <string name="app_name_debug">小企鵝輸入法 (除錯)</string>
+    <string name="app_name_release">Fcitx17</string>
+    <string name="app_name_debug">Fcitx17 (除錯)</string>
     <string name="save">儲存</string>
     <string name="input_methods">輸入法</string>
     <string name="add_input_method">新增輸入法</string>
@@ -62,6 +62,11 @@
     <string name="delete">刪除</string>
     <string name="clipboard">剪貼簿</string>
     <string name="keyboard_height">鍵盤高度</string>
+    <string name="floating_keyboard">懸浮鍵盤</string>
+    <string name="enable_floating_keyboard">啟用懸浮鍵盤</string>
+    <string name="disable_floating_keyboard">停用懸浮鍵盤</string>
+    <string name="floating_keyboard_drag">移動懸浮鍵盤</string>
+    <string name="floating_keyboard_resize">調整懸浮鍵盤大小</string>
     <string name="virtual_keyboard">虛擬鍵盤</string>
     <string name="clipboard_suggestion_timeout">剪貼簿項目逾時</string>
     <string name="version">版本</string>
@@ -107,6 +112,7 @@
     <string name="key_border">啟用按鍵邊框</string>
     <string name="brightness">亮度</string>
     <string name="key_radius">按鍵圓角半徑</string>
+    <string name="floating_keyboard_corner_radius">懸浮鍵盤圓角比例</string>
     <string name="text_editing_button_radius">文本編輯按鈕圓角半徑</string>
     <string name="clipboard_entry_radius">剪貼簿條目圓角半徑</string>
     <string name="key_horizontal_margin">按鍵橫向邊距</string>
@@ -241,7 +247,7 @@
     <string name="reset_keyboard_on_focus_change">焦點改變時切換回鍵盤</string>
     <string name="export_user_data">匯出使用者資料</string>
     <string name="import_user_data">匯入使用者資料</string>
-    <string name="exception_user_data_filename">%1$s 副檔名並不是 fcitx5-android 使用者資料</string>
+    <string name="exception_user_data_filename">%1$s 副檔名並不是 Fcitx17 使用者資料</string>
     <string name="exception_user_data_metadata">無法找到使用者資料的中繼資料</string>
     <string name="exception_user_data_package_name_mismatch">使用者資料與目前應用程式不符合</string>
     <string name="user_data_imported">已匯入來自 %1$s 的使用者資料，正在重新啟動</string>
@@ -275,6 +281,7 @@
     <string name="follow_input_device">視輸入設備而定</string>
     <string name="candidates_orientation">候選詞列表方向</string>
     <string name="automatic">自動</string>
+    <string name="always">始終啟用</string>
     <string name="horizontal">橫向</string>
     <string name="vertical">豎向</string>
     <string name="candidates_font_size">候選詞字體大小</string>
