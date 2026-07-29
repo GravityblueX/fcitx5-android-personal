@@ -12,10 +12,10 @@ import androidx.core.view.MenuHost
 import androidx.core.view.MenuProvider
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LiveData
+import com.google.android.material.color.MaterialColors
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.ui.main.MainViewModel.ButtonMode
 import org.fcitx.fcitx5.android.utils.item
-import splitties.resources.styledColor
 
 class EditDeleteMenuProvider<T>(
     private val buttonMode: LiveData<ButtonMode>,
@@ -25,7 +25,11 @@ class EditDeleteMenuProvider<T>(
     lifecycleOwner: LifecycleOwner,
 ) : MenuProvider where T : MenuHost, T : Context {
 
-    private val tint = menuHost.styledColor(android.R.attr.colorControlNormal)
+    private val tint = MaterialColors.getColor(
+        menuHost,
+        com.google.android.material.R.attr.colorOnSurfaceVariant,
+        EditDeleteMenuProvider::class.java.simpleName
+    )
 
     init {
         buttonMode.observe(lifecycleOwner) { menuHost.invalidateMenu() }
