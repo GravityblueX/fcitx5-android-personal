@@ -1,0 +1,10 @@
+{
+    "sha256": "b78d82ef7843be56f06d49248b023708ad0f2b48ae29de5f658ad11e1977f526",
+    "files": {
+        "usr": "",
+        "usr/share/fcitx5/inputmethod/handwriting-zh-cn.conf": "0cbeb86882b5e7d670c76f16c3c652932e307b085debc494d301f901c84ca2c5",
+        "usr\\share": "",
+        "usr\\share\\fcitx5": "",
+        "usr\\share\\fcitx5\\inputmethod": ""
+    }
+}

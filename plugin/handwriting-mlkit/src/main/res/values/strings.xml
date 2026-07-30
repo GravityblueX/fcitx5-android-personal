@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name_debug">Fcitx17 (Handwriting Plugin | Debug)</string>
+    <string name="app_name_release">Fcitx17 (Handwriting Plugin)</string>
+    <string name="description">Handwriting recognition provider prototype for Fcitx17</string>
+</resources>
