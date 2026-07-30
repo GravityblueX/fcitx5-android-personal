@@ -32,7 +32,7 @@ class HandwritingKeyboard(
     companion object {
         const val RETURN_KEY_WIDTH_FRACTION = 0.15f
 
-        private val Layout = listOf(TextKeyboard.Layout.last())
+        private val Layout = listOf(TextKeyboard.BottomRow)
     }
 
     private val space: TextKeyView by lazy { findViewById(R.id.button_space) }

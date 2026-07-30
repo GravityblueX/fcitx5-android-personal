@@ -8,6 +8,7 @@ import android.os.IBinder
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingProtocol
 import org.fcitx.fcitx5.android.common.handwriting.IHandwritingRecognitionProvider
 import timber.log.Timber
+import java.util.concurrent.CopyOnWriteArrayList
 
 object HandwritingProviderRegistry {
 
@@ -24,6 +25,19 @@ object HandwritingProviderRegistry {
 
     private val lock = Any()
     private val entries = linkedMapOf<IBinder, Entry>()
+    private val onChangeListeners = CopyOnWriteArrayList<() -> Unit>()
+
+    fun addOnChangeListener(listener: () -> Unit) {
+        onChangeListeners.addIfAbsent(listener)
+    }
+
+    fun removeOnChangeListener(listener: () -> Unit) {
+        onChangeListeners.remove(listener)
+    }
+
+    private fun notifyChanged() {
+        onChangeListeners.forEach { it() }
+    }
 
     fun register(remote: IHandwritingRecognitionProvider) {
         val binder = remote.asBinder()
@@ -71,6 +85,7 @@ object HandwritingProviderRegistry {
             entries[binder] = Entry(Provider(id, supportedModes, remote), deathRecipient)
         }
         Timber.i("Registered handwriting provider %s for modes %s", id, supportedModes)
+        notifyChanged()
     }
 
     fun unregister(remote: IHandwritingRecognitionProvider) {
@@ -102,6 +117,7 @@ object HandwritingProviderRegistry {
             runCatching { binder.unlinkToDeath(removed.deathRecipient, 0) }
         }
         Timber.i("Unregistered handwriting provider %s", removed.provider.id)
+        notifyChanged()
     }
 
     fun clear() {
@@ -110,6 +126,9 @@ object HandwritingProviderRegistry {
         }
         removed.forEach {
             runCatching { it.provider.remote.asBinder().unlinkToDeath(it.deathRecipient, 0) }
+        }
+        if (removed.isNotEmpty()) {
+            notifyChanged()
         }
     }
 }

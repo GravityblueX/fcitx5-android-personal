@@ -33,6 +33,7 @@ import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
 import org.fcitx.fcitx5.android.input.keyboard.KeyActionListener
+import org.fcitx.fcitx5.android.input.keyboard.TextKeyboard
 import org.fcitx.fcitx5.android.input.popup.PopupComponent
 import org.fcitx.fcitx5.android.input.wm.EssentialWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindow
@@ -92,6 +93,13 @@ class HandwritingWindow :
 
     private val keyActionListener = KeyActionListener { action, source ->
         commonKeyActionListener.listener.onKeyAction(action, source)
+    }
+    private val providerChangeListener = {
+        ContextCompat.getMainExecutor(service).execute {
+            if (attached) {
+                queryModelState()
+            }
+        }
     }
 
     override fun onCreateView(): View {
@@ -185,14 +193,15 @@ class HandwritingWindow :
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     0,
-                    1f,
+                    (TextKeyboard.Layout.size - 1).toFloat(),
                 ),
             )
             addView(
                 handwritingKeyboard,
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(64),
+                    0,
+                    1f,
                 ),
             )
         }
@@ -222,6 +231,7 @@ class HandwritingWindow :
 
     override fun onAttached() {
         attached = true
+        HandwritingProviderRegistry.addOnChangeListener(providerChangeListener)
         modePreference.registerOnChangeListener(modeChangeListener)
         applyRecognitionMode(modePreference.getValue())
         bar.onKeyboardLayoutSwitched(false)
@@ -236,6 +246,7 @@ class HandwritingWindow :
 
     override fun onDetached() {
         attached = false
+        HandwritingProviderRegistry.removeOnChangeListener(providerChangeListener)
         modePreference.unregisterOnChangeListener(modeChangeListener)
         activeRequestId = requestIds.incrementAndGet()
         handwritingKeyboard.onDetach()

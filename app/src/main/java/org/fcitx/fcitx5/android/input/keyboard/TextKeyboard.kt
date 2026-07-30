@@ -30,6 +30,15 @@ class TextKeyboard(
     companion object {
         const val Name = "Text"
 
+        val BottomRow: List<KeyDef> = listOf(
+            LayoutSwitchKey("?123", ""),
+            CommaKey(0.1f, KeyDef.Appearance.Variant.Alternative),
+            LanguageKey(),
+            SpaceKey(),
+            SymbolKey(".", 0.1f, KeyDef.Appearance.Variant.Alternative),
+            ReturnKey()
+        )
+
         val Layout: List<List<KeyDef>> = listOf(
             listOf(
                 AlphabetKey("Q", "1"),
@@ -65,14 +74,7 @@ class TextKeyboard(
                 AlphabetKey("M", "\\"),
                 BackspaceKey()
             ),
-            listOf(
-                LayoutSwitchKey("?123", ""),
-                CommaKey(0.1f, KeyDef.Appearance.Variant.Alternative),
-                LanguageKey(),
-                SpaceKey(),
-                SymbolKey(".", 0.1f, KeyDef.Appearance.Variant.Alternative),
-                ReturnKey()
-            )
+            BottomRow
         )
     }
 

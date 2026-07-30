@@ -4,10 +4,14 @@
  */
 package org.fcitx.fcitx5.android.ui.main.settings.im
 
+import android.content.Context
+import android.view.View
 import androidx.core.content.ContextCompat
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceScreen
+import androidx.preference.PreferenceViewHolder
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingProtocol
 import org.fcitx.fcitx5.android.common.handwriting.IHandwritingModelCallback
@@ -15,10 +19,31 @@ import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreferenceFragment
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingProviderRegistry
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingRecognitionMode
+import org.fcitx.fcitx5.android.utils.appContext
 import timber.log.Timber
 
 class HandwritingSettingsFragment :
     ManagedPreferenceFragment(AppPrefs.getInstance().handwriting) {
+
+    private class ModelPreference(context: Context) : Preference(context) {
+        var progressVisible = false
+            set(value) {
+                if (field == value) return
+                field = value
+                notifyChanged()
+            }
+
+        init {
+            widgetLayoutResource = R.layout.preference_widget_handwriting_model_progress
+        }
+
+        override fun onBindViewHolder(holder: PreferenceViewHolder) {
+            super.onBindViewHolder(holder)
+            (holder.findViewById(R.id.handwriting_model_progress)
+                    as? LinearProgressIndicator)?.visibility =
+                if (progressVisible) View.VISIBLE else View.GONE
+        }
+    }
 
     private data class ModelEntry(
         val mode: HandwritingRecognitionMode,
@@ -33,10 +58,17 @@ class HandwritingSettingsFragment :
     )
     private val languageEntries =
         modelEntries.filter { it.mode != HandwritingRecognitionMode.Auto }
-    private val modelPreferences = mutableMapOf<HandwritingRecognitionMode, Preference>()
+    private val modelPreferences = mutableMapOf<HandwritingRecognitionMode, ModelPreference>()
     private val languageModelStates = mutableMapOf<HandwritingRecognitionMode, Int>()
     private var autoModelState = HandwritingProtocol.MODEL_STATE_UNKNOWN
     private var autoProviderUnavailable = false
+    private val providerChangeListener = {
+        ContextCompat.getMainExecutor(appContext).execute {
+            if (isAdded) {
+                refreshModelStates()
+            }
+        }
+    }
 
     override fun onPreferenceUiCreated(screen: PreferenceScreen) {
         val category = PreferenceCategory(screen.context).apply {
@@ -45,7 +77,7 @@ class HandwritingSettingsFragment :
         }
         screen.addPreference(category)
         modelEntries.forEach { entry ->
-            val preference = Preference(screen.context).apply {
+            val preference = ModelPreference(screen.context).apply {
                 key = "handwriting_model_${entry.mode.name.lowercase()}"
                 setTitle(entry.mode.stringRes)
                 setSummary(R.string.handwriting_model_checking_settings)
@@ -62,11 +94,17 @@ class HandwritingSettingsFragment :
         refreshModelStates()
     }
 
-    override fun onResume() {
-        super.onResume()
+    override fun onStart() {
+        super.onStart()
+        HandwritingProviderRegistry.addOnChangeListener(providerChangeListener)
         if (modelPreferences.isNotEmpty()) {
             refreshModelStates()
         }
+    }
+
+    override fun onStop() {
+        HandwritingProviderRegistry.removeOnChangeListener(providerChangeListener)
+        super.onStop()
     }
 
     private fun refreshModelStates() {
@@ -162,6 +200,8 @@ class HandwritingSettingsFragment :
         }
         languageModelStates[entry.mode] = state
         val preference = modelPreferences[entry.mode] ?: return
+        preference.progressVisible =
+            state == HandwritingProtocol.MODEL_STATE_DOWNLOADING
         preference.isEnabled = state != HandwritingProtocol.MODEL_STATE_DOWNLOADING
         preference.summary = when {
             providerUnavailable -> getString(R.string.handwriting_provider_unavailable)
@@ -184,6 +224,7 @@ class HandwritingSettingsFragment :
         val downloading =
             autoModelState == HandwritingProtocol.MODEL_STATE_DOWNLOADING ||
                     states.any { it == HandwritingProtocol.MODEL_STATE_DOWNLOADING }
+        preference.progressVisible = downloading
         preference.isEnabled = !autoProviderUnavailable && !downloading
         preference.summary = when {
             autoProviderUnavailable -> getString(R.string.handwriting_provider_unavailable)
