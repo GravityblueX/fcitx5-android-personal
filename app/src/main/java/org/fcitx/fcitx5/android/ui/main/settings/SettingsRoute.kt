@@ -31,6 +31,7 @@ import org.fcitx.fcitx5.android.ui.main.settings.behavior.ClipboardSettingsFragm
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.KeyboardSettingsFragment
 import org.fcitx.fcitx5.android.ui.main.settings.behavior.SymbolSettingsFragment
 import org.fcitx.fcitx5.android.ui.main.settings.global.GlobalConfigFragment
+import org.fcitx.fcitx5.android.ui.main.settings.im.HandwritingSettingsFragment
 import org.fcitx.fcitx5.android.ui.main.settings.im.InputMethodConfigFragment
 import org.fcitx.fcitx5.android.ui.main.settings.im.InputMethodListFragment
 import org.fcitx.fcitx5.android.ui.main.settings.theme.ThemeFragment
@@ -56,6 +57,9 @@ sealed class SettingsRoute : Parcelable {
 
     @Serializable
     data class InputMethodConfig(val name: String, val uniqueName: String) : SettingsRoute()
+
+    @Serializable
+    data object Handwriting : SettingsRoute()
 
     @Serializable
     data object AddonList : SettingsRoute()
@@ -197,6 +201,9 @@ sealed class SettingsRoute : Parcelable {
                 label = ctx.getString(R.string.input_methods)
             }
             fragment<InputMethodConfigFragment, InputMethodConfig>()
+            fragment<HandwritingSettingsFragment, Handwriting> {
+                label = ctx.getString(R.string.handwriting)
+            }
             fragment<AddonListFragment, AddonList> {
                 label = ctx.getString(R.string.addons)
             }

@@ -45,6 +45,9 @@ object AppUtil {
     fun launchMainToInputMethodConfig(context: Context, uniqueName: String, displayName: String) =
         launchMainToDest(context, SettingsRoute.InputMethodConfig(displayName, uniqueName))
 
+    fun launchMainToHandwriting(context: Context) =
+        launchMainToDest(context, SettingsRoute.Handwriting)
+
     fun launchClipboardEdit(context: Context, id: Int, lastEntry: Boolean = false) {
         context.startActivity<ClipboardEditActivity> {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

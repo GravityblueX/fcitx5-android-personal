@@ -6,17 +6,19 @@ package org.fcitx.fcitx5.android.input.handwriting
 
 import android.annotation.SuppressLint
 import android.content.Context
+import androidx.core.view.allViews
 import org.fcitx.fcitx5.android.R
-import org.fcitx.fcitx5.android.core.InputMethodEntry
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.keyboard.BackspaceKey
 import org.fcitx.fcitx5.android.input.keyboard.BaseKeyboard
+import org.fcitx.fcitx5.android.input.keyboard.CommaKey
 import org.fcitx.fcitx5.android.input.keyboard.ImageKeyView
 import org.fcitx.fcitx5.android.input.keyboard.KeyAction
 import org.fcitx.fcitx5.android.input.keyboard.KeyDef
 import org.fcitx.fcitx5.android.input.keyboard.LanguageKey
 import org.fcitx.fcitx5.android.input.keyboard.ReturnKey
 import org.fcitx.fcitx5.android.input.keyboard.SpaceKey
+import org.fcitx.fcitx5.android.input.keyboard.SymbolKey
 import org.fcitx.fcitx5.android.input.keyboard.TextKeyView
 import org.fcitx.fcitx5.android.input.picker.PickerWindow
 import splitties.views.imageResource
@@ -31,11 +33,11 @@ class HandwritingKeyboard(
     theme: Theme,
 ) : BaseKeyboard(context, theme, Layout) {
 
-    private class SymbolKey : KeyDef(
+    private class PickerSymbolKey : KeyDef(
         Appearance.Text(
             displayText = "?123",
             textSize = 18f,
-            percentWidth = 0.14f,
+            percentWidth = 0.13f,
             variant = Appearance.Variant.Alternative,
         ),
         setOf(
@@ -43,42 +45,54 @@ class HandwritingKeyboard(
         ),
     )
 
-    private class EmojiKey : KeyDef(
-        Appearance.Image(
-            src = R.drawable.ic_baseline_tag_faces_24,
-            percentWidth = 0.11f,
-            variant = Appearance.Variant.Alternative,
-        ),
-        setOf(
-            Behavior.Press(KeyAction.PickerSwitchAction(PickerWindow.Key.Emoji))
-        ),
-    )
-
     private companion object {
         val Layout = listOf(
             listOf(
-                SymbolKey(),
-                EmojiKey(),
+                PickerSymbolKey(),
+                CommaKey(
+                    percentWidth = 0.09f,
+                    variant = KeyDef.Appearance.Variant.Alternative,
+                ),
                 LanguageKey(),
                 SpaceKey(),
-                BackspaceKey(percentWidth = 0.14f),
-                ReturnKey(percentWidth = 0.14f),
+                SymbolKey(
+                    symbol = ".",
+                    percentWidth = 0.09f,
+                    variant = KeyDef.Appearance.Variant.Alternative,
+                ),
+                ReturnKey(percentWidth = 0.13f),
+                BackspaceKey(percentWidth = 0.13f),
             )
         )
     }
 
     private val space: TextKeyView by lazy { findViewById(R.id.button_space) }
     private val returnKey: ImageKeyView by lazy { findViewById(R.id.button_return) }
-
-    init {
-        space.mainText.text = context.getString(R.string.handwriting)
+    private val punctuationKeys by lazy {
+        allViews
+            .filterIsInstance<TextKeyView>()
+            .filter {
+                (it.def as? KeyDef.Appearance.Text)?.displayText == "," ||
+                        (it.def as? KeyDef.Appearance.Text)?.displayText == "."
+            }
+            .toList()
     }
-
-    override fun onInputMethodUpdate(ime: InputMethodEntry) {
-        space.mainText.text = context.getString(R.string.handwriting)
+    init {
+        onRecognitionModeUpdate(HandwritingRecognitionMode.Chinese)
     }
 
     override fun onReturnDrawableUpdate(returnDrawable: Int) {
         returnKey.img.imageResource = returnDrawable
+    }
+
+    override fun onPunctuationUpdate(mapping: Map<String, String>) {
+        punctuationKeys.forEach {
+            val displayText = (it.def as KeyDef.Appearance.Text).displayText
+            it.mainText.text = mapping.getOrDefault(displayText, displayText)
+        }
+    }
+
+    fun onRecognitionModeUpdate(mode: HandwritingRecognitionMode) {
+        space.mainText.text = context.getString(mode.stringRes)
     }
 }

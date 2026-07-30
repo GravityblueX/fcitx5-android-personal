@@ -16,6 +16,7 @@ import org.fcitx.fcitx5.android.input.candidates.expanded.ExpandedCandidateStyle
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesMode
 import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrientation
 import org.fcitx.fcitx5.android.input.candidates.horizontal.HorizontalCandidateMode
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingRecognitionMode
 import org.fcitx.fcitx5.android.input.keyboard.FloatingKeyboardMode
 import org.fcitx.fcitx5.android.input.keyboard.LangSwitchBehavior
 import org.fcitx.fcitx5.android.input.keyboard.SpaceLongPressBehavior
@@ -381,6 +382,14 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         )
     }
 
+    inner class Handwriting : ManagedPreferenceCategory(R.string.handwriting, sharedPreferences) {
+        val recognitionMode = enumList(
+            R.string.handwriting_recognition_mode,
+            "handwriting_recognition_mode",
+            HandwritingRecognitionMode.Chinese,
+        )
+    }
+
     private val providers = mutableListOf<ManagedPreferenceProvider>()
 
     fun <T : ManagedPreferenceProvider> registerProvider(
@@ -400,6 +409,7 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
     val candidates = Candidates().register()
     val clipboard = Clipboard().register()
     val symbols = Symbols().register()
+    val handwriting = Handwriting().register()
     val advanced = Advanced().register()
 
     @Keep
@@ -428,7 +438,8 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             listOf(
                 keyboard,
                 candidates,
-                clipboard
+                clipboard,
+                handwriting,
             ).forEach { category ->
                 category.managedPreferences.forEach {
                     it.value.putValueTo(this@edit)

@@ -14,13 +14,17 @@ sealed class StatusAreaEntry(
     val icon: Int,
     val active: Boolean
 ) {
-    class Android(label: String, icon: Int, val type: Type) :
-        StatusAreaEntry(label, icon, false) {
+    class Android(label: String, icon: Int, val type: Type, active: Boolean = false) :
+        StatusAreaEntry(label, icon, active) {
         enum class Type {
             InputMethod,
             ReloadConfig,
             Keyboard,
-            ThemeList
+            ThemeList,
+            HandwritingChinese,
+            HandwritingEnglish,
+            HandwritingJapanese,
+            HandwritingAuto,
         }
     }
 

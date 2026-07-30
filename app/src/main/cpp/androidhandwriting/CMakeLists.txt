@@ -1,5 +1,10 @@
 add_library(androidhandwriting MODULE androidhandwriting.cpp)
-target_link_libraries(androidhandwriting Fcitx5::Core Fcitx5::Utils)
+target_link_libraries(
+        androidhandwriting
+        Fcitx5::Core
+        Fcitx5::Utils
+        Fcitx5::Module::Punctuation
+)
 
 configure_file(androidhandwriting.conf.in.in androidhandwriting.conf.in @ONLY)
 fcitx5_translate_desktop_file(

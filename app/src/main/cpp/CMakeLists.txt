@@ -23,6 +23,14 @@ find_package(LibIMETable MODULE)
 
 find_package(fcitx5-lua REQUIRED CONFIG)
 find_package(fcitx5-chinese-addons REQUIRED CONFIG)
+get_target_property(
+        FCITX5_CHINESE_ADDONS_CMAKE_MODULES
+        fcitx5-chinese-addons::cmake
+        INTERFACE_INCLUDE_DIRECTORIES
+)
+set(CMAKE_MODULE_PATH ${FCITX5_CHINESE_ADDONS_CMAKE_MODULES} ${CMAKE_MODULE_PATH})
+
+find_package(Fcitx5ModulePunctuation MODULE)
 
 include("${FCITX_INSTALL_CMAKECONFIG_DIR}/Fcitx5Utils/Fcitx5CompilerSettings.cmake")
 

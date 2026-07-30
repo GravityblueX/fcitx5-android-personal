@@ -35,6 +35,18 @@
     <string name="handwriting_model_name_english" tools:ignore="MissingTranslation">the English handwriting model</string>
     <string name="handwriting_model_name_japanese" tools:ignore="MissingTranslation">the Japanese handwriting model</string>
     <string name="handwriting_model_name_auto" tools:ignore="MissingTranslation">the Chinese, English, and Japanese handwriting models</string>
+    <string name="handwriting_recognition_mode" tools:ignore="MissingTranslation">Recognition mode</string>
+    <string name="handwriting_mode_chinese" tools:ignore="MissingTranslation">中文</string>
+    <string name="handwriting_mode_english" tools:ignore="MissingTranslation">English</string>
+    <string name="handwriting_mode_japanese" tools:ignore="MissingTranslation">日本語</string>
+    <string name="handwriting_mode_auto" tools:ignore="MissingTranslation">Auto</string>
+    <string name="handwriting_models" tools:ignore="MissingTranslation">Recognition model packages</string>
+    <string name="handwriting_model_ready" tools:ignore="MissingTranslation">Downloaded and ready</string>
+    <string name="handwriting_model_not_downloaded" tools:ignore="MissingTranslation">Not downloaded (about %1$d MB). Tap to download.</string>
+    <string name="handwriting_model_downloading_settings" tools:ignore="MissingTranslation">Downloading…</string>
+    <string name="handwriting_model_failed_settings" tools:ignore="MissingTranslation">Download failed. Tap to retry.</string>
+    <string name="handwriting_model_checking_settings" tools:ignore="MissingTranslation">Checking model status…</string>
+    <string name="handwriting_model_auto_ready" tools:ignore="MissingTranslation">At least one language is ready. Tap to download or verify all three models.</string>
     <string name="delete_and_sync_data">Delete and sync runtime data</string>
     <string name="delete_and_sync_data_message">Delete current data directory and synchronize from assets bundled in app</string>
     <string name="enable_ime">Enable Input Method</string>

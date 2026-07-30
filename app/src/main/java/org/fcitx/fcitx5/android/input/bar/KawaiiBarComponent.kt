@@ -56,10 +56,12 @@ import org.fcitx.fcitx5.android.input.candidates.horizontal.HorizontalCandidateC
 import org.fcitx.fcitx5.android.input.clipboard.ClipboardWindow
 import org.fcitx.fcitx5.android.input.dependency.UniqueViewComponent
 import org.fcitx.fcitx5.android.input.dependency.context
+import org.fcitx.fcitx5.android.input.dependency.fcitx
 import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.inputView
 import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.editing.TextEditingWindow
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingWindow
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
 import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
@@ -91,6 +93,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     private val context by manager.context()
     private val theme by manager.theme()
     private val service by manager.inputMethodService()
+    private val fcitx by manager.fcitx()
     private val inputView by manager.inputView()
     private val windowManager: InputWindowManager by manager.must()
     private val horizontalCandidate: HorizontalCandidateComponent by manager.must()
@@ -396,7 +399,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     // set expand candidate button to close expand candidate
     private fun setExpandButtonToDetach() {
         candidateUi.expandButton.setOnClickListener {
-            windowManager.attachWindow(KeyboardWindow)
+            attachPrimaryInputWindow()
         }
         candidateUi.expandButton.setIcon(R.drawable.ic_baseline_expand_less_24)
         candidateUi.expandButton.contentDescription = context.getString(R.string.hide_candidates_list)
@@ -526,12 +529,23 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                 titleUi.setTitle(window.title)
                 window.onCreateBarExtension()?.let { titleUi.addExtension(it, window.showTitle) }
                 titleUi.setReturnButtonOnClickListener {
-                    windowManager.attachWindow(KeyboardWindow)
+                    attachPrimaryInputWindow()
                 }
                 barStateMachine.push(ExtendedWindowAttached)
             }
             else -> {}
         }
+    }
+
+    private fun attachPrimaryInputWindow() {
+        val inputMethod = fcitx.runImmediately { inputMethodEntryCached }
+        windowManager.attachWindow(
+            if (HandwritingWindow.isHandwritingInputMethod(inputMethod)) {
+                HandwritingWindow
+            } else {
+                KeyboardWindow
+            }
+        )
     }
 
     override fun onWindowDetached(window: InputWindow) {

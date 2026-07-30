@@ -9,6 +9,7 @@ import android.view.View
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.annotation.Keep
 import androidx.core.content.ContextCompat
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingProtocol
@@ -19,6 +20,8 @@ import org.fcitx.fcitx5.android.common.handwriting.IHandwritingModelCallback
 import org.fcitx.fcitx5.android.common.handwriting.IHandwritingRecognitionCallback
 import org.fcitx.fcitx5.android.core.CandidateWord
 import org.fcitx.fcitx5.android.core.InputMethodEntry
+import org.fcitx.fcitx5.android.data.prefs.AppPrefs
+import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
 import org.fcitx.fcitx5.android.input.bar.KawaiiBarComponent
 import org.fcitx.fcitx5.android.input.bar.ui.ToolButton
 import org.fcitx.fcitx5.android.input.broadcast.InputBroadcastReceiver
@@ -61,6 +64,7 @@ class HandwritingWindow :
     private val commonKeyActionListener: CommonKeyActionListener by manager.must()
     private val returnKeyDrawable: ReturnKeyDrawableComponent by manager.must()
     private val requestIds = AtomicLong()
+    private val modePreference = AppPrefs.getInstance().handwriting.recognitionMode
 
     private lateinit var canvas: HandwritingCanvas
     private lateinit var undoButton: ToolButton
@@ -70,12 +74,18 @@ class HandwritingWindow :
     private lateinit var handwritingKeyboard: HandwritingKeyboard
 
     private var currentIme: InputMethodEntry? = null
-    private var currentMode = HandwritingProtocol.MODE_CHINESE_SIMPLIFIED
+    private var currentMode = modePreference.getValue().protocolMode
     private var activeRequestId = 0L
     private var contentScale = 1f
     private var modelState = HandwritingProtocol.MODEL_STATE_UNKNOWN
     private var attached = false
     private var recognitionCandidates = emptyList<HandwritingRecognitionCandidate>()
+
+    @Keep
+    private val modeChangeListener =
+        ManagedPreference.OnChangeListener<HandwritingRecognitionMode> { _, mode ->
+            applyRecognitionMode(mode)
+        }
 
     private val keyActionListener = KeyActionListener { action, source ->
         commonKeyActionListener.listener.onKeyAction(action, source)
@@ -160,6 +170,7 @@ class HandwritingWindow :
         handwritingKeyboard = HandwritingKeyboard(context, theme).apply {
             keyActionListener = this@HandwritingWindow.keyActionListener
             onReturnDrawableUpdate(returnKeyDrawable.resourceId)
+            onRecognitionModeUpdate(HandwritingRecognitionMode.fromProtocolMode(currentMode))
             currentIme?.let(::onInputMethodUpdate)
         }
         updateStatus()
@@ -187,21 +198,9 @@ class HandwritingWindow :
     override fun onImeUpdate(ime: InputMethodEntry) {
         currentIme = ime
         if (!isHandwritingInputMethod(ime)) return
-        val newMode = when (ime.uniqueName) {
-            "handwriting-en" -> HandwritingProtocol.MODE_ENGLISH
-            "handwriting-ja" -> HandwritingProtocol.MODE_JAPANESE
-            "handwriting-auto" -> HandwritingProtocol.MODE_AUTO
-            else -> HandwritingProtocol.MODE_CHINESE_SIMPLIFIED
-        }
-        if (newMode != currentMode && ::canvas.isInitialized) {
-            activeRequestId = requestIds.incrementAndGet()
-            canvas.clear()
-            updateCandidates(emptyList())
-        }
-        currentMode = newMode
         if (::handwritingKeyboard.isInitialized) {
             handwritingKeyboard.onInputMethodUpdate(ime)
-            queryModelState()
+            applyRecognitionMode(modePreference.getValue())
         }
     }
 
@@ -213,15 +212,17 @@ class HandwritingWindow :
 
     override fun onAttached() {
         attached = true
+        modePreference.registerOnChangeListener(modeChangeListener)
+        applyRecognitionMode(modePreference.getValue())
         bar.onKeyboardLayoutSwitched(false)
         publishCandidates()
         handwritingKeyboard.keyActionListener = keyActionListener
         currentIme?.let(handwritingKeyboard::onInputMethodUpdate)
-        queryModelState()
     }
 
     override fun onDetached() {
         attached = false
+        modePreference.unregisterOnChangeListener(modeChangeListener)
         activeRequestId = requestIds.incrementAndGet()
         handwritingKeyboard.keyActionListener = null
         canvas.clear()
@@ -245,6 +246,40 @@ class HandwritingWindow :
     override fun setUsePortraitKeyboardStyle(enabled: Boolean) {
         if (::handwritingKeyboard.isInitialized) {
             handwritingKeyboard.setUsePortraitStyle(enabled)
+        }
+    }
+
+    override fun onPunctuationUpdate(mapping: Map<String, String>) {
+        if (::handwritingKeyboard.isInitialized) {
+            handwritingKeyboard.onPunctuationUpdate(mapping)
+        }
+    }
+
+    fun setRecognitionMode(mode: HandwritingRecognitionMode) {
+        if (modePreference.getValue() != mode) {
+            modePreference.setValue(mode)
+        }
+        applyRecognitionMode(mode)
+    }
+
+    private fun applyRecognitionMode(mode: HandwritingRecognitionMode) {
+        val newMode = mode.protocolMode
+        if (newMode != currentMode) {
+            currentMode = newMode
+            activeRequestId = requestIds.incrementAndGet()
+            if (::canvas.isInitialized) {
+                canvas.clear()
+                updateCandidates(emptyList())
+            }
+            modelState = HandwritingProtocol.MODEL_STATE_UNKNOWN
+        }
+        if (::handwritingKeyboard.isInitialized) {
+            handwritingKeyboard.onRecognitionModeUpdate(mode)
+        }
+        if (attached) {
+            queryModelState()
+        } else {
+            updateStatus()
         }
     }
 

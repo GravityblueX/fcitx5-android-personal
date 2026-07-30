@@ -10,6 +10,7 @@ import androidx.lifecycle.Lifecycle
 import org.fcitx.fcitx5.android.core.InputMethodEntry
 import org.fcitx.fcitx5.android.core.SubtypeManager
 import org.fcitx.fcitx5.android.daemon.launchOnReady
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingWindow
 import org.fcitx.fcitx5.android.ui.common.BaseDynamicListUi
 import org.fcitx.fcitx5.android.ui.common.DynamicListUi
 import org.fcitx.fcitx5.android.ui.common.OnItemChangedListener
@@ -46,7 +47,11 @@ class InputMethodListFragment : ProgressFragment(), OnItemChangedListener<InputM
             initSettingsButton = { entry ->
                 setOnClickListener {
                     navigateWithAnim(
-                        SettingsRoute.InputMethodConfig(entry.displayName, entry.uniqueName),
+                        if (HandwritingWindow.isHandwritingInputMethod(entry)) {
+                            SettingsRoute.Handwriting
+                        } else {
+                            SettingsRoute.InputMethodConfig(entry.displayName, entry.uniqueName)
+                        },
                     )
                 }
             },
