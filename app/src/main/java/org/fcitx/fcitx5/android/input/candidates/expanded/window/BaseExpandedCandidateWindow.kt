@@ -12,6 +12,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.core.view.children
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
+import androidx.paging.PagingData
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
@@ -36,6 +37,7 @@ import org.fcitx.fcitx5.android.input.dependency.fcitx
 import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.inputView
 import org.fcitx.fcitx5.android.input.dependency.theme
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingWindow
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
 import org.fcitx.fcitx5.android.input.keyboard.KeyAction
 import org.fcitx.fcitx5.android.input.keyboard.KeyActionListener
@@ -134,7 +136,7 @@ abstract class BaseExpandedCandidateWindow<T : BaseExpandedCandidateWindow<T>> :
 
     private var offsetJob: Job? = null
 
-    private val candidatesPager by lazy {
+    private fun createCandidatesPager() =
         Pager(
             config = PagingConfig(
                 pageSize = 48,
@@ -148,7 +150,7 @@ abstract class BaseExpandedCandidateWindow<T : BaseExpandedCandidateWindow<T>> :
                 )
             }
         )
-    }
+
     private var candidatesSubmitJob: Job? = null
 
     abstract fun prevPage()
@@ -161,29 +163,44 @@ abstract class BaseExpandedCandidateWindow<T : BaseExpandedCandidateWindow<T>> :
             it.onReturnDrawableUpdate(returnKeyDrawable.resourceId)
             it.keyActionListener = keyActionListener
         }
-        updateTabs(fcitx.runImmediately { inputPanelCached.tabs })
+        updateTabs(
+            if (horizontalCandidate.isCandidateOverrideActive) {
+                emptyArray()
+            } else {
+                fcitx.runImmediately { inputPanelCached.tabs }
+            }
+        )
         offsetJob = service.lifecycleScope.launch {
             horizontalCandidate.expandedCandidateOffset.collect {
                 if (it <= 0) {
-                    windowManager.attachWindow(KeyboardWindow)
+                    attachPrimaryInputWindow()
                 } else {
                     candidateLayout.resetPosition()
                     adapter.refreshWithOffset(it)
+                    candidatesSubmitJob?.cancel()
+                    val overridden = horizontalCandidate.candidateOverrideCandidates(it)
+                    candidatesSubmitJob = service.lifecycleScope.launch {
+                        if (overridden != null) {
+                            adapter.submitData(PagingData.from(overridden))
+                        } else {
+                            createCandidatesPager().flow.collectLatest(adapter::submitData)
+                        }
+                    }
                 }
-            }
-        }
-        candidatesSubmitJob = service.lifecycleScope.launch {
-            candidatesPager.flow.collectLatest {
-                adapter.submitData(it)
             }
         }
     }
 
     fun bindCandidateUiViewHolder(holder: CandidateViewHolder) {
         holder.itemView.setOnClickListener {
-            fcitx.launchOnReady { it.select(holder.idx) }
+            if (!horizontalCandidate.selectCandidateOverride(holder.idx)) {
+                fcitx.launchOnReady { it.select(holder.idx) }
+            }
         }
         holder.itemView.setOnLongClickListener {
+            if (horizontalCandidate.isCandidateOverrideActive) {
+                return@setOnLongClickListener false
+            }
             inputView.showCandidateActionMenu(holder.idx, holder.candidate.text, holder.ui.root)
             true
         }
@@ -206,12 +223,25 @@ abstract class BaseExpandedCandidateWindow<T : BaseExpandedCandidateWindow<T>> :
 
     override fun onPreeditEmptyStateUpdate(empty: Boolean) {
         if (empty) {
-            windowManager.attachWindow(KeyboardWindow)
+            attachPrimaryInputWindow()
         }
     }
 
     override fun onInputPanelUpdate(data: FcitxEvent.InputPanelEvent.Data) {
-        updateTabs(data.tabs)
+        if (!horizontalCandidate.isCandidateOverrideActive) {
+            updateTabs(data.tabs)
+        }
+    }
+
+    private fun attachPrimaryInputWindow() {
+        val inputMethod = fcitx.runImmediately { inputMethodEntryCached }
+        windowManager.attachWindow(
+            if (HandwritingWindow.isHandwritingInputMethod(inputMethod)) {
+                HandwritingWindow
+            } else {
+                KeyboardWindow
+            }
+        )
     }
 
     override fun setContentScale(scale: Float) {

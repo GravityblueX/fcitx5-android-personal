@@ -14,6 +14,7 @@ import android.view.View
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingInkPoint
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingInkStroke
 import splitties.dimensions.dp
+import kotlin.math.hypot
 
 @SuppressLint("ViewConstructor")
 class HandwritingCanvas(
@@ -25,9 +26,12 @@ class HandwritingCanvas(
     private data class DrawnStroke(
         val ink: MutableList<HandwritingInkPoint>,
         val path: Path,
+        var lastDrawX: Float,
+        var lastDrawY: Float,
+        var hasDrawnSegment: Boolean = false,
     )
 
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.DITHER_FLAG).apply {
         color = strokeColor
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
@@ -78,7 +82,12 @@ class HandwritingCanvas(
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 parent?.requestDisallowInterceptTouchEvent(true)
-                val stroke = DrawnStroke(mutableListOf(), Path())
+                val stroke = DrawnStroke(
+                    ink = mutableListOf(),
+                    path = Path(),
+                    lastDrawX = event.x,
+                    lastDrawY = event.y,
+                )
                 strokes += stroke
                 activeStroke = stroke
                 appendPoint(stroke, event.x, event.y, event.eventTime, event.pressure, event.getToolType(0))
@@ -100,7 +109,7 @@ class HandwritingCanvas(
                         event.getHistoricalPressure(0, i),
                         event.getToolType(0),
                     )
-                    stroke.path.lineTo(x, y)
+                    appendPathPoint(stroke, x, y)
                 }
                 appendPoint(
                     stroke,
@@ -110,7 +119,7 @@ class HandwritingCanvas(
                     event.pressure,
                     event.getToolType(0),
                 )
-                stroke.path.lineTo(event.x, event.y)
+                appendPathPoint(stroke, event.x, event.y)
                 invalidate()
                 return true
             }
@@ -125,7 +134,8 @@ class HandwritingCanvas(
                     event.pressure,
                     event.getToolType(0),
                 )
-                stroke.path.lineTo(event.x, event.y)
+                appendPathPoint(stroke, event.x, event.y)
+                finishPath(stroke, event.x, event.y)
                 activeStroke = null
                 parent?.requestDisallowInterceptTouchEvent(false)
                 performClick()
@@ -159,5 +169,30 @@ class HandwritingCanvas(
         toolType: Int,
     ) {
         stroke.ink += HandwritingInkPoint(x, y, timestampMillis, pressure, toolType)
+    }
+
+    private fun appendPathPoint(stroke: DrawnStroke, x: Float, y: Float) {
+        val dx = x - stroke.lastDrawX
+        val dy = y - stroke.lastDrawY
+        val tolerance = dp(1).toFloat() * contentScale.coerceAtLeast(0.5f)
+        if (hypot(dx, dy) < tolerance) return
+        stroke.path.quadTo(
+            stroke.lastDrawX,
+            stroke.lastDrawY,
+            (stroke.lastDrawX + x) / 2f,
+            (stroke.lastDrawY + y) / 2f,
+        )
+        stroke.lastDrawX = x
+        stroke.lastDrawY = y
+        stroke.hasDrawnSegment = true
+    }
+
+    private fun finishPath(stroke: DrawnStroke, x: Float, y: Float) {
+        if (stroke.hasDrawnSegment || x != stroke.lastDrawX || y != stroke.lastDrawY) {
+            stroke.path.lineTo(x, y)
+        } else {
+            // Keep a tap visible as a round dot.
+            stroke.path.lineTo(x + 0.01f, y)
+        }
     }
 }

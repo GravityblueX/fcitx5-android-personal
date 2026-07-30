@@ -66,6 +66,7 @@ class HorizontalCandidateComponent :
     private var candidateOverride: CandidateOverride? = null
 
     private data class CandidateOverride(
+        val candidates: Array<CandidateWord>,
         val onCandidateClick: (Int) -> Unit,
     )
 
@@ -89,13 +90,6 @@ class HorizontalCandidateComponent :
 
     private fun refreshExpanded(childCount: Int) {
         _expandedCandidateOffset.tryEmit(childCount)
-        if (candidateOverride != null) {
-            bar.expandButtonStateMachine.push(
-                ExpandedCandidatesUpdated,
-                ExpandedCandidatesEmpty to true,
-            )
-            return
-        }
         bar.expandButtonStateMachine.push(
             ExpandedCandidatesUpdated,
             ExpandedCandidatesEmpty to (adapter.total == childCount)
@@ -141,10 +135,14 @@ class HorizontalCandidateComponent :
     val layoutManager: FlexboxLayoutManager by lazy {
         object : FlexboxLayoutManager(context) {
             override fun canScrollVertically() = false
-            override fun canScrollHorizontally() = candidateOverride != null
+            override fun canScrollHorizontally() = false
             override fun onLayoutCompleted(state: RecyclerView.State) {
                 super.onLayoutCompleted(state)
-                val cnt = this.childCount
+                val cnt = if (candidateOverride != null && adapter.total > 0) {
+                    (findLastCompletelyVisibleItemPosition() + 1).coerceAtLeast(1)
+                } else {
+                    this.childCount
+                }
                 if (candidateOverride != null) {
                     refreshExpanded(cnt)
                     return
@@ -211,7 +209,7 @@ class HorizontalCandidateComponent :
         onCandidateClick: (Int) -> Unit,
         onClear: () -> Unit,
     ) {
-        candidateOverride = CandidateOverride(onCandidateClick)
+        candidateOverride = CandidateOverride(candidates, onCandidateClick)
         layoutMinWidth = 0
         layoutFlexGrow = 0f
         secondLayoutPassNeeded = false
@@ -220,7 +218,29 @@ class HorizontalCandidateComponent :
         adapter.updateCandidates(candidates, candidates.size)
         view.scrollToPosition(0)
         bar.updateCandidateOverride(candidates.isEmpty(), onClear)
-        refreshExpanded(0)
+        if (candidates.isEmpty()) {
+            refreshExpanded(0)
+        } else {
+            // Wait for layout to calculate how many candidates are fully visible.
+            // Until then the previous expanded offset must not be actionable.
+            bar.expandButtonStateMachine.push(
+                ExpandedCandidatesUpdated,
+                ExpandedCandidatesEmpty to true,
+            )
+        }
+    }
+
+    val isCandidateOverrideActive: Boolean
+        get() = candidateOverride != null
+
+    fun candidateOverrideCandidates(offset: Int): List<CandidateWord>? =
+        candidateOverride?.candidates?.drop(offset.coerceAtLeast(0))
+
+    fun selectCandidateOverride(index: Int): Boolean {
+        val override = candidateOverride ?: return false
+        if (index !in override.candidates.indices) return false
+        override.onCandidateClick(index)
+        return true
     }
 
     fun clearCandidateOverride() {

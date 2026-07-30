@@ -6,6 +6,7 @@ package org.fcitx.fcitx5.android.input.handwriting
 
 import android.view.Gravity
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -18,6 +19,7 @@ import org.fcitx.fcitx5.android.common.handwriting.HandwritingRecognitionRequest
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingRecognitionResponse
 import org.fcitx.fcitx5.android.common.handwriting.IHandwritingModelCallback
 import org.fcitx.fcitx5.android.common.handwriting.IHandwritingRecognitionCallback
+import org.fcitx.fcitx5.android.core.CapabilityFlags
 import org.fcitx.fcitx5.android.core.CandidateWord
 import org.fcitx.fcitx5.android.core.InputMethodEntry
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
@@ -198,11 +200,18 @@ class HandwritingWindow :
 
     override fun onImeUpdate(ime: InputMethodEntry) {
         currentIme = ime
-        if (!isHandwritingInputMethod(ime)) return
+        if (!isHandwritingInputMethod(ime)) {
+            resetInputState()
+            return
+        }
         if (::handwritingKeyboard.isInitialized) {
             handwritingKeyboard.onInputMethodUpdate(ime)
             applyRecognitionMode(modePreference.getValue())
         }
+    }
+
+    override fun onStartInput(info: EditorInfo, capFlags: CapabilityFlags) {
+        resetInputState()
     }
 
     override fun onReturnKeyDrawableUpdate(resourceId: Int) {
@@ -235,10 +244,6 @@ class HandwritingWindow :
         controlKeyboard.onDetach()
         controlKeyboard.keyActionListener = null
         popup.dismissAll()
-        canvas.clear()
-        recognitionCandidates = emptyList()
-        horizontalCandidate.clearCandidateOverride()
-        updateStatus()
     }
 
     override fun setContentScale(scale: Float) {
@@ -432,19 +437,32 @@ class HandwritingWindow :
 
     private fun updateCandidates(candidates: List<HandwritingRecognitionCandidate>) {
         recognitionCandidates = candidates
-        if (attached) publishCandidates()
+        if (attached || horizontalCandidate.isCandidateOverrideActive) {
+            publishCandidates()
+        }
     }
 
     private fun publishCandidates() {
+        val publishedCandidates = recognitionCandidates.toList()
         horizontalCandidate.setCandidateOverride(
-            candidates = recognitionCandidates.map {
+            candidates = publishedCandidates.map {
                 CandidateWord("", it.text, "")
             }.toTypedArray(),
             onCandidateClick = { index ->
-                recognitionCandidates.getOrNull(index)?.let(::commitCandidate)
+                publishedCandidates.getOrNull(index)?.let(::commitCandidate)
             },
             onClear = ::clear,
         )
+    }
+
+    private fun resetInputState() {
+        activeRequestId = requestIds.incrementAndGet()
+        if (::canvas.isInitialized) {
+            canvas.clear()
+        }
+        recognitionCandidates = emptyList()
+        horizontalCandidate.clearCandidateOverride()
+        updateStatus()
     }
 
     private fun updateModelState(state: Int) {
