@@ -9,7 +9,6 @@ import android.content.Context
 import androidx.core.view.allViews
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.theme.Theme
-import org.fcitx.fcitx5.android.input.keyboard.BackspaceKey
 import org.fcitx.fcitx5.android.input.keyboard.BaseKeyboard
 import org.fcitx.fcitx5.android.input.keyboard.CommaKey
 import org.fcitx.fcitx5.android.input.keyboard.ImageKeyView
@@ -61,7 +60,6 @@ class HandwritingKeyboard(
                     variant = KeyDef.Appearance.Variant.Alternative,
                 ),
                 ReturnKey(percentWidth = 0.13f),
-                BackspaceKey(percentWidth = 0.13f),
             )
         )
     }

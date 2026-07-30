@@ -31,7 +31,12 @@ class HandwritingSettingsFragment :
         ModelEntry(HandwritingRecognitionMode.Japanese, 20),
         ModelEntry(HandwritingRecognitionMode.Auto, 60),
     )
+    private val languageEntries =
+        modelEntries.filter { it.mode != HandwritingRecognitionMode.Auto }
     private val modelPreferences = mutableMapOf<HandwritingRecognitionMode, Preference>()
+    private val languageModelStates = mutableMapOf<HandwritingRecognitionMode, Int>()
+    private var autoModelState = HandwritingProtocol.MODEL_STATE_UNKNOWN
+    private var autoProviderUnavailable = false
 
     override fun onPreferenceUiCreated(screen: PreferenceScreen) {
         val category = PreferenceCategory(screen.context).apply {
@@ -65,7 +70,16 @@ class HandwritingSettingsFragment :
     }
 
     private fun refreshModelStates() {
-        modelEntries.forEach { entry ->
+        autoModelState = HandwritingProtocol.MODEL_STATE_UNKNOWN
+        autoProviderUnavailable =
+            HandwritingProviderRegistry.select(HandwritingRecognitionMode.Auto.protocolMode) == null
+        languageModelStates.clear()
+        refreshLanguageModelStates()
+        updateAutoPreference()
+    }
+
+    private fun refreshLanguageModelStates() {
+        languageEntries.forEach { entry ->
             val provider = HandwritingProviderRegistry.select(entry.mode.protocolMode)
             if (provider == null) {
                 updatePreference(
@@ -125,6 +139,11 @@ class HandwritingSettingsFragment :
                         Timber.w("Handwriting model %s: %s", entry.mode, errorMessage)
                     }
                     updatePreference(entry, state)
+                    if (entry.mode == HandwritingRecognitionMode.Auto &&
+                        state != HandwritingProtocol.MODEL_STATE_DOWNLOADING
+                    ) {
+                        refreshLanguageModelStates()
+                    }
                 }
             }
         }
@@ -135,13 +154,17 @@ class HandwritingSettingsFragment :
         state: Int,
         providerUnavailable: Boolean = false,
     ) {
+        if (entry.mode == HandwritingRecognitionMode.Auto) {
+            autoModelState = state
+            autoProviderUnavailable = providerUnavailable
+            updateAutoPreference()
+            return
+        }
+        languageModelStates[entry.mode] = state
         val preference = modelPreferences[entry.mode] ?: return
         preference.isEnabled = state != HandwritingProtocol.MODEL_STATE_DOWNLOADING
         preference.summary = when {
             providerUnavailable -> getString(R.string.handwriting_provider_unavailable)
-            state == HandwritingProtocol.MODEL_STATE_READY &&
-                    entry.mode == HandwritingRecognitionMode.Auto ->
-                getString(R.string.handwriting_model_auto_ready)
             state == HandwritingProtocol.MODEL_STATE_READY ->
                 getString(R.string.handwriting_model_ready)
             state == HandwritingProtocol.MODEL_STATE_NOT_DOWNLOADED ->
@@ -151,6 +174,34 @@ class HandwritingSettingsFragment :
             state == HandwritingProtocol.MODEL_STATE_FAILED ->
                 getString(R.string.handwriting_model_failed_settings)
             else -> getString(R.string.handwriting_model_checking_settings)
+        }
+        updateAutoPreference()
+    }
+
+    private fun updateAutoPreference() {
+        val preference = modelPreferences[HandwritingRecognitionMode.Auto] ?: return
+        val states = languageEntries.map { languageModelStates[it.mode] }
+        val downloading =
+            autoModelState == HandwritingProtocol.MODEL_STATE_DOWNLOADING ||
+                    states.any { it == HandwritingProtocol.MODEL_STATE_DOWNLOADING }
+        preference.isEnabled = !autoProviderUnavailable && !downloading
+        preference.summary = when {
+            autoProviderUnavailable -> getString(R.string.handwriting_provider_unavailable)
+            downloading -> getString(R.string.handwriting_model_downloading_settings)
+            states.any { it == null || it == HandwritingProtocol.MODEL_STATE_UNKNOWN } ->
+                getString(R.string.handwriting_model_checking_settings)
+            else -> {
+                val missing = languageEntries
+                    .filter { languageModelStates[it.mode] != HandwritingProtocol.MODEL_STATE_READY }
+                    .joinToString(getString(R.string.handwriting_model_list_separator)) {
+                        getString(it.mode.stringRes)
+                    }
+                if (missing.isEmpty()) {
+                    getString(R.string.handwriting_model_ready)
+                } else {
+                    getString(R.string.handwriting_model_missing_languages, missing)
+                }
+            }
         }
     }
 }

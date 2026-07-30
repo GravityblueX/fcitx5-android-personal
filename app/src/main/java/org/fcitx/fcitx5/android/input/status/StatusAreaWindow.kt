@@ -27,12 +27,8 @@ import org.fcitx.fcitx5.android.input.dependency.fcitx
 import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.editorinfo.EditorInfoWindow
-import org.fcitx.fcitx5.android.input.handwriting.HandwritingRecognitionMode
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingWindow
-import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.HandwritingAuto
-import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.HandwritingChinese
-import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.HandwritingEnglish
-import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.HandwritingJapanese
+import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.HandwritingMode
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.InputMethod
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.Keyboard
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.ReloadConfig
@@ -95,40 +91,23 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
         }
     }
 
-    private fun handwritingModeEntries(): Array<StatusAreaEntry.Android> {
+    private fun handwritingModeEntry(): StatusAreaEntry.Android {
         val activeMode = AppPrefs.getInstance().handwriting.recognitionMode.getValue()
-        return arrayOf(
-            StatusAreaEntry.Android(
-                context.getString(R.string.handwriting_mode_chinese),
-                0,
-                HandwritingChinese,
-                activeMode == HandwritingRecognitionMode.Chinese,
-            ),
-            StatusAreaEntry.Android(
-                context.getString(R.string.handwriting_mode_english),
-                0,
-                HandwritingEnglish,
-                activeMode == HandwritingRecognitionMode.English,
-            ),
-            StatusAreaEntry.Android(
-                context.getString(R.string.handwriting_mode_japanese),
-                0,
-                HandwritingJapanese,
-                activeMode == HandwritingRecognitionMode.Japanese,
-            ),
-            StatusAreaEntry.Android(
-                context.getString(R.string.handwriting_mode_auto),
-                0,
-                HandwritingAuto,
-                activeMode == HandwritingRecognitionMode.Auto,
-            ),
+        return StatusAreaEntry.Android(
+            context.getString(activeMode.stringRes),
+            0,
+            HandwritingMode,
+            active = true,
         )
     }
 
-    private fun selectHandwritingMode(mode: HandwritingRecognitionMode) {
-        handwritingWindow.setRecognitionMode(mode)
-        windowManager.attachWindow(HandwritingWindow)
+    private fun cycleHandwritingMode() {
+        val currentMode = AppPrefs.getInstance().handwriting.recognitionMode.getValue()
+        handwritingWindow.setRecognitionMode(currentMode.next())
+        updateEntries(lastActions)
     }
+
+    private var lastActions: Array<Action> = emptyArray()
 
     var popupMenu: PopupMenu? = null
 
@@ -200,14 +179,7 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
                         }
                         Keyboard -> AppUtil.launchMainToKeyboard(context)
                         ThemeList -> AppUtil.launchMainToThemeList(context)
-                        HandwritingChinese ->
-                            selectHandwritingMode(HandwritingRecognitionMode.Chinese)
-                        HandwritingEnglish ->
-                            selectHandwritingMode(HandwritingRecognitionMode.English)
-                        HandwritingJapanese ->
-                            selectHandwritingMode(HandwritingRecognitionMode.Japanese)
-                        HandwritingAuto ->
-                            selectHandwritingMode(HandwritingRecognitionMode.Auto)
+                        HandwritingMode -> cycleHandwritingMode()
                     }
                 }
             }
@@ -229,12 +201,17 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
     }
 
     override fun onStatusAreaUpdate(actions: Array<Action>) {
+        lastActions = actions
+        updateEntries(actions)
+    }
+
+    private fun updateEntries(actions: Array<Action>) {
         val modeEntries =
             if (HandwritingWindow.isHandwritingInputMethod(
                     fcitx.runImmediately { inputMethodEntryCached }
                 )
             ) {
-                handwritingModeEntries()
+                arrayOf(handwritingModeEntry())
             } else {
                 emptyArray()
             }

@@ -46,7 +46,8 @@
     <string name="handwriting_model_downloading_settings">正在下载…</string>
     <string name="handwriting_model_failed_settings">下载失败，点击重试</string>
     <string name="handwriting_model_checking_settings">正在检查模型状态…</string>
-    <string name="handwriting_model_auto_ready">至少一种语言已可用；点击可下载或校验全部三个模型</string>
+    <string name="handwriting_model_missing_languages">缺少模型：%1$s，点击下载</string>
+    <string name="handwriting_model_list_separator">、</string>
     <string name="delete_and_sync_data">删除并同步运行数据</string>
     <string name="delete_and_sync_data_message">删除当前的数据目录，并从应用附带的资源中同步</string>
     <string name="enable_ime">启用输入法</string>

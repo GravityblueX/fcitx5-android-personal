@@ -21,10 +21,7 @@ sealed class StatusAreaEntry(
             ReloadConfig,
             Keyboard,
             ThemeList,
-            HandwritingChinese,
-            HandwritingEnglish,
-            HandwritingJapanese,
-            HandwritingAuto,
+            HandwritingMode,
         }
     }
 

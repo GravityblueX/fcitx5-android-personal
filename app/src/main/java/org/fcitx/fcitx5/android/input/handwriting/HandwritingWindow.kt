@@ -31,6 +31,7 @@ import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
 import org.fcitx.fcitx5.android.input.keyboard.KeyActionListener
+import org.fcitx.fcitx5.android.input.popup.PopupComponent
 import org.fcitx.fcitx5.android.input.wm.EssentialWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindow
 import org.fcitx.fcitx5.android.input.wm.ScalableInputWindow
@@ -49,6 +50,7 @@ class HandwritingWindow :
         const val ADDON_NAME = "androidhandwriting"
         private const val STATUS_TEXT_SIZE_SP = 16f
         private const val MAX_PRE_CONTEXT_LENGTH = 20
+        private const val CONTROL_COLUMN_WIDTH_DP = 64
 
         fun isHandwritingInputMethod(ime: InputMethodEntry): Boolean =
             ime.addon == ADDON_NAME
@@ -63,15 +65,15 @@ class HandwritingWindow :
     private val horizontalCandidate: HorizontalCandidateComponent by manager.must()
     private val commonKeyActionListener: CommonKeyActionListener by manager.must()
     private val returnKeyDrawable: ReturnKeyDrawableComponent by manager.must()
+    private val popup: PopupComponent by manager.must()
     private val requestIds = AtomicLong()
     private val modePreference = AppPrefs.getInstance().handwriting.recognitionMode
 
     private lateinit var canvas: HandwritingCanvas
-    private lateinit var undoButton: ToolButton
-    private lateinit var clearButton: ToolButton
     private lateinit var downloadButton: ToolButton
     private lateinit var statusText: TextView
     private lateinit var handwritingKeyboard: HandwritingKeyboard
+    private lateinit var controlKeyboard: HandwritingControlKeyboard
 
     private var currentIme: InputMethodEntry? = null
     private var currentMode = modePreference.getValue().protocolMode
@@ -96,16 +98,6 @@ class HandwritingWindow :
             updateStatus()
             recognize()
         }
-        undoButton = actionButton(
-            R.drawable.ic_baseline_undo_24,
-            context.getString(R.string.undo),
-            ::undo,
-        )
-        clearButton = actionButton(
-            R.drawable.ic_baseline_delete_sweep_24,
-            context.getString(R.string.clear),
-            ::clear,
-        )
         downloadButton = actionButton(
             R.drawable.ic_baseline_download_24,
             context.getString(R.string.handwriting_download_model),
@@ -133,11 +125,13 @@ class HandwritingWindow :
                 LinearLayout.LayoutParams(dp(48), dp(48)),
             )
         }
-        val controls = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            addView(undoButton, LinearLayout.LayoutParams(dp(44), 0, 1f))
-            addView(clearButton, LinearLayout.LayoutParams(dp(44), 0, 1f))
+        controlKeyboard = HandwritingControlKeyboard(
+            context,
+            theme,
+            ::undo,
+            ::clear,
+        ).apply {
+            keyActionListener = this@HandwritingWindow.keyActionListener
         }
         val writingArea = FrameLayout(context).apply {
             addView(
@@ -146,7 +140,7 @@ class HandwritingWindow :
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT,
                 ).apply {
-                    marginEnd = dp(44)
+                    marginEnd = dp(CONTROL_COLUMN_WIDTH_DP)
                 },
             )
             addView(
@@ -155,13 +149,13 @@ class HandwritingWindow :
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT,
                 ).apply {
-                    marginEnd = dp(44)
+                    marginEnd = dp(CONTROL_COLUMN_WIDTH_DP)
                 },
             )
             addView(
-                controls,
+                controlKeyboard,
                 FrameLayout.LayoutParams(
-                    dp(44),
+                    dp(CONTROL_COLUMN_WIDTH_DP),
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     Gravity.END,
                 ),
@@ -169,6 +163,7 @@ class HandwritingWindow :
         }
         handwritingKeyboard = HandwritingKeyboard(context, theme).apply {
             keyActionListener = this@HandwritingWindow.keyActionListener
+            popupActionListener = popup.listener
             onReturnDrawableUpdate(returnKeyDrawable.resourceId)
             onRecognitionModeUpdate(HandwritingRecognitionMode.fromProtocolMode(currentMode))
             currentIme?.let(::onInputMethodUpdate)
@@ -217,6 +212,10 @@ class HandwritingWindow :
         bar.onKeyboardLayoutSwitched(false)
         publishCandidates()
         handwritingKeyboard.keyActionListener = keyActionListener
+        handwritingKeyboard.popupActionListener = popup.listener
+        handwritingKeyboard.onAttach()
+        controlKeyboard.keyActionListener = keyActionListener
+        controlKeyboard.onAttach()
         currentIme?.let(handwritingKeyboard::onInputMethodUpdate)
     }
 
@@ -224,7 +223,12 @@ class HandwritingWindow :
         attached = false
         modePreference.unregisterOnChangeListener(modeChangeListener)
         activeRequestId = requestIds.incrementAndGet()
+        handwritingKeyboard.onDetach()
         handwritingKeyboard.keyActionListener = null
+        handwritingKeyboard.popupActionListener = null
+        controlKeyboard.onDetach()
+        controlKeyboard.keyActionListener = null
+        popup.dismissAll()
         canvas.clear()
         recognitionCandidates = emptyList()
         horizontalCandidate.clearCandidateOverride()
@@ -236,16 +240,16 @@ class HandwritingWindow :
         contentScale = scale
         if (!::canvas.isInitialized) return
         canvas.setContentScale(scale)
-        undoButton.setContentScale(scale)
-        clearButton.setContentScale(scale)
         downloadButton.setContentScale(scale)
         handwritingKeyboard.setContentScale(scale)
+        controlKeyboard.setContentScale(scale)
         statusText.textSize = STATUS_TEXT_SIZE_SP * scale.coerceAtLeast(0.75f)
     }
 
     override fun setUsePortraitKeyboardStyle(enabled: Boolean) {
         if (::handwritingKeyboard.isInitialized) {
             handwritingKeyboard.setUsePortraitStyle(enabled)
+            controlKeyboard.setUsePortraitStyle(enabled)
         }
     }
 

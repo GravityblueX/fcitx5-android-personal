@@ -29,6 +29,8 @@ enum class HandwritingRecognitionMode(
         HandwritingProtocol.MODE_AUTO,
     );
 
+    fun next(): HandwritingRecognitionMode = entries[(ordinal + 1) % entries.size]
+
     companion object {
         fun fromProtocolMode(mode: Int): HandwritingRecognitionMode =
             entries.firstOrNull { it.protocolMode == mode } ?: Chinese
