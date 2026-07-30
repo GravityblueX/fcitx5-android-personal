@@ -31,6 +31,7 @@ class StringEscapeTest {
 
     @Test
     fun testUnescapeForValue() {
+        Assert.assertEquals("", FcitxUtils.unescapeForValue("\"\""))
         data.forEach {
             Assert.assertEquals(it.first, FcitxUtils.unescapeForValue(it.second))
         }

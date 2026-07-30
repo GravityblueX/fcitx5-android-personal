@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name_debug">Fcitx5 (complemento Anthy | Depuración)</string>
     <string name="app_name_release">Fcitx5 (complemento Anthy)</string>
-    </resources>
+    <string name="description">Compatibilidad con el motor Anthy (método de entrada japonés) para Fcitx5</string>
+</resources>

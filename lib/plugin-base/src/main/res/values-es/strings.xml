@@ -8,4 +8,6 @@
     <string name="plugin_info">Información de complemento</string>
     <string name="licenses">Licencias de código abierto</string>
     <string name="has_service">Contiene el servicio IPC</string>
+    <string name="app_info">Información de la aplicación</string>
+    <string name="uninstall">Desinstalar</string>
 </resources>

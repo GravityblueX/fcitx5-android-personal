@@ -74,6 +74,7 @@ class ThemeFragment : Fragment() {
                     else -> ThemeSettingsFragment()
                 }
             }
+            currentItem = savedInstanceState?.getInt(KEY_CURRENT_TAB) ?: 0
         }
 
         TabLayoutMediator(tabLayout, viewPager) { tab, position ->
@@ -114,6 +115,11 @@ class ThemeFragment : Fragment() {
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putInt(KEY_CURRENT_TAB, viewPager.currentItem)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onStop() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             ThemeManager.syncToDeviceEncryptedStorage()
@@ -124,5 +130,9 @@ class ThemeFragment : Fragment() {
     override fun onDestroy() {
         ThemeManager.removeOnChangedListener(onThemeChangeListener)
         super.onDestroy()
+    }
+
+    companion object {
+        private const val KEY_CURRENT_TAB = "currentTab"
     }
 }
