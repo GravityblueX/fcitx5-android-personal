@@ -10,6 +10,13 @@ android {
 
     defaultConfig {
         applicationId = "org.fcitx.fcitx5.android.plugin.handwriting.mlkit"
+        ndk {
+            providers.gradleProperty("buildABI").orNull
+                ?.split(",")
+                ?.map(String::trim)
+                ?.filter(String::isNotEmpty)
+                ?.let(abiFilters::addAll)
+        }
     }
 
     buildFeatures {
@@ -29,4 +36,5 @@ android {
 
 dependencies {
     implementation(project(":lib:plugin-base"))
+    implementation(libs.mlkit.digital.ink)
 }

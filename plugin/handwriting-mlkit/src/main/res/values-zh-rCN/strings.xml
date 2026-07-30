@@ -2,5 +2,5 @@
 <resources>
     <string name="app_name_debug">Fcitx17（手写插件｜调试版）</string>
     <string name="app_name_release">Fcitx17（手写插件）</string>
-    <string name="description">Fcitx17 手写识别服务原型</string>
+    <string name="description">由 Google ML Kit 提供支持的 Fcitx17 离线手写识别服务</string>
 </resources>

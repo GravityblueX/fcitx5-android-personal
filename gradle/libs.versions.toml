@@ -43,6 +43,7 @@ arrow-core = { module = "io.arrow-kt:arrow-core", version.ref = "arrow" }
 arrow-functions = { module = "io.arrow-kt:arrow-functions", version.ref = "arrow" }
 imagecropper = { module = "com.vanniktech:android-image-cropper", version = "4.7.0" }
 flexbox = { module = "com.google.android.flexbox:flexbox", version = "3.0.0" }
+mlkit-digital-ink = { module = "com.google.mlkit:digital-ink-recognition", version = "19.0.0" }
 dependency = { module = "org.mechdancer:dependency", version = "0.1.2" }
 timber = { module = "com.jakewharton.timber:timber", version = "5.0.1" }
 splitties-bitflags = { module = "com.louiscad.splitties:splitties-bitflags", version.ref = "splitties" }

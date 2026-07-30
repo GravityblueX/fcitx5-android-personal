@@ -10,14 +10,17 @@ import org.fcitx.fcitx5.android.common.handwriting.HandwritingProtocol
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingRecognitionCandidate
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingRecognitionRequest
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingRecognitionResponse
+import org.fcitx.fcitx5.android.common.handwriting.IHandwritingModelCallback
 import org.fcitx.fcitx5.android.common.handwriting.IHandwritingRecognitionCallback
 import org.fcitx.fcitx5.android.common.handwriting.IHandwritingRecognitionProvider
 import org.fcitx.fcitx5.android.common.ipc.FcitxRemoteConnection
 import org.fcitx.fcitx5.android.common.ipc.bindFcitxRemoteService
+import org.fcitx.fcitx5.android.plugin.handwriting.mlkit.recognition.MlKitRecognitionBackend
 
 class MainService : FcitxPluginService() {
 
     private lateinit var connection: FcitxRemoteConnection
+    private val backend by lazy { MlKitRecognitionBackend() }
 
     private val provider = object : IHandwritingRecognitionProvider.Stub() {
         override fun getProtocolVersion(): Int = HandwritingProtocol.VERSION
@@ -31,21 +34,101 @@ class MainService : FcitxPluginService() {
             request: HandwritingRecognitionRequest,
             callback: IHandwritingRecognitionCallback,
         ) {
-            val candidates = FIXED_CANDIDATES
-                .take(request.maxCandidates.coerceIn(0, FIXED_CANDIDATES.size))
-                .map {
-                    HandwritingRecognitionCandidate(
-                        text = it,
-                        languageTag = "zh-Hans",
+            if (request.mode != HandwritingProtocol.MODE_CHINESE_SIMPLIFIED) {
+                callback.respond(
+                    HandwritingRecognitionResponse(
+                        requestId = request.requestId,
+                        candidates = emptyList(),
+                        errorCode = HandwritingProtocol.ERROR_UNAVAILABLE,
                     )
-                }
-            callback.onResult(
-                HandwritingRecognitionResponse(
-                    requestId = request.requestId,
-                    candidates = candidates,
                 )
+                return
+            }
+            backend.recognize(
+                request = request,
+                onSuccess = { recognized ->
+                    val candidates = recognized.map {
+                        HandwritingRecognitionCandidate(
+                            text = it,
+                            languageTag = LANGUAGE_TAG,
+                        )
+                    }
+                    callback.respond(
+                        HandwritingRecognitionResponse(
+                            requestId = request.requestId,
+                            candidates = candidates,
+                        )
+                    )
+                },
+                onFailure = { error ->
+                    val errorCode = when (error) {
+                        is MlKitRecognitionBackend.ModelNotDownloadedException ->
+                            HandwritingProtocol.ERROR_MODEL_NOT_DOWNLOADED
+                        is IllegalArgumentException ->
+                            HandwritingProtocol.ERROR_INVALID_REQUEST
+                        else ->
+                            HandwritingProtocol.ERROR_RECOGNITION_FAILED
+                    }
+                    log("Recognition failed: ${error.javaClass.simpleName}")
+                    callback.respond(
+                        HandwritingRecognitionResponse(
+                            requestId = request.requestId,
+                            candidates = emptyList(),
+                            errorCode = errorCode,
+                            errorMessage = error.javaClass.simpleName,
+                        )
+                    )
+                },
             )
         }
+
+        override fun queryModelState(mode: Int, callback: IHandwritingModelCallback) {
+            if (mode != HandwritingProtocol.MODE_CHINESE_SIMPLIFIED) {
+                callback.respond(
+                    mode,
+                    HandwritingProtocol.MODEL_STATE_FAILED,
+                    "UnsupportedMode",
+                )
+                return
+            }
+            backend.queryModelState { state, errorMessage ->
+                callback.respond(mode, state, errorMessage)
+            }
+        }
+
+        override fun downloadModel(
+            mode: Int,
+            wifiOnly: Boolean,
+            callback: IHandwritingModelCallback,
+        ) {
+            if (mode != HandwritingProtocol.MODE_CHINESE_SIMPLIFIED) {
+                callback.respond(
+                    mode,
+                    HandwritingProtocol.MODEL_STATE_FAILED,
+                    "UnsupportedMode",
+                )
+                return
+            }
+            backend.downloadModel(wifiOnly) { state, errorMessage ->
+                callback.respond(mode, state, errorMessage)
+            }
+        }
+    }
+
+    private fun IHandwritingRecognitionCallback.respond(
+        response: HandwritingRecognitionResponse
+    ) {
+        runCatching { onResult(response) }
+            .onFailure { log("Recognition callback unavailable: ${it.javaClass.simpleName}") }
+    }
+
+    private fun IHandwritingModelCallback.respond(
+        mode: Int,
+        state: Int,
+        errorMessage: String,
+    ) {
+        runCatching { onState(mode, state, errorMessage) }
+            .onFailure { log("Model callback unavailable: ${it.javaClass.simpleName}") }
     }
 
     override fun start() {
@@ -59,7 +142,10 @@ class MainService : FcitxPluginService() {
         runCatching {
             connection.remoteService?.unregisterHandwritingRecognitionProvider(provider)
         }
-        unbindService(connection)
+        if (::connection.isInitialized) {
+            unbindService(connection)
+        }
+        backend.close()
         log("Unbound from Fcitx17 remote service")
     }
 
@@ -69,7 +155,7 @@ class MainService : FcitxPluginService() {
 
     private companion object {
         const val LOG_TAG = "HandwritingPlugin"
-        const val PROVIDER_ID = "fcitx17.handwriting.stage1.fixed"
-        val FIXED_CANDIDATES = listOf("你好", "手写", "Fcitx17", "测试")
+        const val PROVIDER_ID = "fcitx17.handwriting.mlkit"
+        const val LANGUAGE_TAG = "zh-Hani-CN"
     }
 }
