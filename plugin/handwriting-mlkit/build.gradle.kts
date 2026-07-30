@@ -37,4 +37,5 @@ android {
 dependencies {
     implementation(project(":lib:plugin-base"))
     implementation(libs.mlkit.digital.ink)
+    testImplementation(libs.junit)
 }

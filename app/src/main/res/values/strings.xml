@@ -25,12 +25,16 @@
     <string name="handwriting" tools:ignore="MissingTranslation">Handwriting</string>
     <string name="handwriting_hint" tools:ignore="MissingTranslation">Write here</string>
     <string name="handwriting_provider_unavailable" tools:ignore="MissingTranslation">Handwriting plugin is unavailable</string>
-    <string name="handwriting_model_checking" tools:ignore="MissingTranslation">Checking the Chinese handwriting model…</string>
-    <string name="handwriting_model_missing" tools:ignore="MissingTranslation">Download the Chinese handwriting model (about 20 MB)</string>
-    <string name="handwriting_model_downloading" tools:ignore="MissingTranslation">Downloading the Chinese handwriting model…</string>
+    <string name="handwriting_model_checking" tools:ignore="MissingTranslation">Checking %1$s…</string>
+    <string name="handwriting_model_missing" tools:ignore="MissingTranslation">Download %1$s (about %2$d MB)</string>
+    <string name="handwriting_model_downloading" tools:ignore="MissingTranslation">Downloading %1$s…</string>
     <string name="handwriting_model_failed" tools:ignore="MissingTranslation">Model download failed. Tap download to retry.</string>
     <string name="handwriting_recognition_failed" tools:ignore="MissingTranslation">Could not recognize this handwriting</string>
     <string name="handwriting_download_model" tools:ignore="MissingTranslation">Download handwriting model</string>
+    <string name="handwriting_model_name_chinese" tools:ignore="MissingTranslation">the Chinese handwriting model</string>
+    <string name="handwriting_model_name_english" tools:ignore="MissingTranslation">the English handwriting model</string>
+    <string name="handwriting_model_name_japanese" tools:ignore="MissingTranslation">the Japanese handwriting model</string>
+    <string name="handwriting_model_name_auto" tools:ignore="MissingTranslation">the Chinese, English, and Japanese handwriting models</string>
     <string name="delete_and_sync_data">Delete and sync runtime data</string>
     <string name="delete_and_sync_data_message">Delete current data directory and synchronize from assets bundled in app</string>
     <string name="enable_ime">Enable Input Method</string>

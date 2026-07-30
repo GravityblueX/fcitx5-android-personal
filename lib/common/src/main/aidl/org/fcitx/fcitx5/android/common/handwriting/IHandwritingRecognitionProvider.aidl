@@ -25,4 +25,8 @@ interface IHandwritingRecognitionProvider {
         boolean wifiOnly,
         IHandwritingModelCallback callback
     );
+    oneway void notifyCandidateSelected(
+        int mode,
+        String languageTag
+    );
 }

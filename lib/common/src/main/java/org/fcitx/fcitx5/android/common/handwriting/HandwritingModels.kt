@@ -8,7 +8,7 @@ import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
 
 object HandwritingProtocol {
-    const val VERSION = 2
+    const val VERSION = 3
 
     const val MODE_AUTO = 0
     const val MODE_CHINESE_SIMPLIFIED = 1

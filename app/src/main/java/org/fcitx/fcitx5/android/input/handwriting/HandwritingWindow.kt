@@ -101,7 +101,7 @@ class HandwritingWindow :
                 super.onBindViewHolder(holder, position)
                 holder.ui.setContentScale(contentScale)
                 holder.itemView.setOnClickListener {
-                    recognitionCandidates.getOrNull(holder.idx)?.text?.let(::commitCandidate)
+                    recognitionCandidates.getOrNull(holder.idx)?.let(::commitCandidate)
                 }
             }
 
@@ -238,12 +238,18 @@ class HandwritingWindow :
     override fun onImeUpdate(ime: InputMethodEntry) {
         currentIme = ime
         if (!isHandwritingInputMethod(ime)) return
-        currentMode = when (ime.uniqueName) {
+        val newMode = when (ime.uniqueName) {
             "handwriting-en" -> HandwritingProtocol.MODE_ENGLISH
             "handwriting-ja" -> HandwritingProtocol.MODE_JAPANESE
             "handwriting-auto" -> HandwritingProtocol.MODE_AUTO
             else -> HandwritingProtocol.MODE_CHINESE_SIMPLIFIED
         }
+        if (newMode != currentMode && ::canvas.isInitialized) {
+            activeRequestId = requestIds.incrementAndGet()
+            canvas.clear()
+            candidateAdapter.update(emptyList())
+        }
+        currentMode = newMode
         if (::handwritingKeyboard.isInitialized) {
             handwritingKeyboard.onInputMethodUpdate(ime)
             queryModelState()
@@ -399,8 +405,15 @@ class HandwritingWindow :
         }
     }
 
-    private fun commitCandidate(text: String) {
-        service.commitText(text)
+    private fun commitCandidate(candidate: HandwritingRecognitionCandidate) {
+        service.commitText(candidate.text)
+        HandwritingProviderRegistry.select(currentMode)?.let { provider ->
+            runCatching {
+                provider.remote.notifyCandidateSelected(currentMode, candidate.languageTag)
+            }.onFailure {
+                Timber.w(it, "Cannot notify handwriting provider about selected candidate")
+            }
+        }
         clear()
     }
 
@@ -439,18 +452,44 @@ class HandwritingWindow :
             }
             HandwritingProtocol.MODEL_STATE_NOT_DOWNLOADED -> {
                 downloadButton.visibility = View.VISIBLE
-                context.getString(R.string.handwriting_model_missing)
+                context.getString(
+                    R.string.handwriting_model_missing,
+                    currentModelName(),
+                    currentModelDownloadSizeMb(),
+                )
             }
             HandwritingProtocol.MODEL_STATE_DOWNLOADING ->
-                context.getString(R.string.handwriting_model_downloading)
+                context.getString(
+                    R.string.handwriting_model_downloading,
+                    currentModelName(),
+                )
             HandwritingProtocol.MODEL_STATE_FAILED -> {
                 downloadButton.visibility = View.VISIBLE
                 context.getString(R.string.handwriting_model_failed)
             }
             else ->
-                context.getString(R.string.handwriting_model_checking)
+                context.getString(
+                    R.string.handwriting_model_checking,
+                    currentModelName(),
+                )
         }
     }
+
+    private fun currentModelName(): String = context.getString(
+        when (currentMode) {
+            HandwritingProtocol.MODE_ENGLISH ->
+                R.string.handwriting_model_name_english
+            HandwritingProtocol.MODE_JAPANESE ->
+                R.string.handwriting_model_name_japanese
+            HandwritingProtocol.MODE_AUTO ->
+                R.string.handwriting_model_name_auto
+            else ->
+                R.string.handwriting_model_name_chinese
+        }
+    )
+
+    private fun currentModelDownloadSizeMb(): Int =
+        if (currentMode == HandwritingProtocol.MODE_AUTO) 60 else 20
 
     private fun showProviderUnavailable() {
         modelState = HandwritingProtocol.MODEL_STATE_FAILED

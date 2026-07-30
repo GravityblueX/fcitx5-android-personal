@@ -15,12 +15,13 @@ import org.fcitx.fcitx5.android.common.handwriting.IHandwritingRecognitionCallba
 import org.fcitx.fcitx5.android.common.handwriting.IHandwritingRecognitionProvider
 import org.fcitx.fcitx5.android.common.ipc.FcitxRemoteConnection
 import org.fcitx.fcitx5.android.common.ipc.bindFcitxRemoteService
+import org.fcitx.fcitx5.android.plugin.handwriting.mlkit.recognition.BackendCandidate
 import org.fcitx.fcitx5.android.plugin.handwriting.mlkit.recognition.MlKitRecognitionBackend
 
 class MainService : FcitxPluginService() {
 
     private lateinit var connection: FcitxRemoteConnection
-    private val backend by lazy { MlKitRecognitionBackend() }
+    private val backend by lazy { MlKitRecognitionBackend(this) }
 
     private val provider = object : IHandwritingRecognitionProvider.Stub() {
         override fun getProtocolVersion(): Int = HandwritingProtocol.VERSION
@@ -28,13 +29,13 @@ class MainService : FcitxPluginService() {
         override fun getProviderId(): String = PROVIDER_ID
 
         override fun getSupportedModes(): IntArray =
-            intArrayOf(HandwritingProtocol.MODE_CHINESE_SIMPLIFIED)
+            SUPPORTED_MODES
 
         override fun recognize(
             request: HandwritingRecognitionRequest,
             callback: IHandwritingRecognitionCallback,
         ) {
-            if (request.mode != HandwritingProtocol.MODE_CHINESE_SIMPLIFIED) {
+            if (request.mode !in SUPPORTED_MODES) {
                 callback.respond(
                     HandwritingRecognitionResponse(
                         requestId = request.requestId,
@@ -47,16 +48,10 @@ class MainService : FcitxPluginService() {
             backend.recognize(
                 request = request,
                 onSuccess = { recognized ->
-                    val candidates = recognized.map {
-                        HandwritingRecognitionCandidate(
-                            text = it,
-                            languageTag = LANGUAGE_TAG,
-                        )
-                    }
                     callback.respond(
                         HandwritingRecognitionResponse(
                             requestId = request.requestId,
-                            candidates = candidates,
+                            candidates = recognized.map { it.toParcelable() },
                         )
                     )
                 },
@@ -83,7 +78,7 @@ class MainService : FcitxPluginService() {
         }
 
         override fun queryModelState(mode: Int, callback: IHandwritingModelCallback) {
-            if (mode != HandwritingProtocol.MODE_CHINESE_SIMPLIFIED) {
+            if (mode !in SUPPORTED_MODES) {
                 callback.respond(
                     mode,
                     HandwritingProtocol.MODEL_STATE_FAILED,
@@ -91,7 +86,7 @@ class MainService : FcitxPluginService() {
                 )
                 return
             }
-            backend.queryModelState { state, errorMessage ->
+            backend.queryModelState(mode) { state, errorMessage ->
                 callback.respond(mode, state, errorMessage)
             }
         }
@@ -101,7 +96,7 @@ class MainService : FcitxPluginService() {
             wifiOnly: Boolean,
             callback: IHandwritingModelCallback,
         ) {
-            if (mode != HandwritingProtocol.MODE_CHINESE_SIMPLIFIED) {
+            if (mode !in SUPPORTED_MODES) {
                 callback.respond(
                     mode,
                     HandwritingProtocol.MODEL_STATE_FAILED,
@@ -109,11 +104,21 @@ class MainService : FcitxPluginService() {
                 )
                 return
             }
-            backend.downloadModel(wifiOnly) { state, errorMessage ->
+            backend.downloadModel(mode, wifiOnly) { state, errorMessage ->
                 callback.respond(mode, state, errorMessage)
             }
         }
+
+        override fun notifyCandidateSelected(mode: Int, languageTag: String) {
+            backend.notifyCandidateSelected(mode, languageTag)
+        }
     }
+
+    private fun BackendCandidate.toParcelable() = HandwritingRecognitionCandidate(
+        text = text,
+        languageTag = languageTag,
+        score = score ?: Float.NaN,
+    )
 
     private fun IHandwritingRecognitionCallback.respond(
         response: HandwritingRecognitionResponse
@@ -156,6 +161,11 @@ class MainService : FcitxPluginService() {
     private companion object {
         const val LOG_TAG = "HandwritingPlugin"
         const val PROVIDER_ID = "fcitx17.handwriting.mlkit"
-        const val LANGUAGE_TAG = "zh-Hani-CN"
+        val SUPPORTED_MODES = intArrayOf(
+            HandwritingProtocol.MODE_AUTO,
+            HandwritingProtocol.MODE_CHINESE_SIMPLIFIED,
+            HandwritingProtocol.MODE_ENGLISH,
+            HandwritingProtocol.MODE_JAPANESE,
+        )
     }
 }
