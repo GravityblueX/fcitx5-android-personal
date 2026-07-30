@@ -29,6 +29,9 @@
             <action android:name="org.fcitx.fcitx5.android.debug.plugin.MANIFEST" />
         </intent>
         <intent>
+            <action android:name="${applicationId}.plugin.ACTIVATE" />
+        </intent>
+        <intent>
             <action android:name="android.view.InputMethod" />
         </intent>
     </queries>

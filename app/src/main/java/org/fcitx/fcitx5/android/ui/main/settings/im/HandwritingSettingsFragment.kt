@@ -5,7 +5,9 @@
 package org.fcitx.fcitx5.android.ui.main.settings.im
 
 import android.content.Context
+import android.content.Intent
 import android.view.View
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
@@ -15,6 +17,8 @@ import com.google.android.material.progressindicator.LinearProgressIndicator
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingProtocol
 import org.fcitx.fcitx5.android.common.handwriting.IHandwritingModelCallback
+import org.fcitx.fcitx5.android.core.FcitxPluginServices
+import org.fcitx.fcitx5.android.core.data.DataManager
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreferenceFragment
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingProviderRegistry
@@ -62,10 +66,23 @@ class HandwritingSettingsFragment :
     private val languageModelStates = mutableMapOf<HandwritingRecognitionMode, Int>()
     private var autoModelState = HandwritingProtocol.MODEL_STATE_UNKNOWN
     private var autoProviderUnavailable = false
+    private var pendingDownloadMode: HandwritingRecognitionMode? = null
+    private val pluginActivationLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            // Explicitly opening an activity clears Android's stopped-package state. This is
+            // required on some vendor systems before they allow another app to bind a service.
+            FcitxPluginServices.connectAll()
+        }
     private val providerChangeListener = {
         ContextCompat.getMainExecutor(appContext).execute {
             if (isAdded) {
                 refreshModelStates()
+                pendingDownloadMode?.let { mode ->
+                    if (HandwritingProviderRegistry.select(mode.protocolMode) != null) {
+                        pendingDownloadMode = null
+                        modelEntries.firstOrNull { it.mode == mode }?.let(::downloadModel)
+                    }
+                }
             }
         }
     }
@@ -147,6 +164,9 @@ class HandwritingSettingsFragment :
     private fun downloadModel(entry: ModelEntry) {
         val provider = HandwritingProviderRegistry.select(entry.mode.protocolMode)
         if (provider == null) {
+            if (activateHandwritingPlugin(entry.mode)) {
+                return
+            }
             updatePreference(
                 entry,
                 HandwritingProtocol.MODEL_STATE_FAILED,
@@ -164,6 +184,24 @@ class HandwritingSettingsFragment :
         } catch (e: Exception) {
             Timber.w(e, "Cannot download %s handwriting model", entry.mode)
             updatePreference(entry, HandwritingProtocol.MODEL_STATE_FAILED)
+        }
+    }
+
+    private fun activateHandwritingPlugin(mode: HandwritingRecognitionMode): Boolean {
+        val component =
+            DataManager.findPluginActivationActivity(HANDWRITING_PLUGIN_PACKAGE) ?: return false
+        pendingDownloadMode = mode
+        return try {
+            pluginActivationLauncher.launch(
+                Intent().apply {
+                    this.component = component
+                }
+            )
+            true
+        } catch (e: Exception) {
+            pendingDownloadMode = null
+            Timber.w(e, "Cannot activate handwriting plugin")
+            false
         }
     }
 
@@ -225,7 +263,7 @@ class HandwritingSettingsFragment :
             autoModelState == HandwritingProtocol.MODEL_STATE_DOWNLOADING ||
                     states.any { it == HandwritingProtocol.MODEL_STATE_DOWNLOADING }
         preference.progressVisible = downloading
-        preference.isEnabled = !autoProviderUnavailable && !downloading
+        preference.isEnabled = !downloading
         preference.summary = when {
             autoProviderUnavailable -> getString(R.string.handwriting_provider_unavailable)
             downloading -> getString(R.string.handwriting_model_downloading_settings)
@@ -244,5 +282,10 @@ class HandwritingSettingsFragment :
                 }
             }
         }
+    }
+
+    private companion object {
+        const val HANDWRITING_PLUGIN_PACKAGE =
+            "org.fcitx.fcitx5.android.plugin.handwriting.mlkit"
     }
 }

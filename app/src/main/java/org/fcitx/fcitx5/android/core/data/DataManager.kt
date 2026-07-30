@@ -113,6 +113,22 @@ object DataManager {
             .firstOrNull { it.activityInfo.packageName == packageName }
             ?.let { ComponentName(it.activityInfo.packageName, it.activityInfo.name) }
 
+    fun findPluginActivationActivity(packageName: String): ComponentName? {
+        val intent = Intent("${BuildConfig.APPLICATION_ID}.plugin.ACTIVATE")
+            .setPackage(packageName)
+        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            appContext.packageManager.resolveActivity(
+                intent,
+                PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong()),
+            )
+        } else {
+            appContext.packageManager.resolveActivity(intent, PackageManager.MATCH_ALL)
+        }
+        return info?.activityInfo?.let {
+            ComponentName(it.packageName, it.name)
+        }
+    }
+
     fun detectPlugins(): PluginSet {
         val toLoad = mutableSetOf<PluginDescriptor>()
         val preloadFailed = mutableMapOf<String, PluginLoadFailed>()
