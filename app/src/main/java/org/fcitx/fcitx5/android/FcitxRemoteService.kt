@@ -16,6 +16,7 @@ import kotlinx.coroutines.plus
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.fcitx.fcitx5.android.common.handwriting.IHandwritingRecognitionProvider
 import org.fcitx.fcitx5.android.common.ipc.IClipboardEntryTransformer
 import org.fcitx.fcitx5.android.common.ipc.IFcitxRemoteService
 import org.fcitx.fcitx5.android.core.data.DataManager
@@ -23,6 +24,7 @@ import org.fcitx.fcitx5.android.core.reloadPinyinDict
 import org.fcitx.fcitx5.android.core.reloadQuickPhrase
 import org.fcitx.fcitx5.android.daemon.FcitxDaemon
 import org.fcitx.fcitx5.android.data.clipboard.ClipboardManager
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingProviderRegistry
 import org.fcitx.fcitx5.android.utils.Const
 import org.fcitx.fcitx5.android.utils.desc
 import org.fcitx.fcitx5.android.utils.descEquals
@@ -100,6 +102,18 @@ class FcitxRemoteService : Service() {
             }
         }
 
+        override fun registerHandwritingRecognitionProvider(
+            provider: IHandwritingRecognitionProvider
+        ) {
+            HandwritingProviderRegistry.register(provider)
+        }
+
+        override fun unregisterHandwritingRecognitionProvider(
+            provider: IHandwritingRecognitionProvider
+        ) {
+            HandwritingProviderRegistry.unregister(provider)
+        }
+
         override fun reloadPinyinDict() {
             FcitxDaemon.getFirstConnectionOrNull()?.runIfReady { reloadPinyinDict() }
         }
@@ -128,6 +142,7 @@ class FcitxRemoteService : Service() {
         Timber.d("FcitxRemoteService onDestroy")
         scope.cancel()
         clipboardTransformers.clear()
+        HandwritingProviderRegistry.clear()
         runBlocking { updateClipboardManager() }
     }
 }

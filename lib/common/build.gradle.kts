@@ -2,6 +2,7 @@ plugins {
     id("org.fcitx.fcitx5.android.lib-convention")
     `maven-publish`
     alias(libs.plugins.gitVersion)
+    alias(libs.plugins.kotlin.parcelize)
 }
 
 android {

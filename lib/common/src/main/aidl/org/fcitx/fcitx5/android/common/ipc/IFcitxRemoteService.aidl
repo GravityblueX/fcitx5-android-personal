@@ -1,5 +1,6 @@
 package org.fcitx.fcitx5.android.common.ipc;
 
+import org.fcitx.fcitx5.android.common.handwriting.IHandwritingRecognitionProvider;
 import org.fcitx.fcitx5.android.common.ipc.IClipboardEntryTransformer;
 
 interface IFcitxRemoteService {
@@ -17,6 +18,11 @@ interface IFcitxRemoteService {
    void registerClipboardEntryTransformer(IClipboardEntryTransformer transformer);
    /** Unregister a clipboard transformer to fcitx app */
    void unregisterClipboardEntryTransformer(IClipboardEntryTransformer transformer);
+
+   /** Register a handwriting recognition provider to fcitx app */
+   void registerHandwritingRecognitionProvider(IHandwritingRecognitionProvider provider);
+   /** Unregister a handwriting recognition provider from fcitx app */
+   void unregisterHandwritingRecognitionProvider(IHandwritingRecognitionProvider provider);
 
    /** Reload fcitx pinyin dictionary */
    void reloadPinyinDict();
