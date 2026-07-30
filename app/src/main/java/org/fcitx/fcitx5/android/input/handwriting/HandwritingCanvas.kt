@@ -56,6 +56,16 @@ class HandwritingCanvas(
         invalidate()
     }
 
+    fun undo(): Boolean {
+        if (activeStroke != null || strokes.isEmpty()) return false
+        strokes.removeAt(strokes.lastIndex)
+        invalidate()
+        return true
+    }
+
+    val hasInk: Boolean
+        get() = strokes.isNotEmpty()
+
     fun snapshot(): List<HandwritingInkStroke> =
         strokes.map { HandwritingInkStroke(it.ink.toList()) }
 

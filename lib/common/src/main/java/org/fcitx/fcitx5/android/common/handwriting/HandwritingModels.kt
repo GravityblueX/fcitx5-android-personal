@@ -8,7 +8,7 @@ import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
 
 object HandwritingProtocol {
-    const val VERSION = 1
+    const val VERSION = 2
 
     const val MODE_AUTO = 0
     const val MODE_CHINESE_SIMPLIFIED = 1
@@ -18,6 +18,14 @@ object HandwritingProtocol {
     const val ERROR_NONE = 0
     const val ERROR_UNAVAILABLE = 1
     const val ERROR_RECOGNITION_FAILED = 2
+    const val ERROR_MODEL_NOT_DOWNLOADED = 3
+    const val ERROR_INVALID_REQUEST = 4
+
+    const val MODEL_STATE_UNKNOWN = 0
+    const val MODEL_STATE_NOT_DOWNLOADED = 1
+    const val MODEL_STATE_DOWNLOADING = 2
+    const val MODEL_STATE_READY = 3
+    const val MODEL_STATE_FAILED = 4
 }
 
 @Parcelize

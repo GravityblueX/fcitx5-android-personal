@@ -22,6 +22,15 @@
     <string name="add">添加</string>
     <string name="edit">编辑</string>
     <string name="undo">撤销</string>
+    <string name="handwriting">手写</string>
+    <string name="handwriting_hint">在这里手写输入文字！</string>
+    <string name="handwriting_provider_unavailable">手写识别插件不可用</string>
+    <string name="handwriting_model_checking">正在检查中文手写模型…</string>
+    <string name="handwriting_model_missing">需要下载中文手写模型（约 20 MB）</string>
+    <string name="handwriting_model_downloading">正在下载中文手写模型…</string>
+    <string name="handwriting_model_failed">模型下载失败，请点击下载重试</string>
+    <string name="handwriting_recognition_failed">暂时无法识别这段笔迹</string>
+    <string name="handwriting_download_model">下载手写模型</string>
     <string name="delete_and_sync_data">删除并同步运行数据</string>
     <string name="delete_and_sync_data_message">删除当前的数据目录，并从应用附带的资源中同步</string>
     <string name="enable_ime">启用输入法</string>

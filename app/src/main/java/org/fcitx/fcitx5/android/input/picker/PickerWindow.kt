@@ -11,7 +11,9 @@ import androidx.transition.Transition
 import androidx.viewpager2.widget.ViewPager2
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.broadcast.ReturnKeyDrawableComponent
+import org.fcitx.fcitx5.android.input.broadcast.InputBroadcastReceiver
 import org.fcitx.fcitx5.android.input.dependency.theme
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingWindow
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
 import org.fcitx.fcitx5.android.input.keyboard.KeyAction
 import org.fcitx.fcitx5.android.input.keyboard.KeyActionListener
@@ -34,7 +36,12 @@ class PickerWindow(
     private val popupPreview: Boolean = true,
     private val followKeyBorder: Boolean = true,
     private val policy: PickerPolicy = DefaultPickerPolicy()
-) : InputWindow.ExtendedInputWindow<PickerWindow>(), EssentialWindow, ScalableInputWindow {
+) : InputWindow.ExtendedInputWindow<PickerWindow>(), EssentialWindow, InputBroadcastReceiver,
+    ScalableInputWindow {
+
+    private companion object {
+        var returnToHandwriting = false
+    }
 
     enum class Key : EssentialWindow.Key {
         Symbol,
@@ -60,6 +67,12 @@ class PickerWindow(
     private val keyActionListener = KeyActionListener { it, source ->
         when (it) {
             is KeyAction.LayoutSwitchAction -> {
+                if (returnToHandwriting) {
+                    ContextCompat.getMainExecutor(context).execute {
+                        windowManager.attachWindow(HandwritingWindow)
+                    }
+                    return@KeyActionListener
+                }
                 // Switch to NumberKeyboard before attaching KeyboardWindow
                 (windowManager.getEssentialWindow(KeyboardWindow) as KeyboardWindow)
                     .switchLayout(it.act)
@@ -159,6 +172,14 @@ class PickerWindow(
     override fun onDetached() {
         popup.dismissAll()
         pickerLayout.embeddedKeyboard.keyActionListener = null
+    }
+
+    override fun onWindowDetached(window: InputWindow) {
+        when (window) {
+            is HandwritingWindow -> returnToHandwriting = true
+            is KeyboardWindow -> returnToHandwriting = false
+            else -> Unit
+        }
     }
 
     override val showTitle = false

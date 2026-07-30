@@ -5,6 +5,7 @@
 package org.fcitx.fcitx5.android.common.handwriting;
 
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingRecognitionRequest;
+import org.fcitx.fcitx5.android.common.handwriting.IHandwritingModelCallback;
 import org.fcitx.fcitx5.android.common.handwriting.IHandwritingRecognitionCallback;
 
 interface IHandwritingRecognitionProvider {
@@ -14,5 +15,14 @@ interface IHandwritingRecognitionProvider {
     oneway void recognize(
         in HandwritingRecognitionRequest request,
         IHandwritingRecognitionCallback callback
+    );
+    oneway void queryModelState(
+        int mode,
+        IHandwritingModelCallback callback
+    );
+    oneway void downloadModel(
+        int mode,
+        boolean wifiOnly,
+        IHandwritingModelCallback callback
     );
 }
