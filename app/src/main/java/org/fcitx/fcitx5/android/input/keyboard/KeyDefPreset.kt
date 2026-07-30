@@ -175,7 +175,7 @@ class CommaKey(
                 Popup.Menu.Item(
                     "Emoji",
                     R.drawable.ic_baseline_tag_faces_24,
-                    KeyAction.PickerSwitchAction()
+                    KeyAction.PickerSwitchAction(PickerWindow.Key.Emoji)
                 ),
                 Popup.Menu.Item(
                     "QuickPhrase",
@@ -235,7 +235,9 @@ class ReturnKey(percentWidth: Float = 0.15f) : KeyDef(
         Popup.Menu(
             arrayOf(
                 Popup.Menu.Item(
-                    "Emoji", R.drawable.ic_baseline_tag_faces_24, KeyAction.PickerSwitchAction()
+                    "Emoji",
+                    R.drawable.ic_baseline_tag_faces_24,
+                    KeyAction.PickerSwitchAction(PickerWindow.Key.Emoji)
                 )
             )
         )

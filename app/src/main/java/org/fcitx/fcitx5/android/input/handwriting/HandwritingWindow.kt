@@ -50,7 +50,6 @@ class HandwritingWindow :
         const val ADDON_NAME = "androidhandwriting"
         private const val STATUS_TEXT_SIZE_SP = 16f
         private const val MAX_PRE_CONTEXT_LENGTH = 20
-        private const val CONTROL_COLUMN_WIDTH_DP = 64
 
         fun isHandwritingInputMethod(ime: InputMethodEntry): Boolean =
             ime.addon == ADDON_NAME
@@ -133,31 +132,38 @@ class HandwritingWindow :
         ).apply {
             keyActionListener = this@HandwritingWindow.keyActionListener
         }
-        val writingArea = FrameLayout(context).apply {
+        val writingSurface = FrameLayout(context).apply {
             addView(
                 canvas,
                 FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT,
-                ).apply {
-                    marginEnd = dp(CONTROL_COLUMN_WIDTH_DP)
-                },
+                ),
             )
             addView(
                 statusPanel,
                 FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT,
-                ).apply {
-                    marginEnd = dp(CONTROL_COLUMN_WIDTH_DP)
-                },
+                ),
+            )
+        }
+        val writingArea = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(
+                writingSurface,
+                LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    1f - HandwritingKeyboard.RETURN_KEY_WIDTH_FRACTION,
+                ),
             )
             addView(
                 controlKeyboard,
-                FrameLayout.LayoutParams(
-                    dp(CONTROL_COLUMN_WIDTH_DP),
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    Gravity.END,
+                LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    HandwritingKeyboard.RETURN_KEY_WIDTH_FRACTION,
                 ),
             )
         }

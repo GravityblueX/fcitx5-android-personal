@@ -46,15 +46,17 @@ void AndroidHandwritingEngine::activate(const InputMethodEntry &entry,
 void AndroidHandwritingEngine::keyEvent(const InputMethodEntry &entry,
                                         KeyEvent &event) {
     // Recognition and editor commits are handled by the Android UI and the
-    // separately installed recognition provider. Only punctuation emitted by
-    // the handwriting bottom row needs to pass through the shared Fcitx
-    // punctuation converter.
+    // separately installed recognition provider. Punctuation emitted by both
+    // the handwriting bottom row and its long-press popup must pass through
+    // the shared Fcitx punctuation converter.
     if (event.isRelease() || !event.key().isSimple() ||
         event.key().isKeyPad()) {
         return;
     }
     const auto unicode = Key::keySymToUnicode(event.key().sym());
-    if (unicode != ',' && unicode != '.') {
+    const auto &mapping = punctuation()->call<IPunctuation::getPunctuation>(
+        entry.languageCode(), unicode);
+    if (mapping.first.empty()) {
         return;
     }
     const auto &converted = punctuation()->call<IPunctuation::pushPunctuation>(
