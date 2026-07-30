@@ -29,6 +29,7 @@ android {
                     "copy-fcitx5-modules",
                     // android specific modules
                     "androidfrontend",
+                    "androidhandwriting",
                     "androidkeyboard",
                     "androidnotification"
                 )

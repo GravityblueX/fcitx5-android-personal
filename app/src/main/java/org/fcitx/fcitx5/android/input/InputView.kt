@@ -36,6 +36,7 @@ import org.fcitx.fcitx5.android.input.broadcast.PreeditEmptyStateComponent
 import org.fcitx.fcitx5.android.input.broadcast.PunctuationComponent
 import org.fcitx.fcitx5.android.input.broadcast.ReturnKeyDrawableComponent
 import org.fcitx.fcitx5.android.input.candidates.horizontal.HorizontalCandidateComponent
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingWindow
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
 import org.fcitx.fcitx5.android.input.picker.emojiPicker
@@ -114,6 +115,7 @@ class InputView internal constructor(
     private val kawaiiBar = KawaiiBarComponent()
     private val horizontalCandidate = HorizontalCandidateComponent()
     private val keyboardWindow = KeyboardWindow()
+    private val handwritingWindow = HandwritingWindow()
     private val symbolPicker = symbolPicker()
     private val emojiPicker = emojiPicker()
     private val emoticonPicker = emoticonPicker()
@@ -238,13 +240,19 @@ class InputView internal constructor(
 
         // make sure KeyboardWindow's view has been created before it receives any broadcast
         windowManager.addEssentialWindow(keyboardWindow, createView = true)
+        windowManager.addEssentialWindow(handwritingWindow, createView = true)
         windowManager.addEssentialWindow(symbolPicker)
         windowManager.addEssentialWindow(emojiPicker)
         windowManager.addEssentialWindow(emoticonPicker)
-        // show KeyboardWindow by default
-        windowManager.attachWindow(KeyboardWindow)
-
-        broadcaster.onImeUpdate(fcitx.runImmediately { inputMethodEntryCached })
+        val initialInputMethod = fcitx.runImmediately { inputMethodEntryCached }
+        windowManager.attachWindow(
+            if (HandwritingWindow.isHandwritingInputMethod(initialInputMethod)) {
+                HandwritingWindow
+            } else {
+                KeyboardWindow
+            }
+        )
+        broadcaster.onImeUpdate(initialInputMethod)
 
         customBackground.imageDrawable = theme.backgroundDrawable(keyBorder)
 
@@ -528,7 +536,14 @@ class InputView internal constructor(
         broadcaster.onStartInput(info, capFlags)
         returnKeyDrawable.updateDrawableOnEditorInfo(info)
         if (focusChangeResetKeyboard || !restarting) {
-            windowManager.attachWindow(KeyboardWindow)
+            val ime = fcitx.runImmediately { inputMethodEntryCached }
+            windowManager.attachWindow(
+                if (HandwritingWindow.isHandwritingInputMethod(ime)) {
+                    HandwritingWindow
+                } else {
+                    KeyboardWindow
+                }
+            )
         }
     }
 
@@ -559,6 +574,11 @@ class InputView internal constructor(
                 broadcaster.onInputPanelUpdate(it.data)
             }
             is FcitxEvent.IMChangeEvent -> {
+                if (HandwritingWindow.isHandwritingInputMethod(it.data)) {
+                    windowManager.attachWindow(HandwritingWindow)
+                } else if (windowManager.isAttached(handwritingWindow)) {
+                    windowManager.attachWindow(KeyboardWindow)
+                }
                 broadcaster.onImeUpdate(it.data)
             }
             is FcitxEvent.StatusAreaEvent -> {

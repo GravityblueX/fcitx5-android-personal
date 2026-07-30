@@ -1,0 +1,8 @@
+[Addon]
+Name=Android Handwriting
+Type=SharedLibrary
+Library=libandroidhandwriting
+Category=InputMethod
+Version=@PROJECT_VERSION@
+Configurable=False
+OnDemand=True
