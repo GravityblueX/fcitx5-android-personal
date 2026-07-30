@@ -11,11 +11,13 @@ import android.graphics.drawable.shapes.RectShape
 import androidx.core.view.children
 import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.flexbox.FlexWrap
 import com.google.android.flexbox.FlexboxLayoutManager
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import org.fcitx.fcitx5.android.R
+import org.fcitx.fcitx5.android.core.CandidateWord
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.daemon.launchOnReady
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
@@ -59,6 +61,13 @@ class HorizontalCandidateComponent :
     private var layoutMinWidth = 0
     private var layoutFlexGrow = 1f
     private var contentScale = 1f
+    private var fcitxCandidates = emptyArray<CandidateWord>()
+    private var fcitxCandidateTotal = -1
+    private var candidateOverride: CandidateOverride? = null
+
+    private data class CandidateOverride(
+        val onCandidateClick: (Int) -> Unit,
+    )
 
     /**
      * (for [HorizontalCandidateMode.AutoFillWidth] only)
@@ -80,6 +89,13 @@ class HorizontalCandidateComponent :
 
     private fun refreshExpanded(childCount: Int) {
         _expandedCandidateOffset.tryEmit(childCount)
+        if (candidateOverride != null) {
+            bar.expandButtonStateMachine.push(
+                ExpandedCandidatesUpdated,
+                ExpandedCandidatesEmpty to true,
+            )
+            return
+        }
         bar.expandButtonStateMachine.push(
             ExpandedCandidatesUpdated,
             ExpandedCandidatesEmpty to (adapter.total == childCount)
@@ -96,9 +112,11 @@ class HorizontalCandidateComponent :
                     flexGrow = layoutFlexGrow
                 }
                 holder.itemView.setOnClickListener {
-                    fcitx.launchOnReady { it.select(holder.idx) }
+                    candidateOverride?.onCandidateClick?.invoke(holder.idx)
+                        ?: fcitx.launchOnReady { it.select(holder.idx) }
                 }
                 holder.itemView.setOnLongClickListener {
+                    if (candidateOverride != null) return@setOnLongClickListener false
                     inputView.showCandidateActionMenu(holder.idx, holder.candidate.text, holder.ui.root)
                     true
                 }
@@ -123,10 +141,14 @@ class HorizontalCandidateComponent :
     val layoutManager: FlexboxLayoutManager by lazy {
         object : FlexboxLayoutManager(context) {
             override fun canScrollVertically() = false
-            override fun canScrollHorizontally() = false
+            override fun canScrollHorizontally() = candidateOverride != null
             override fun onLayoutCompleted(state: RecyclerView.State) {
                 super.onLayoutCompleted(state)
                 val cnt = this.childCount
+                if (candidateOverride != null) {
+                    refreshExpanded(cnt)
+                    return
+                }
                 if (secondLayoutPassNeeded) {
                     if (cnt < adapter.candidates.size) {
                         // [^2] RecyclerView can't display all candidates
@@ -178,8 +200,40 @@ class HorizontalCandidateComponent :
     }
 
     override fun onCandidateUpdate(data: FcitxEvent.CandidateListEvent.Data) {
-        val candidates = data.candidates
-        val total = data.total
+        fcitxCandidates = data.candidates
+        fcitxCandidateTotal = data.total
+        if (candidateOverride != null) return
+        showFcitxCandidates()
+    }
+
+    fun setCandidateOverride(
+        candidates: Array<CandidateWord>,
+        onCandidateClick: (Int) -> Unit,
+        onClear: () -> Unit,
+    ) {
+        candidateOverride = CandidateOverride(onCandidateClick)
+        layoutMinWidth = 0
+        layoutFlexGrow = 0f
+        secondLayoutPassNeeded = false
+        secondLayoutPassDone = false
+        layoutManager.flexWrap = FlexWrap.NOWRAP
+        adapter.updateCandidates(candidates, candidates.size)
+        view.scrollToPosition(0)
+        bar.updateCandidateOverride(candidates.isEmpty(), onClear)
+        refreshExpanded(0)
+    }
+
+    fun clearCandidateOverride() {
+        if (candidateOverride == null) return
+        candidateOverride = null
+        layoutManager.flexWrap = FlexWrap.WRAP
+        bar.clearCandidateOverride()
+        showFcitxCandidates()
+    }
+
+    private fun showFcitxCandidates() {
+        val candidates = fcitxCandidates
+        val total = fcitxCandidateTotal
         val maxSpanCount = maxSpanCountPref.getValue()
         when (fillStyle) {
             NeverFillWidth -> {

@@ -10,8 +10,6 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
-import androidx.recyclerview.widget.RecyclerView
-import com.google.android.flexbox.FlexboxLayoutManager
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingProtocol
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingRecognitionCandidate
@@ -25,8 +23,7 @@ import org.fcitx.fcitx5.android.input.bar.KawaiiBarComponent
 import org.fcitx.fcitx5.android.input.bar.ui.ToolButton
 import org.fcitx.fcitx5.android.input.broadcast.InputBroadcastReceiver
 import org.fcitx.fcitx5.android.input.broadcast.ReturnKeyDrawableComponent
-import org.fcitx.fcitx5.android.input.candidates.CandidateViewHolder
-import org.fcitx.fcitx5.android.input.candidates.horizontal.HorizontalCandidateViewAdapter
+import org.fcitx.fcitx5.android.input.candidates.horizontal.HorizontalCandidateComponent
 import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
@@ -60,13 +57,12 @@ class HandwritingWindow :
     private val service by manager.inputMethodService()
     private val theme by manager.theme()
     private val bar: KawaiiBarComponent by manager.must()
+    private val horizontalCandidate: HorizontalCandidateComponent by manager.must()
     private val commonKeyActionListener: CommonKeyActionListener by manager.must()
     private val returnKeyDrawable: ReturnKeyDrawableComponent by manager.must()
     private val requestIds = AtomicLong()
 
     private lateinit var canvas: HandwritingCanvas
-    private lateinit var candidateView: RecyclerView
-    private lateinit var recognizeButton: ToolButton
     private lateinit var undoButton: ToolButton
     private lateinit var clearButton: ToolButton
     private lateinit var downloadButton: ToolButton
@@ -78,38 +74,11 @@ class HandwritingWindow :
     private var activeRequestId = 0L
     private var contentScale = 1f
     private var modelState = HandwritingProtocol.MODEL_STATE_UNKNOWN
+    private var attached = false
+    private var recognitionCandidates = emptyList<HandwritingRecognitionCandidate>()
 
     private val keyActionListener = KeyActionListener { action, source ->
         commonKeyActionListener.listener.onKeyAction(action, source)
-    }
-
-    private val candidateAdapter by lazy {
-        object : HorizontalCandidateViewAdapter(theme) {
-            private var recognitionCandidates = emptyList<HandwritingRecognitionCandidate>()
-
-            fun update(data: List<HandwritingRecognitionCandidate>) {
-                recognitionCandidates = data
-                updateCandidates(
-                    data.map {
-                        CandidateWord("", it.text, "")
-                    }.toTypedArray(),
-                    data.size,
-                )
-            }
-
-            override fun onBindViewHolder(holder: CandidateViewHolder, position: Int) {
-                super.onBindViewHolder(holder, position)
-                holder.ui.setContentScale(contentScale)
-                holder.itemView.setOnClickListener {
-                    recognitionCandidates.getOrNull(holder.idx)?.let(::commitCandidate)
-                }
-            }
-
-            override fun onViewRecycled(holder: CandidateViewHolder) {
-                holder.itemView.setOnClickListener(null)
-                super.onViewRecycled(holder)
-            }
-        }
     }
 
     override fun onCreateView(): View {
@@ -117,18 +86,6 @@ class HandwritingWindow :
             updateStatus()
             recognize()
         }
-        candidateView = RecyclerView(context).apply {
-            itemAnimator = null
-            adapter = candidateAdapter
-            layoutManager = object : FlexboxLayoutManager(context) {
-                override fun canScrollVertically() = false
-            }
-        }
-        recognizeButton = actionButton(
-            R.drawable.ic_baseline_done_24,
-            context.getString(R.string.done),
-            ::recognize,
-        )
         undoButton = actionButton(
             R.drawable.ic_baseline_undo_24,
             context.getString(R.string.undo),
@@ -169,7 +126,6 @@ class HandwritingWindow :
         val controls = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            addView(recognizeButton, LinearLayout.LayoutParams(dp(44), 0, 1f))
             addView(undoButton, LinearLayout.LayoutParams(dp(44), 0, 1f))
             addView(clearButton, LinearLayout.LayoutParams(dp(44), 0, 1f))
         }
@@ -211,13 +167,6 @@ class HandwritingWindow :
             orientation = LinearLayout.VERTICAL
             background = theme.backgroundDrawable()
             addView(
-                candidateView,
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(44),
-                ),
-            )
-            addView(
                 writingArea,
                 LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -247,7 +196,7 @@ class HandwritingWindow :
         if (newMode != currentMode && ::canvas.isInitialized) {
             activeRequestId = requestIds.incrementAndGet()
             canvas.clear()
-            candidateAdapter.update(emptyList())
+            updateCandidates(emptyList())
         }
         currentMode = newMode
         if (::handwritingKeyboard.isInitialized) {
@@ -263,17 +212,21 @@ class HandwritingWindow :
     }
 
     override fun onAttached() {
+        attached = true
         bar.onKeyboardLayoutSwitched(false)
+        publishCandidates()
         handwritingKeyboard.keyActionListener = keyActionListener
         currentIme?.let(handwritingKeyboard::onInputMethodUpdate)
         queryModelState()
     }
 
     override fun onDetached() {
+        attached = false
         activeRequestId = requestIds.incrementAndGet()
         handwritingKeyboard.keyActionListener = null
         canvas.clear()
-        candidateAdapter.update(emptyList())
+        recognitionCandidates = emptyList()
+        horizontalCandidate.clearCandidateOverride()
         updateStatus()
     }
 
@@ -282,13 +235,11 @@ class HandwritingWindow :
         contentScale = scale
         if (!::canvas.isInitialized) return
         canvas.setContentScale(scale)
-        recognizeButton.setContentScale(scale)
         undoButton.setContentScale(scale)
         clearButton.setContentScale(scale)
         downloadButton.setContentScale(scale)
         handwritingKeyboard.setContentScale(scale)
         statusText.textSize = STATUS_TEXT_SIZE_SP * scale.coerceAtLeast(0.75f)
-        candidateAdapter.notifyItemRangeChanged(0, candidateAdapter.itemCount)
     }
 
     override fun setUsePortraitKeyboardStyle(enabled: Boolean) {
@@ -355,7 +306,7 @@ class HandwritingWindow :
     private fun recognize() {
         if (!::canvas.isInitialized || !canvas.hasInk) return
         val provider = HandwritingProviderRegistry.select(currentMode) ?: run {
-            candidateAdapter.update(emptyList())
+            updateCandidates(emptyList())
             showProviderUnavailable()
             return
         }
@@ -382,14 +333,14 @@ class HandwritingWindow :
                     when (response.errorCode) {
                         HandwritingProtocol.ERROR_NONE -> {
                             updateModelState(HandwritingProtocol.MODEL_STATE_READY)
-                            candidateAdapter.update(response.candidates)
+                            updateCandidates(response.candidates)
                         }
                         HandwritingProtocol.ERROR_MODEL_NOT_DOWNLOADED -> {
-                            candidateAdapter.update(emptyList())
+                            updateCandidates(emptyList())
                             updateModelState(HandwritingProtocol.MODEL_STATE_NOT_DOWNLOADED)
                         }
                         else -> {
-                            candidateAdapter.update(emptyList())
+                            updateCandidates(emptyList())
                             showRecognitionFailed()
                         }
                     }
@@ -400,7 +351,7 @@ class HandwritingWindow :
             provider.remote.recognize(request, callback)
         } catch (e: Exception) {
             Timber.w(e, "Handwriting recognition provider %s is unavailable", provider.id)
-            candidateAdapter.update(emptyList())
+            updateCandidates(emptyList())
             showProviderUnavailable()
         }
     }
@@ -420,7 +371,7 @@ class HandwritingWindow :
     private fun undo() {
         if (!canvas.undo()) return
         activeRequestId = requestIds.incrementAndGet()
-        candidateAdapter.update(emptyList())
+        updateCandidates(emptyList())
         updateStatus()
         if (canvas.hasInk && modelState == HandwritingProtocol.MODEL_STATE_READY) {
             recognize()
@@ -430,8 +381,25 @@ class HandwritingWindow :
     private fun clear() {
         activeRequestId = requestIds.incrementAndGet()
         canvas.clear()
-        candidateAdapter.update(emptyList())
+        updateCandidates(emptyList())
         updateStatus()
+    }
+
+    private fun updateCandidates(candidates: List<HandwritingRecognitionCandidate>) {
+        recognitionCandidates = candidates
+        if (attached) publishCandidates()
+    }
+
+    private fun publishCandidates() {
+        horizontalCandidate.setCandidateOverride(
+            candidates = recognitionCandidates.map {
+                CandidateWord("", it.text, "")
+            }.toTypedArray(),
+            onCandidateClick = { index ->
+                recognitionCandidates.getOrNull(index)?.let(::commitCandidate)
+            },
+            onClear = ::clear,
+        )
     }
 
     private fun updateModelState(state: Int) {

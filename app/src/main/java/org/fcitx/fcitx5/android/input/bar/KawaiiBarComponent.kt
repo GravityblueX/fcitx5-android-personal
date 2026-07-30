@@ -115,6 +115,9 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     private var isCapabilityFlagsPassword: Boolean = false
     private var isKeyboardLayoutNumber: Boolean = false
     private var isToolbarManuallyToggled: Boolean = false
+    private var fcitxCandidatesEmpty = true
+    private var candidateOverrideEmpty: Boolean? = null
+    private var candidateOverrideClearAction: (() -> Unit)? = null
 
     private enum class NumberRowState { Auto, ForceShow, ForceHide }
 
@@ -341,7 +344,8 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     private val candidateUi by lazy {
         CandidateUi(context, theme, horizontalCandidate.view).apply {
             clearButton.setOnClickListener {
-                service.postFcitxJob { reset() }
+                candidateOverrideClearAction?.invoke()
+                    ?: service.postFcitxJob { reset() }
             }
             expandButton.apply {
                 swipeEnabled = true
@@ -493,7 +497,27 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     }
 
     override fun onCandidateUpdate(data: CandidateListEvent.Data) {
-        barStateMachine.push(CandidatesUpdated, CandidateEmpty to data.candidates.isEmpty())
+        fcitxCandidatesEmpty = data.candidates.isEmpty()
+        updateEffectiveCandidateState()
+    }
+
+    fun updateCandidateOverride(empty: Boolean, onClear: () -> Unit) {
+        candidateOverrideEmpty = empty
+        candidateOverrideClearAction = onClear
+        updateEffectiveCandidateState()
+    }
+
+    fun clearCandidateOverride() {
+        candidateOverrideEmpty = null
+        candidateOverrideClearAction = null
+        updateEffectiveCandidateState()
+    }
+
+    private fun updateEffectiveCandidateState() {
+        barStateMachine.push(
+            CandidatesUpdated,
+            CandidateEmpty to (candidateOverrideEmpty ?: fcitxCandidatesEmpty),
+        )
     }
 
     override fun onWindowAttached(window: InputWindow) {
