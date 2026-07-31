@@ -30,6 +30,10 @@ object FcitxPluginServices {
         OFFICIAL_PLUGIN_SERVICE_ACTION,
         OFFICIAL_DEBUG_PLUGIN_SERVICE_ACTION
     )
+    private val builtInReplacementPackages = setOf(
+        "org.fcitx.fcitx5.android.plugin.handwriting.mlkit",
+        "org.fcitx.fcitx5.android.plugin.handwriting.mlkit.debug",
+    )
 
     class PluginServiceConnection(
         private val pluginId: String,
@@ -66,7 +70,7 @@ object FcitxPluginServices {
 
     private val connections = mutableMapOf<String, PluginServiceConnection>()
 
-    private fun connectPlugin(descriptor: PluginDescriptor) {
+    private fun connectPlugin(descriptor: PluginDescriptor): Boolean {
         for (action in compatiblePluginServiceActions) {
             val connection = PluginServiceConnection(descriptor.name) {
                 disconnectPlugin(descriptor.name)
@@ -80,7 +84,7 @@ object FcitxPluginServices {
                 if (result) {
                     connections[descriptor.name] = connection
                     Timber.d("Bound to plugin ${descriptor.name} with action $action")
-                    return
+                    return true
                 }
             } catch (e: Exception) {
                 // Official service plugins may require the official app's signature permission.
@@ -89,11 +93,15 @@ object FcitxPluginServices {
             }
         }
         Timber.w("No compatible service found for plugin: ${descriptor.name}")
+        return false
     }
 
     fun connectAll() {
         DataManager.getLoadedPlugins().forEach {
-            if (it.hasService && !connections.containsKey(it.name)) {
+            if (it.hasService &&
+                it.packageName !in builtInReplacementPackages &&
+                !connections.containsKey(it.name)
+            ) {
                 connectPlugin(it)
             }
         }
@@ -104,6 +112,25 @@ object FcitxPluginServices {
             appContext.unbindService(it)
             Timber.d("Unbound plugin: $name")
         }
+    }
+
+    fun disconnectPackage(packageName: String) {
+        DataManager.getLoadedPlugins()
+            .firstOrNull { it.packageName == packageName }
+            ?.let { disconnectPlugin(it.name) }
+    }
+
+    fun connectPackage(packageName: String): Boolean {
+        if (packageName in builtInReplacementPackages) {
+            return false
+        }
+        val descriptor = DataManager.getLoadedPlugins()
+            .firstOrNull { it.packageName == packageName && it.hasService }
+            ?: return false
+        if (connections.containsKey(descriptor.name)) {
+            return true
+        }
+        return connectPlugin(descriptor)
     }
 
     fun disconnectAll() {

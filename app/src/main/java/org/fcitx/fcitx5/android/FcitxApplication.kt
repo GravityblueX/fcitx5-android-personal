@@ -23,6 +23,8 @@ import org.fcitx.fcitx5.android.daemon.FcitxDaemon
 import org.fcitx.fcitx5.android.data.clipboard.ClipboardManager
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
+import org.fcitx.fcitx5.android.input.handwriting.BuiltInHandwritingRecognitionProvider
+import org.fcitx.fcitx5.android.input.handwriting.HandwritingProviderRegistry
 import org.fcitx.fcitx5.android.ui.main.LogActivity
 import org.fcitx.fcitx5.android.utils.AppUtil
 import org.fcitx.fcitx5.android.utils.Locales
@@ -154,6 +156,16 @@ class FcitxApplication : Application() {
             null,
             ContextCompat.RECEIVER_EXPORTED
         )
+        if (!isDirectBootMode) {
+            // ML Kit's initialization provider is not direct-boot aware. The application exits
+            // and starts again after the first unlock, so register handwriting only in the normal
+            // credential-protected process.
+            val handwritingProvider = BuiltInHandwritingRecognitionProvider(this)
+            HandwritingProviderRegistry.installBuiltIn(handwritingProvider)
+            ContextCompat.getMainExecutor(this).execute {
+                handwritingProvider.warmUp()
+            }
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

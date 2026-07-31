@@ -4,6 +4,7 @@
  */
 package org.fcitx.fcitx5.android.input.handwriting
 
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -53,6 +54,9 @@ class HandwritingWindow :
         const val ADDON_NAME = "androidhandwriting"
         private const val STATUS_TEXT_SIZE_SP = 16f
         private const val MAX_PRE_CONTEXT_LENGTH = 20
+        private const val MODEL_QUERY_TIMEOUT_MS = 6_000L
+        private const val MODEL_CHECK_TIMEOUT_ERROR = "TimeoutException"
+        private const val LOG_TAG = "HandwritingWindow"
 
         fun isHandwritingInputMethod(ime: InputMethodEntry): Boolean =
             ime.addon == ADDON_NAME
@@ -82,6 +86,8 @@ class HandwritingWindow :
     private var activeRequestId = 0L
     private var contentScale = 1f
     private var modelState = HandwritingProtocol.MODEL_STATE_UNKNOWN
+    private var modelStateError = ""
+    private var modelQueryGeneration = 0L
     private var attached = false
     private var recognitionCandidates = emptyList<HandwritingRecognitionCandidate>()
 
@@ -110,7 +116,7 @@ class HandwritingWindow :
         downloadButton = actionButton(
             R.drawable.ic_baseline_download_24,
             context.getString(R.string.handwriting_download_model),
-            ::downloadModel,
+            ::handleModelAction,
         )
         statusText = TextView(context).apply {
             gravity = Gravity.CENTER
@@ -246,6 +252,7 @@ class HandwritingWindow :
 
     override fun onDetached() {
         attached = false
+        modelQueryGeneration++
         HandwritingProviderRegistry.removeOnChangeListener(providerChangeListener)
         modePreference.unregisterOnChangeListener(modeChangeListener)
         activeRequestId = requestIds.incrementAndGet()
@@ -298,6 +305,7 @@ class HandwritingWindow :
                 updateCandidates(emptyList())
             }
             modelState = HandwritingProtocol.MODEL_STATE_UNKNOWN
+            modelStateError = ""
         }
         if (::handwritingKeyboard.isInitialized) {
             handwritingKeyboard.onRecognitionModeUpdate(mode)
@@ -321,16 +329,121 @@ class HandwritingWindow :
 
     private fun queryModelState() {
         if (!::statusText.isInitialized) return
+        val queryGeneration = ++modelQueryGeneration
         val provider = HandwritingProviderRegistry.select(currentMode) ?: run {
             showProviderUnavailable()
             return
         }
-        updateModelState(HandwritingProtocol.MODEL_STATE_UNKNOWN)
+        if (modelState == HandwritingProtocol.MODEL_STATE_UNKNOWN) {
+            scheduleModelQueryTimeout(queryGeneration)
+        }
         try {
-            provider.remote.queryModelState(currentMode, modelCallback(currentMode))
+            provider.remote.queryModelState(
+                currentMode,
+                modelCallback(currentMode, queryGeneration),
+            )
         } catch (e: Exception) {
             Timber.w(e, "Handwriting provider %s is unavailable", provider.id)
             showProviderUnavailable()
+        }
+    }
+
+    fun reloadRecognitionEngine(onComplete: ((Boolean) -> Unit)? = null) {
+        modelQueryGeneration++
+        modelState = HandwritingProtocol.MODEL_STATE_UNKNOWN
+        modelStateError = ""
+        updateCandidates(emptyList())
+        updateStatus()
+        if (!HandwritingProviderRegistry.reloadBuiltIn { engineReady ->
+            ContextCompat.getMainExecutor(service).execute {
+                if (attached) {
+                    if (engineReady) {
+                        queryModelState()
+                    } else {
+                        showProviderUnavailable()
+                    }
+                }
+                onComplete?.invoke(engineReady)
+            }
+        }) {
+            showProviderUnavailable()
+            onComplete?.invoke(false)
+        }
+    }
+
+    fun refreshModels(onComplete: ((Boolean) -> Unit)? = null) {
+        if (!::statusText.isInitialized) {
+            Log.w(LOG_TAG, "Model refresh ignored because the handwriting view is not initialized")
+            onComplete?.invoke(false)
+            return
+        }
+        val provider = HandwritingProviderRegistry.select(currentMode) ?: run {
+            Log.w(LOG_TAG, "Model refresh failed because no provider supports mode $currentMode")
+            showProviderUnavailable()
+            onComplete?.invoke(false)
+            return
+        }
+        Log.d(
+            LOG_TAG,
+            "Model refresh requested for mode $currentMode from ${provider.id}; attached=$attached",
+        )
+        val queryGeneration = ++modelQueryGeneration
+        var completionDelivered = false
+        fun completeOnce(success: Boolean) {
+            if (completionDelivered) return
+            completionDelivered = true
+            onComplete?.invoke(success)
+        }
+        modelState = HandwritingProtocol.MODEL_STATE_UNKNOWN
+        modelStateError = ""
+        updateCandidates(emptyList())
+        updateStatus()
+        scheduleModelQueryTimeout(queryGeneration) {
+            Log.w(LOG_TAG, "Model refresh timed out for mode $currentMode")
+            completeOnce(false)
+        }
+        try {
+            Log.d(LOG_TAG, "Sending model refresh IPC for mode $currentMode")
+            provider.remote.refreshModelState(
+                currentMode,
+                modelCallback(currentMode, queryGeneration) { state ->
+                    Log.d(LOG_TAG, "Model refresh settled with state=$state")
+                    completeOnce(state != HandwritingProtocol.MODEL_STATE_FAILED)
+                },
+            )
+        } catch (e: Exception) {
+            Log.w(LOG_TAG, "Cannot send model refresh IPC for mode $currentMode", e)
+            Timber.w(e, "Cannot refresh handwriting model state from %s", provider.id)
+            updateModelState(HandwritingProtocol.MODEL_STATE_FAILED)
+            completeOnce(false)
+        }
+    }
+
+    private fun scheduleModelQueryTimeout(
+        queryGeneration: Long,
+        onTimeout: (() -> Unit)? = null,
+    ) {
+        statusText.postDelayed(
+            {
+                if (queryGeneration == modelQueryGeneration &&
+                    modelState == HandwritingProtocol.MODEL_STATE_UNKNOWN
+                ) {
+                    updateModelState(
+                        HandwritingProtocol.MODEL_STATE_FAILED,
+                        MODEL_CHECK_TIMEOUT_ERROR,
+                    )
+                    onTimeout?.invoke()
+                }
+            },
+            MODEL_QUERY_TIMEOUT_MS,
+        )
+    }
+
+    private fun handleModelAction() {
+        if (modelStateError == MODEL_CHECK_TIMEOUT_ERROR) {
+            refreshModels()
+        } else {
+            downloadModel()
         }
     }
 
@@ -339,12 +452,13 @@ class HandwritingWindow :
             showProviderUnavailable()
             return
         }
+        val queryGeneration = ++modelQueryGeneration
         updateModelState(HandwritingProtocol.MODEL_STATE_DOWNLOADING)
         try {
             provider.remote.downloadModel(
                 currentMode,
                 false,
-                modelCallback(currentMode),
+                modelCallback(currentMode, queryGeneration),
             )
         } catch (e: Exception) {
             Timber.w(e, "Cannot request handwriting model download from %s", provider.id)
@@ -352,11 +466,28 @@ class HandwritingWindow :
         }
     }
 
-    private fun modelCallback(mode: Int) = object : IHandwritingModelCallback.Stub() {
+    private fun modelCallback(
+        mode: Int,
+        queryGeneration: Long,
+        onSettled: ((Int) -> Unit)? = null,
+    ) = object : IHandwritingModelCallback.Stub() {
         override fun onState(modeFromProvider: Int, state: Int, errorMessage: String) {
             ContextCompat.getMainExecutor(service).execute {
-                if (mode != currentMode || modeFromProvider != currentMode) return@execute
-                updateModelState(state)
+                if (mode != currentMode ||
+                    modeFromProvider != currentMode ||
+                    queryGeneration != modelQueryGeneration
+                ) {
+                    return@execute
+                }
+                if (errorMessage.isNotBlank()) {
+                    Timber.w("Handwriting model state query failed: %s", errorMessage)
+                }
+                updateModelState(state, errorMessage)
+                if (state != HandwritingProtocol.MODEL_STATE_UNKNOWN &&
+                    state != HandwritingProtocol.MODEL_STATE_DOWNLOADING
+                ) {
+                    onSettled?.invoke(state)
+                }
                 if (state == HandwritingProtocol.MODEL_STATE_READY && canvas.hasInk) {
                     recognize()
                 }
@@ -476,14 +607,21 @@ class HandwritingWindow :
         updateStatus()
     }
 
-    private fun updateModelState(state: Int) {
+    private fun updateModelState(
+        state: Int,
+        errorMessage: String = "",
+    ) {
         modelState = state
+        modelStateError = errorMessage
         updateStatus()
     }
 
     private fun updateStatus() {
         if (!::statusText.isInitialized) return
         downloadButton.visibility = View.GONE
+        downloadButton.setIcon(R.drawable.ic_baseline_download_24)
+        downloadButton.contentDescription =
+            context.getString(R.string.handwriting_download_model)
         statusText.visibility = View.VISIBLE
         statusText.text = when (modelState) {
             HandwritingProtocol.MODEL_STATE_READY -> {
@@ -507,7 +645,14 @@ class HandwritingWindow :
                 )
             HandwritingProtocol.MODEL_STATE_FAILED -> {
                 downloadButton.visibility = View.VISIBLE
-                context.getString(R.string.handwriting_model_failed)
+                if (modelStateError == MODEL_CHECK_TIMEOUT_ERROR) {
+                    downloadButton.setIcon(R.drawable.ic_baseline_sync_24)
+                    downloadButton.contentDescription =
+                        context.getString(R.string.handwriting_refresh_models)
+                    context.getString(R.string.handwriting_model_check_timed_out)
+                } else {
+                    context.getString(R.string.handwriting_model_failed)
+                }
             }
             else ->
                 context.getString(
@@ -535,6 +680,7 @@ class HandwritingWindow :
 
     private fun showProviderUnavailable() {
         modelState = HandwritingProtocol.MODEL_STATE_FAILED
+        modelStateError = ""
         downloadButton.visibility = View.GONE
         statusText.visibility = View.VISIBLE
         statusText.text = context.getString(R.string.handwriting_provider_unavailable)

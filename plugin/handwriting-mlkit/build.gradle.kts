@@ -36,6 +36,6 @@ android {
 
 dependencies {
     implementation(project(":lib:plugin-base"))
-    implementation(libs.mlkit.digital.ink)
+    implementation(project(":lib:handwriting-mlkit"))
     testImplementation(libs.junit)
 }

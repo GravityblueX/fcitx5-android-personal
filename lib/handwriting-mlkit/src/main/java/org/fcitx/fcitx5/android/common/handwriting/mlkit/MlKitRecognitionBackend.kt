@@ -2,9 +2,11 @@
  * SPDX-License-Identifier: LGPL-2.1-or-later
  * SPDX-FileCopyrightText: Copyright 2026 Fcitx5 for Android Contributors
  */
-package org.fcitx.fcitx5.android.plugin.handwriting.mlkit.recognition
+package org.fcitx.fcitx5.android.common.handwriting.mlkit
 
 import android.content.Context
+import android.os.SystemClock
+import android.util.Log
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.common.model.DownloadConditions
@@ -20,10 +22,12 @@ import com.google.mlkit.vision.digitalink.recognition.WritingArea
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingProtocol
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingRecognitionRequest
 import java.io.Closeable
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /**
- * Multilingual Digital Ink Recognition backend. ML Kit types intentionally stay
- * inside the plugin process and never cross the Fcitx plugin IPC boundary.
+ * Multilingual Digital Ink Recognition backend shared by the built-in engine and the
+ * compatibility plugin. ML Kit types stay behind this module's small Kotlin API.
  */
 class MlKitRecognitionBackend(context: Context) : Closeable {
 
@@ -58,6 +62,27 @@ class MlKitRecognitionBackend(context: Context) : Closeable {
     private val recognizers = mutableMapOf<ModelSpec, DigitalInkRecognizer>()
     private val downloadLock = Any()
     private val downloadTasks = mutableMapOf<ModelSpec, Task<Void>>()
+    private val modelInventoryLock = Any()
+    private var modelInventoryTask: Task<Set<DigitalInkRecognitionModel>>? = null
+    private val taskExecutor: ExecutorService =
+        Executors.newSingleThreadExecutor { runnable ->
+            Thread(runnable, "HandwritingMlKit").apply {
+                isDaemon = true
+            }
+        }
+
+    /**
+     * Starts one model inventory query for this process.
+     *
+     * A single inventory query replaces three concurrent isModelDownloaded() calls. ML Kit
+     * delegates these operations to its MDD model manager, so sharing the inventory also avoids
+     * making keyboard attachment compete with startup warm-up.
+     */
+    fun warmUpModelStates(onComplete: () -> Unit = {}) {
+        queryDownloadedModels().addOnCompleteListener(taskExecutor) {
+            onComplete()
+        }
+    }
 
     fun queryModelState(
         mode: Int,
@@ -72,12 +97,38 @@ class MlKitRecognitionBackend(context: Context) : Closeable {
         }
         if (activeDownloads.isNotEmpty()) {
             callback(HandwritingProtocol.MODEL_STATE_DOWNLOADING, "")
-            Tasks.whenAllComplete(activeDownloads).addOnCompleteListener {
-                resolveModelState(mode, specs, callback)
+            Tasks.whenAllComplete(activeDownloads).addOnCompleteListener(taskExecutor) {
+                resolveModelState(mode, specs, callback = callback)
             }
             return
         }
-        resolveModelState(mode, specs, callback)
+        // ML Kit's isModelDownloaded() may take several seconds on some devices even though it
+        // only checks a local model. Return the last verified state immediately, then validate it
+        // asynchronously so opening settings or reattaching the keyboard does not repeatedly show
+        // "checking model".
+        val cachedState = cachedModelState(mode, specs)
+        cachedState?.let { callback(it, "") }
+        resolveModelState(mode, specs) { state, errorMessage ->
+            // Successful inventory results may legitimately invalidate the cache (for example,
+            // after a model was deleted). A transient manager error must not downgrade a model
+            // that was already verified and may still be used by the recognizer.
+            if (cachedState == null ||
+                (errorMessage.isEmpty() && cachedState != state)
+            ) {
+                callback(state, errorMessage)
+            }
+        }
+    }
+
+    fun refreshModelState(
+        mode: Int,
+        callback: (state: Int, errorMessage: String) -> Unit,
+    ) {
+        val specs = modelSpecs(mode) ?: run {
+            callback(HandwritingProtocol.MODEL_STATE_FAILED, ERROR_UNSUPPORTED_MODE)
+            return
+        }
+        resolveModelState(mode, specs, forceCheck = true, callback = callback)
     }
 
     fun downloadModel(
@@ -94,9 +145,9 @@ class MlKitRecognitionBackend(context: Context) : Closeable {
         }.build()
         callback(HandwritingProtocol.MODEL_STATE_DOWNLOADING, "")
         val tasks = specs.map { ensureModelDownload(it, conditions) }
-        Tasks.whenAllComplete(tasks).addOnCompleteListener {
+        Tasks.whenAllComplete(tasks).addOnCompleteListener(taskExecutor) {
             val firstFailure = tasks.firstOrNull { !it.isSuccessful }?.exception
-            resolveModelState(mode, specs) { state, errorMessage ->
+            resolveModelState(mode, specs, forceCheck = true) { state, errorMessage ->
                 if (firstFailure != null && state != HandwritingProtocol.MODEL_STATE_READY) {
                     callback(
                         HandwritingProtocol.MODEL_STATE_FAILED,
@@ -162,28 +213,50 @@ class MlKitRecognitionBackend(context: Context) : Closeable {
         synchronized(downloadLock) {
             downloadTasks.clear()
         }
+        synchronized(modelInventoryLock) {
+            modelInventoryTask = null
+        }
+        taskExecutor.shutdownNow()
     }
 
     private fun resolveModelState(
         mode: Int,
         specs: List<ModelSpec>,
+        forceCheck: Boolean = false,
         callback: (state: Int, errorMessage: String) -> Unit,
     ) {
-        val checks = specs.associateWith { modelManager.isModelDownloaded(modelFor(it)) }
-        Tasks.whenAllComplete(checks.values).addOnCompleteListener {
-            val readyCount = checks.values.count { it.isSuccessful && it.result == true }
-            val firstFailure = checks.values.firstOrNull { !it.isSuccessful }?.exception
+        val inventory = queryDownloadedModels(forceCheck)
+        inventory.addOnCompleteListener(taskExecutor) {
+            val availability = specs.associateWith { spec ->
+                if (inventory.isSuccessful) {
+                    inventory.result.contains(modelFor(spec))
+                } else if (forceCheck) {
+                    null
+                } else {
+                    cachedModelAvailability(spec)
+                }
+            }
+            val readyCount = availability.values.count { it == true }
             val state = when {
                 mode == HandwritingProtocol.MODE_AUTO && readyCount > 0 ->
                     HandwritingProtocol.MODEL_STATE_READY
                 mode != HandwritingProtocol.MODE_AUTO && readyCount == 1 ->
                     HandwritingProtocol.MODEL_STATE_READY
-                firstFailure != null ->
+                availability.values.all { it != null } ->
+                    HandwritingProtocol.MODEL_STATE_NOT_DOWNLOADED
+                !inventory.isSuccessful ->
                     HandwritingProtocol.MODEL_STATE_FAILED
                 else ->
                     HandwritingProtocol.MODEL_STATE_NOT_DOWNLOADED
             }
-            callback(state, firstFailure?.javaClass?.simpleName.orEmpty())
+            callback(
+                state,
+                if (state == HandwritingProtocol.MODEL_STATE_FAILED) {
+                    inventory.exception?.javaClass?.simpleName.orEmpty()
+                } else {
+                    ""
+                },
+            )
         }
     }
 
@@ -192,17 +265,21 @@ class MlKitRecognitionBackend(context: Context) : Closeable {
         onSuccess: (List<ModelSpec>) -> Unit,
         onFailure: (Throwable) -> Unit,
     ) {
-        val checks = specs.associateWith { modelManager.isModelDownloaded(modelFor(it)) }
-        Tasks.whenAllComplete(checks.values).addOnCompleteListener {
-            val ready = checks
-                .filterValues { it.isSuccessful && it.result == true }
-                .keys
-                .toList()
+        val inventory = queryDownloadedModels()
+        inventory.addOnCompleteListener(taskExecutor) {
+            val ready = if (inventory.isSuccessful) {
+                specs.filter { inventory.result.contains(modelFor(it)) }
+            } else {
+                emptyList()
+            }
             if (ready.isNotEmpty()) {
                 onSuccess(ready)
                 return@addOnCompleteListener
             }
-            val failure = checks.values.firstOrNull { !it.isSuccessful }?.exception
+            val failure = inventory.exception
+            if (failure != null) {
+                queryDownloadedModels(forceCheck = true)
+            }
             onFailure(failure ?: ModelNotDownloadedException())
         }
     }
@@ -218,8 +295,16 @@ class MlKitRecognitionBackend(context: Context) : Closeable {
         val tasks = readyModels.associateWith { spec ->
             getRecognizer(spec).recognize(ink, recognitionContext)
         }
-        Tasks.whenAllComplete(tasks.values).addOnCompleteListener {
+        Tasks.whenAllComplete(tasks.values).addOnCompleteListener(taskExecutor) {
             val successful = tasks.filterValues(Task<*>::isSuccessful)
+            val failedModels = tasks
+                .filterValues { !it.isSuccessful }
+                .keys
+            if (failedModels.isNotEmpty()) {
+                // A previously verified model may have been removed or corrupted. Refresh only
+                // after an actual recognition failure instead of before every ink request.
+                queryDownloadedModels(forceCheck = true)
+            }
             if (successful.isEmpty()) {
                 onFailure(
                     tasks.values.firstNotNullOfOrNull(Task<*>::getException)
@@ -261,6 +346,74 @@ class MlKitRecognitionBackend(context: Context) : Closeable {
         }
     }
 
+    private fun queryDownloadedModels(
+        forceCheck: Boolean = false,
+    ): Task<Set<DigitalInkRecognitionModel>> =
+        synchronized(modelInventoryLock) {
+            modelInventoryTask?.let { existing ->
+                if (!forceCheck || !existing.isComplete) {
+                    return@synchronized existing
+                }
+            }
+            val startedAt = SystemClock.elapsedRealtime()
+            modelManager
+                .getDownloadedModels(DigitalInkRecognitionModel::class.java)
+                .also { task ->
+                    modelInventoryTask = task
+                    task.addOnCompleteListener(taskExecutor) {
+                        val elapsed = SystemClock.elapsedRealtime() - startedAt
+                        if (task.isSuccessful) {
+                            val downloaded = task.result
+                            preferences.edit().apply {
+                                ModelSpec.entries.forEach { spec ->
+                                    putBoolean(
+                                        modelStatePreference(spec),
+                                        downloaded.contains(modelFor(spec)),
+                                    )
+                                }
+                            }.apply()
+                            Log.d(
+                                LOG_TAG,
+                                "Model inventory (${downloaded.size}) completed in ${elapsed} ms",
+                            )
+                        } else {
+                            Log.w(
+                                LOG_TAG,
+                                "Model inventory failed in ${elapsed} ms",
+                                task.exception,
+                            )
+                            synchronized(modelInventoryLock) {
+                                if (modelInventoryTask === task) {
+                                    modelInventoryTask = null
+                                }
+                            }
+                        }
+                    }
+                }
+        }
+
+    private fun cachedModelState(mode: Int, specs: List<ModelSpec>): Int? {
+        val availability = specs.map(::cachedModelAvailability)
+        val readyCount = availability.count { it == true }
+        return when {
+            mode == HandwritingProtocol.MODE_AUTO && readyCount > 0 ->
+                HandwritingProtocol.MODEL_STATE_READY
+            mode != HandwritingProtocol.MODE_AUTO && readyCount == 1 ->
+                HandwritingProtocol.MODEL_STATE_READY
+            availability.all { it != null } ->
+                HandwritingProtocol.MODEL_STATE_NOT_DOWNLOADED
+            else -> null
+        }
+    }
+
+    private fun cachedModelAvailability(spec: ModelSpec): Boolean? {
+        val key = modelStatePreference(spec)
+        return if (preferences.contains(key)) preferences.getBoolean(key, false) else null
+    }
+
+    private fun modelStatePreference(spec: ModelSpec) =
+        "$PREFERENCE_MODEL_DOWNLOADED_PREFIX${spec.languageTag}"
+
     private fun ensureModelDownload(
         spec: ModelSpec,
         conditions: DownloadConditions,
@@ -268,7 +421,7 @@ class MlKitRecognitionBackend(context: Context) : Closeable {
         downloadTasks[spec]?.takeUnless(Task<*>::isComplete)
             ?: modelManager.download(modelFor(spec), conditions).also { task ->
                 downloadTasks[spec] = task
-                task.addOnCompleteListener {
+                task.addOnCompleteListener(taskExecutor) {
                     synchronized(downloadLock) {
                         if (downloadTasks[spec] === task) {
                             downloadTasks.remove(spec)
@@ -316,8 +469,10 @@ class MlKitRecognitionBackend(context: Context) : Closeable {
     private companion object {
         const val PREFERENCES_NAME = "handwriting_recognition"
         const val PREFERENCE_RECENT_LANGUAGE = "recent_auto_language"
+        const val PREFERENCE_MODEL_DOWNLOADED_PREFIX = "model_downloaded_"
         const val MAX_PRE_CONTEXT_LENGTH = 20
         const val ERROR_UNSUPPORTED_MODE = "UnsupportedMode"
         const val ERROR_RECOGNITION_FAILED = "RecognitionFailed"
+        const val LOG_TAG = "HandwritingBackend"
     }
 }

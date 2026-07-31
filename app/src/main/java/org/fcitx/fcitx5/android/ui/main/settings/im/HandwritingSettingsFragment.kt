@@ -5,9 +5,9 @@
 package org.fcitx.fcitx5.android.ui.main.settings.im
 
 import android.content.Context
-import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.view.View
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
@@ -17,8 +17,6 @@ import com.google.android.material.progressindicator.LinearProgressIndicator
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingProtocol
 import org.fcitx.fcitx5.android.common.handwriting.IHandwritingModelCallback
-import org.fcitx.fcitx5.android.core.FcitxPluginServices
-import org.fcitx.fcitx5.android.core.data.DataManager
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreferenceFragment
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingProviderRegistry
@@ -62,32 +60,51 @@ class HandwritingSettingsFragment :
     )
     private val languageEntries =
         modelEntries.filter { it.mode != HandwritingRecognitionMode.Auto }
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val modelPreferences = mutableMapOf<HandwritingRecognitionMode, ModelPreference>()
     private val languageModelStates = mutableMapOf<HandwritingRecognitionMode, Int>()
+    private val modelQueryGenerations = mutableMapOf<HandwritingRecognitionMode, Long>()
+    private val modelCheckTimedOutModes = mutableSetOf<HandwritingRecognitionMode>()
+    private lateinit var reloadEnginePreference: Preference
+    private lateinit var refreshModelsPreference: Preference
     private var autoModelState = HandwritingProtocol.MODEL_STATE_UNKNOWN
     private var autoProviderUnavailable = false
-    private var pendingDownloadMode: HandwritingRecognitionMode? = null
-    private val pluginActivationLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            // Explicitly opening an activity clears Android's stopped-package state. This is
-            // required on some vendor systems before they allow another app to bind a service.
-            FcitxPluginServices.connectAll()
-        }
+    private val providerUnavailableModes = mutableSetOf<HandwritingRecognitionMode>()
+    private var manualReloadInProgress = false
+    private var manualModelRefreshInProgress = false
     private val providerChangeListener = {
         ContextCompat.getMainExecutor(appContext).execute {
             if (isAdded) {
-                refreshModelStates()
-                pendingDownloadMode?.let { mode ->
-                    if (HandwritingProviderRegistry.select(mode.protocolMode) != null) {
-                        pendingDownloadMode = null
-                        modelEntries.firstOrNull { it.mode == mode }?.let(::downloadModel)
-                    }
+                if (!manualReloadInProgress) {
+                    refreshModelStates()
                 }
             }
         }
     }
 
     override fun onPreferenceUiCreated(screen: PreferenceScreen) {
+        reloadEnginePreference = Preference(screen.context).apply {
+            setTitle(R.string.handwriting_reload_engine)
+            setSummary(R.string.handwriting_reload_engine_summary)
+            setIcon(R.drawable.ic_baseline_sync_24)
+            isIconSpaceReserved = true
+            setOnPreferenceClickListener {
+                reloadRecognitionEngine()
+                true
+            }
+        }
+        screen.addPreference(reloadEnginePreference)
+        refreshModelsPreference = Preference(screen.context).apply {
+            setTitle(R.string.handwriting_refresh_models)
+            setSummary(R.string.handwriting_refresh_models_summary)
+            setIcon(R.drawable.ic_baseline_search_24)
+            isIconSpaceReserved = true
+            setOnPreferenceClickListener {
+                refreshModels()
+                true
+            }
+        }
+        screen.addPreference(refreshModelsPreference)
         val category = PreferenceCategory(screen.context).apply {
             setTitle(R.string.handwriting_models)
             isIconSpaceReserved = false
@@ -108,7 +125,6 @@ class HandwritingSettingsFragment :
             modelPreferences[entry.mode] = preference
             category.addPreference(preference)
         }
-        refreshModelStates()
     }
 
     override fun onStart() {
@@ -124,16 +140,14 @@ class HandwritingSettingsFragment :
         super.onStop()
     }
 
-    private fun refreshModelStates() {
-        autoModelState = HandwritingProtocol.MODEL_STATE_UNKNOWN
+    private fun refreshModelStates(forceCheck: Boolean = false) {
         autoProviderUnavailable =
             HandwritingProviderRegistry.select(HandwritingRecognitionMode.Auto.protocolMode) == null
-        languageModelStates.clear()
-        refreshLanguageModelStates()
+        refreshLanguageModelStates(forceCheck)
         updateAutoPreference()
     }
 
-    private fun refreshLanguageModelStates() {
+    private fun refreshLanguageModelStates(forceCheck: Boolean = false) {
         languageEntries.forEach { entry ->
             val provider = HandwritingProviderRegistry.select(entry.mode.protocolMode)
             if (provider == null) {
@@ -144,12 +158,26 @@ class HandwritingSettingsFragment :
                 )
                 return@forEach
             }
-            updatePreference(entry, HandwritingProtocol.MODEL_STATE_UNKNOWN)
+            val wasUnavailable = providerUnavailableModes.remove(entry.mode)
+            if (forceCheck || wasUnavailable || languageModelStates[entry.mode] == null) {
+                updatePreference(entry, HandwritingProtocol.MODEL_STATE_UNKNOWN)
+            }
+            val queryGeneration = nextQueryGeneration(entry.mode)
+            if (languageModelStates[entry.mode] == HandwritingProtocol.MODEL_STATE_UNKNOWN) {
+                postModelCheckTimeout(entry, queryGeneration)
+            }
             try {
-                provider.remote.queryModelState(
-                    entry.mode.protocolMode,
-                    modelCallback(entry),
-                )
+                if (forceCheck) {
+                    provider.remote.refreshModelState(
+                        entry.mode.protocolMode,
+                        modelCallback(entry, queryGeneration),
+                    )
+                } else {
+                    provider.remote.queryModelState(
+                        entry.mode.protocolMode,
+                        modelCallback(entry, queryGeneration),
+                    )
+                }
             } catch (e: Exception) {
                 Timber.w(e, "Cannot query %s handwriting model", entry.mode)
                 updatePreference(
@@ -164,9 +192,6 @@ class HandwritingSettingsFragment :
     private fun downloadModel(entry: ModelEntry) {
         val provider = HandwritingProviderRegistry.select(entry.mode.protocolMode)
         if (provider == null) {
-            if (activateHandwritingPlugin(entry.mode)) {
-                return
-            }
             updatePreference(
                 entry,
                 HandwritingProtocol.MODEL_STATE_FAILED,
@@ -174,12 +199,13 @@ class HandwritingSettingsFragment :
             )
             return
         }
+        val queryGeneration = nextQueryGeneration(entry.mode)
         updatePreference(entry, HandwritingProtocol.MODEL_STATE_DOWNLOADING)
         try {
             provider.remote.downloadModel(
                 entry.mode.protocolMode,
                 false,
-                modelCallback(entry),
+                modelCallback(entry, queryGeneration),
             )
         } catch (e: Exception) {
             Timber.w(e, "Cannot download %s handwriting model", entry.mode)
@@ -187,34 +213,150 @@ class HandwritingSettingsFragment :
         }
     }
 
-    private fun activateHandwritingPlugin(mode: HandwritingRecognitionMode): Boolean {
-        val component =
-            DataManager.findPluginActivationActivity(HANDWRITING_PLUGIN_PACKAGE) ?: return false
-        pendingDownloadMode = mode
-        return try {
-            pluginActivationLauncher.launch(
-                Intent().apply {
-                    this.component = component
+    private fun reloadRecognitionEngine() {
+        manualReloadInProgress = true
+        manualModelRefreshInProgress = false
+        invalidateModelQueries()
+        languageEntries.forEach {
+            updatePreference(it, HandwritingProtocol.MODEL_STATE_UNKNOWN)
+        }
+        autoModelState = HandwritingProtocol.MODEL_STATE_UNKNOWN
+        autoProviderUnavailable = false
+        updateAutoPreference()
+        setManualActionsEnabled(false)
+        reloadEnginePreference.setSummary(R.string.handwriting_reload_engine_in_progress)
+        if (!HandwritingProviderRegistry.reloadBuiltIn { engineReady ->
+            ContextCompat.getMainExecutor(appContext).execute {
+                manualReloadInProgress = false
+                setManualActionsEnabled(true)
+                reloadEnginePreference.setSummary(
+                    if (engineReady) {
+                        R.string.handwriting_reload_engine_summary
+                    } else {
+                        R.string.handwriting_reload_engine_failed
+                    }
+                )
+                if (!isAdded) return@execute
+                if (engineReady) {
+                    refreshModelStates()
+                } else {
+                    languageEntries.forEach {
+                        updatePreference(
+                            it,
+                            HandwritingProtocol.MODEL_STATE_FAILED,
+                            providerUnavailable = true,
+                        )
+                    }
+                    autoProviderUnavailable = true
+                    updateAutoPreference()
                 }
-            )
-            true
-        } catch (e: Exception) {
-            pendingDownloadMode = null
-            Timber.w(e, "Cannot activate handwriting plugin")
-            false
+            }
+        }) {
+            manualReloadInProgress = false
+            setManualActionsEnabled(true)
+            reloadEnginePreference.setSummary(R.string.handwriting_reload_engine_failed)
         }
     }
 
-    private fun modelCallback(entry: ModelEntry): IHandwritingModelCallback {
+    private fun refreshModels() {
+        manualModelRefreshInProgress = false
+        invalidateModelQueries()
+        languageEntries.forEach {
+            updatePreference(it, HandwritingProtocol.MODEL_STATE_UNKNOWN)
+        }
+        autoModelState = HandwritingProtocol.MODEL_STATE_UNKNOWN
+        autoProviderUnavailable = false
+        updateAutoPreference()
+        manualModelRefreshInProgress = true
+        setManualActionsEnabled(false)
+        refreshModelsPreference.setSummary(R.string.handwriting_refresh_models_in_progress)
+        refreshModelStates(forceCheck = true)
+        maybeFinishManualModelRefresh()
+    }
+
+    private fun setManualActionsEnabled(enabled: Boolean) {
+        reloadEnginePreference.isEnabled = enabled
+        refreshModelsPreference.isEnabled = enabled
+    }
+
+    private fun maybeFinishManualModelRefresh() {
+        if (!manualModelRefreshInProgress) return
+        val states = languageEntries.map { languageModelStates[it.mode] }
+        if (states.any {
+                it == null ||
+                        it == HandwritingProtocol.MODEL_STATE_UNKNOWN ||
+                        it == HandwritingProtocol.MODEL_STATE_DOWNLOADING
+            }
+        ) {
+            return
+        }
+        manualModelRefreshInProgress = false
+        setManualActionsEnabled(true)
+        refreshModelsPreference.setSummary(
+            if (providerUnavailableModes.isEmpty() &&
+                states.none { it == HandwritingProtocol.MODEL_STATE_FAILED }
+            ) {
+                R.string.handwriting_refresh_models_summary
+            } else {
+                R.string.handwriting_refresh_models_failed
+            }
+        )
+    }
+
+    private fun nextQueryGeneration(mode: HandwritingRecognitionMode): Long {
+        val generation = (modelQueryGenerations[mode] ?: 0L) + 1L
+        modelQueryGenerations[mode] = generation
+        return generation
+    }
+
+    private fun invalidateModelQueries() {
+        modelEntries.forEach { nextQueryGeneration(it.mode) }
+    }
+
+    private fun postModelCheckTimeout(
+        entry: ModelEntry,
+        queryGeneration: Long,
+    ) {
+        mainHandler.postDelayed(
+            {
+                if (isAdded &&
+                    modelQueryGenerations[entry.mode] == queryGeneration &&
+                    languageModelStates[entry.mode] ==
+                    HandwritingProtocol.MODEL_STATE_UNKNOWN
+                ) {
+                    updatePreference(
+                        entry,
+                        HandwritingProtocol.MODEL_STATE_FAILED,
+                        checkTimedOut = true,
+                    )
+                }
+            },
+            MODEL_QUERY_TIMEOUT_MS,
+        )
+    }
+
+    private fun modelCallback(
+        entry: ModelEntry,
+        queryGeneration: Long,
+    ): IHandwritingModelCallback {
         val appContext = requireContext().applicationContext
         return object : IHandwritingModelCallback.Stub() {
             override fun onState(mode: Int, state: Int, errorMessage: String) {
                 ContextCompat.getMainExecutor(appContext).execute {
-                    if (!isAdded || mode != entry.mode.protocolMode) return@execute
+                    if (!isAdded ||
+                        mode != entry.mode.protocolMode ||
+                        modelQueryGenerations[entry.mode] != queryGeneration
+                    ) {
+                        return@execute
+                    }
                     if (errorMessage.isNotBlank()) {
                         Timber.w("Handwriting model %s: %s", entry.mode, errorMessage)
                     }
-                    updatePreference(entry, state)
+                    updatePreference(
+                        entry,
+                        state,
+                        checkTimedOut = errorMessage == MODEL_CHECK_TIMEOUT_ERROR,
+                    )
                     if (entry.mode == HandwritingRecognitionMode.Auto &&
                         state != HandwritingProtocol.MODEL_STATE_DOWNLOADING
                     ) {
@@ -229,12 +371,23 @@ class HandwritingSettingsFragment :
         entry: ModelEntry,
         state: Int,
         providerUnavailable: Boolean = false,
+        checkTimedOut: Boolean = false,
     ) {
+        if (checkTimedOut) {
+            modelCheckTimedOutModes.add(entry.mode)
+        } else {
+            modelCheckTimedOutModes.remove(entry.mode)
+        }
         if (entry.mode == HandwritingRecognitionMode.Auto) {
             autoModelState = state
             autoProviderUnavailable = providerUnavailable
             updateAutoPreference()
             return
+        }
+        if (providerUnavailable) {
+            providerUnavailableModes.add(entry.mode)
+        } else {
+            providerUnavailableModes.remove(entry.mode)
         }
         languageModelStates[entry.mode] = state
         val preference = modelPreferences[entry.mode] ?: return
@@ -243,6 +396,8 @@ class HandwritingSettingsFragment :
         preference.isEnabled = state != HandwritingProtocol.MODEL_STATE_DOWNLOADING
         preference.summary = when {
             providerUnavailable -> getString(R.string.handwriting_provider_unavailable)
+            entry.mode in modelCheckTimedOutModes ->
+                getString(R.string.handwriting_model_check_timed_out_settings)
             state == HandwritingProtocol.MODEL_STATE_READY ->
                 getString(R.string.handwriting_model_ready)
             state == HandwritingProtocol.MODEL_STATE_NOT_DOWNLOADED ->
@@ -254,6 +409,7 @@ class HandwritingSettingsFragment :
             else -> getString(R.string.handwriting_model_checking_settings)
         }
         updateAutoPreference()
+        maybeFinishManualModelRefresh()
     }
 
     private fun updateAutoPreference() {
@@ -269,6 +425,8 @@ class HandwritingSettingsFragment :
             downloading -> getString(R.string.handwriting_model_downloading_settings)
             states.any { it == null || it == HandwritingProtocol.MODEL_STATE_UNKNOWN } ->
                 getString(R.string.handwriting_model_checking_settings)
+            languageEntries.any { it.mode in modelCheckTimedOutModes } ->
+                getString(R.string.handwriting_model_check_timed_out_settings)
             else -> {
                 val missing = languageEntries
                     .filter { languageModelStates[it.mode] != HandwritingProtocol.MODEL_STATE_READY }
@@ -285,7 +443,7 @@ class HandwritingSettingsFragment :
     }
 
     private companion object {
-        const val HANDWRITING_PLUGIN_PACKAGE =
-            "org.fcitx.fcitx5.android.plugin.handwriting.mlkit"
+        const val MODEL_QUERY_TIMEOUT_MS = 6_000L
+        const val MODEL_CHECK_TIMEOUT_ERROR = "TimeoutException"
     }
 }

@@ -16,3 +16,10 @@ install(
         DESTINATION "${FCITX_INSTALL_PKGDATADIR}/addon"
         COMPONENT config
 )
+
+configure_file(handwriting.conf.in.in handwriting.conf @ONLY)
+install(
+        FILES "${CMAKE_CURRENT_BINARY_DIR}/handwriting.conf"
+        DESTINATION "${FCITX_INSTALL_PKGDATADIR}/inputmethod"
+        COMPONENT config
+)

@@ -26,6 +26,8 @@ object HandwritingProviderRegistry {
     private val lock = Any()
     private val entries = linkedMapOf<IBinder, Entry>()
     private val onChangeListeners = CopyOnWriteArrayList<() -> Unit>()
+    private var builtInProvider: Provider? = null
+    private var reloadBuiltInProvider: (((Boolean) -> Unit) -> Unit)? = null
 
     fun addOnChangeListener(listener: () -> Unit) {
         onChangeListeners.addIfAbsent(listener)
@@ -37,6 +39,42 @@ object HandwritingProviderRegistry {
 
     private fun notifyChanged() {
         onChangeListeners.forEach { it() }
+    }
+
+    fun installBuiltIn(provider: BuiltInHandwritingRecognitionProvider) {
+        val remote = provider.remote
+        val version = remote.protocolVersion
+        require(version == HandwritingProtocol.VERSION) {
+            "Built-in handwriting protocol version $version does not match " +
+                    HandwritingProtocol.VERSION
+        }
+        val descriptor = Provider(
+            id = remote.providerId,
+            supportedModes = remote.supportedModes.toSet(),
+            remote = remote,
+        )
+        synchronized(lock) {
+            builtInProvider = descriptor
+            reloadBuiltInProvider = provider::reload
+        }
+        Timber.i(
+            "Installed built-in handwriting provider %s for modes %s",
+            descriptor.id,
+            descriptor.supportedModes,
+        )
+        notifyChanged()
+    }
+
+    fun reloadBuiltIn(onComplete: (Boolean) -> Unit = {}): Boolean {
+        val reload = synchronized(lock) { reloadBuiltInProvider } ?: run {
+            onComplete(false)
+            return false
+        }
+        reload { success ->
+            if (success) notifyChanged()
+            onComplete(success)
+        }
+        return true
     }
 
     fun register(remote: IHandwritingRecognitionProvider) {
@@ -101,7 +139,12 @@ object HandwritingProviderRegistry {
                 Timber.i("Removed dead handwriting provider %s", entry.provider.id)
             }
         }
-        entries.values
+        builtInProvider
+            ?.takeIf {
+                mode in it.supportedModes ||
+                        HandwritingProtocol.MODE_AUTO in it.supportedModes
+            }
+            ?: entries.values
             .asSequence()
             .map { it.provider }
             .firstOrNull {

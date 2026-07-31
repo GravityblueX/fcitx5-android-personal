@@ -16,11 +16,18 @@ interface IHandwritingRecognitionProvider {
         in HandwritingRecognitionRequest request,
         IHandwritingRecognitionCallback callback
     );
-    oneway void queryModelState(
+    // Model operations are deliberately synchronous Binder transactions. Their implementations
+    // only enqueue asynchronous ML Kit work, while synchronous delivery prevents control requests
+    // from being silently deferred by vendor background-process policies.
+    void queryModelState(
         int mode,
         IHandwritingModelCallback callback
     );
-    oneway void downloadModel(
+    void refreshModelState(
+        int mode,
+        IHandwritingModelCallback callback
+    );
+    void downloadModel(
         int mode,
         boolean wifiOnly,
         IHandwritingModelCallback callback

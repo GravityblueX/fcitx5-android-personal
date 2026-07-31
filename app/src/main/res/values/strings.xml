@@ -24,7 +24,7 @@
     <string name="undo">Undo</string>
     <string name="handwriting" tools:ignore="MissingTranslation">Handwriting</string>
     <string name="handwriting_hint" tools:ignore="MissingTranslation">Write here</string>
-    <string name="handwriting_provider_unavailable" tools:ignore="MissingTranslation">Handwriting plugin is unavailable</string>
+    <string name="handwriting_provider_unavailable" tools:ignore="MissingTranslation">The built-in handwriting engine is unavailable</string>
     <string name="handwriting_model_checking" tools:ignore="MissingTranslation">Checking %1$s…</string>
     <string name="handwriting_model_missing" tools:ignore="MissingTranslation">Download %1$s (about %2$d MB)</string>
     <string name="handwriting_model_downloading" tools:ignore="MissingTranslation">Downloading %1$s…</string>
@@ -48,6 +48,18 @@
     <string name="handwriting_model_checking_settings" tools:ignore="MissingTranslation">Checking model status…</string>
     <string name="handwriting_model_missing_languages" tools:ignore="MissingTranslation">Missing models: %1$s. Tap to download.</string>
     <string name="handwriting_model_list_separator" tools:ignore="MissingTranslation">, </string>
+    <string name="handwriting_reload_engine" tools:ignore="MissingTranslation">Reload handwriting engine</string>
+    <string name="handwriting_reload_engine_summary" tools:ignore="MissingTranslation">Reinitialize the built-in recognizer</string>
+    <string name="handwriting_reload_engine_in_progress" tools:ignore="MissingTranslation">Reloading the handwriting engine…</string>
+    <string name="handwriting_reload_engine_complete" tools:ignore="MissingTranslation">Handwriting engine reloaded</string>
+    <string name="handwriting_reload_engine_failed" tools:ignore="MissingTranslation">Could not reload the handwriting engine</string>
+    <string name="handwriting_refresh_models" tools:ignore="MissingTranslation">Recheck handwriting models</string>
+    <string name="handwriting_refresh_models_summary" tools:ignore="MissingTranslation">Force a fresh check of all installed handwriting models</string>
+    <string name="handwriting_refresh_models_in_progress" tools:ignore="MissingTranslation">Checking handwriting models again…</string>
+    <string name="handwriting_refresh_models_complete" tools:ignore="MissingTranslation">Handwriting model check completed</string>
+    <string name="handwriting_refresh_models_failed" tools:ignore="MissingTranslation">Could not refresh handwriting model status</string>
+    <string name="handwriting_model_check_timed_out" tools:ignore="MissingTranslation">Model check timed out. Tap to check the model again.</string>
+    <string name="handwriting_model_check_timed_out_settings" tools:ignore="MissingTranslation">Model check timed out. Recheck the models or reload the handwriting engine, then try again.</string>
     <string name="delete_and_sync_data">Delete and sync runtime data</string>
     <string name="delete_and_sync_data_message">Delete current data directory and synchronize from assets bundled in app</string>
     <string name="enable_ime">Enable Input Method</string>

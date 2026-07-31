@@ -28,6 +28,8 @@ import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.editorinfo.EditorInfoWindow
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingWindow
+import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.HandwritingEngineReload
+import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.HandwritingModelRefresh
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.HandwritingMode
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.InputMethod
 import org.fcitx.fcitx5.android.input.status.StatusAreaEntry.Android.Type.Keyboard
@@ -100,6 +102,18 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
             active = true,
         )
     }
+
+    private fun handwritingEngineReloadEntry() = StatusAreaEntry.Android(
+        context.getString(R.string.handwriting_reload_engine),
+        R.drawable.ic_baseline_sync_24,
+        HandwritingEngineReload,
+    )
+
+    private fun handwritingModelRefreshEntry() = StatusAreaEntry.Android(
+        context.getString(R.string.handwriting_refresh_models),
+        R.drawable.ic_baseline_search_24,
+        HandwritingModelRefresh,
+    )
 
     private fun cycleHandwritingMode() {
         val currentMode = AppPrefs.getInstance().handwriting.recognitionMode.getValue()
@@ -180,6 +194,42 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
                         Keyboard -> AppUtil.launchMainToKeyboard(context)
                         ThemeList -> AppUtil.launchMainToThemeList(context)
                         HandwritingMode -> cycleHandwritingMode()
+                        HandwritingEngineReload -> {
+                            Toast.makeText(
+                                service,
+                                R.string.handwriting_reload_engine_in_progress,
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                            handwritingWindow.reloadRecognitionEngine { ready ->
+                                Toast.makeText(
+                                    service,
+                                    if (ready) {
+                                        R.string.handwriting_reload_engine_complete
+                                    } else {
+                                        R.string.handwriting_reload_engine_failed
+                                    },
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            }
+                        }
+                        HandwritingModelRefresh -> {
+                            Toast.makeText(
+                                service,
+                                R.string.handwriting_refresh_models_in_progress,
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                            handwritingWindow.refreshModels { success ->
+                                Toast.makeText(
+                                    service,
+                                    if (success) {
+                                        R.string.handwriting_refresh_models_complete
+                                    } else {
+                                        R.string.handwriting_refresh_models_failed
+                                    },
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            }
+                        }
                     }
                 }
             }
@@ -211,7 +261,11 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
                     fcitx.runImmediately { inputMethodEntryCached }
                 )
             ) {
-                arrayOf(handwritingModeEntry())
+                arrayOf(
+                    handwritingModeEntry(),
+                    handwritingEngineReloadEntry(),
+                    handwritingModelRefreshEntry(),
+                )
             } else {
                 emptyArray()
             }

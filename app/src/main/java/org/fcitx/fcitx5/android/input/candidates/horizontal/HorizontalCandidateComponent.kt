@@ -104,6 +104,10 @@ class HorizontalCandidateComponent :
                 holder.itemView.updateLayoutParams<FlexboxLayoutManager.LayoutParams> {
                     minWidth = layoutMinWidth
                     flexGrow = layoutFlexGrow
+                    // Candidate items must retain their measured text width. Letting Flexbox
+                    // shrink them makes every item appear to fit in the toolbar, so the overflow
+                    // state and expanded-candidate button are never enabled.
+                    flexShrink = 0f
                 }
                 holder.itemView.setOnClickListener {
                     candidateOverride?.onCandidateClick?.invoke(holder.idx)

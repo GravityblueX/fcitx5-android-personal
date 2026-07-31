@@ -22,6 +22,8 @@ sealed class StatusAreaEntry(
             Keyboard,
             ThemeList,
             HandwritingMode,
+            HandwritingEngineReload,
+            HandwritingModelRefresh,
         }
     }
 

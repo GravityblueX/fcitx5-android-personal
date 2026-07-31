@@ -4,9 +4,11 @@
  */
 package org.fcitx.fcitx5.android.plugin.handwriting.mlkit
 
+import android.os.SystemClock
 import android.util.Log
 import org.fcitx.fcitx5.android.common.FcitxPluginService
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingProtocol
+import org.fcitx.fcitx5.android.common.handwriting.mlkit.MlKitRecognitionBackend
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingRecognitionCandidate
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingRecognitionRequest
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingRecognitionResponse
@@ -15,8 +17,7 @@ import org.fcitx.fcitx5.android.common.handwriting.IHandwritingRecognitionCallba
 import org.fcitx.fcitx5.android.common.handwriting.IHandwritingRecognitionProvider
 import org.fcitx.fcitx5.android.common.ipc.FcitxRemoteConnection
 import org.fcitx.fcitx5.android.common.ipc.bindFcitxRemoteService
-import org.fcitx.fcitx5.android.plugin.handwriting.mlkit.recognition.BackendCandidate
-import org.fcitx.fcitx5.android.plugin.handwriting.mlkit.recognition.MlKitRecognitionBackend
+import org.fcitx.fcitx5.android.common.handwriting.mlkit.BackendCandidate
 
 class MainService : FcitxPluginService() {
 
@@ -86,7 +87,31 @@ class MainService : FcitxPluginService() {
                 )
                 return
             }
+            log("Model state query requested for mode $mode")
             backend.queryModelState(mode) { state, errorMessage ->
+                log(
+                    "Model state query for mode $mode returned " +
+                            "state=$state error=${errorMessage.ifEmpty { "none" }}"
+                )
+                callback.respond(mode, state, errorMessage)
+            }
+        }
+
+        override fun refreshModelState(mode: Int, callback: IHandwritingModelCallback) {
+            if (mode !in SUPPORTED_MODES) {
+                callback.respond(
+                    mode,
+                    HandwritingProtocol.MODEL_STATE_FAILED,
+                    "UnsupportedMode",
+                )
+                return
+            }
+            log("Model state refresh requested for mode $mode")
+            backend.refreshModelState(mode) { state, errorMessage ->
+                log(
+                    "Model state refresh for mode $mode returned " +
+                            "state=$state error=${errorMessage.ifEmpty { "none" }}"
+                )
                 callback.respond(mode, state, errorMessage)
             }
         }
@@ -140,6 +165,13 @@ class MainService : FcitxPluginService() {
         connection = bindFcitxRemoteService(BuildConfig.MAIN_APPLICATION_ID) {
             log("Bound to Fcitx17 remote service")
             it.registerHandwritingRecognitionProvider(provider)
+            val startedAt = SystemClock.elapsedRealtime()
+            backend.warmUpModelStates {
+                log(
+                    "Model state warm-up completed in " +
+                            "${SystemClock.elapsedRealtime() - startedAt} ms"
+                )
+            }
         }
     }
 

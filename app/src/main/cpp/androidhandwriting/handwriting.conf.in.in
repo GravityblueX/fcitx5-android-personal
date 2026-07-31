@@ -1,0 +1,9 @@
+[InputMethod]
+Name=Handwriting
+Name[zh_CN]=手写
+Name[zh_TW]=手寫
+Icon=input-keyboard
+Label=写
+LangCode=zh_CN
+Addon=androidhandwriting
+Configurable=True
