@@ -4,7 +4,6 @@
  */
 package org.fcitx.fcitx5.android.input.handwriting
 
-import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -56,7 +55,6 @@ class HandwritingWindow :
         private const val MAX_PRE_CONTEXT_LENGTH = 20
         private const val MODEL_QUERY_TIMEOUT_MS = 6_000L
         private const val MODEL_CHECK_TIMEOUT_ERROR = "TimeoutException"
-        private const val LOG_TAG = "HandwritingWindow"
 
         fun isHandwritingInputMethod(ime: InputMethodEntry): Boolean =
             ime.addon == ADDON_NAME
@@ -373,19 +371,21 @@ class HandwritingWindow :
 
     fun refreshModels(onComplete: ((Boolean) -> Unit)? = null) {
         if (!::statusText.isInitialized) {
-            Log.w(LOG_TAG, "Model refresh ignored because the handwriting view is not initialized")
+            Timber.w("Model refresh ignored because the handwriting view is not initialized")
             onComplete?.invoke(false)
             return
         }
         val provider = HandwritingProviderRegistry.select(currentMode) ?: run {
-            Log.w(LOG_TAG, "Model refresh failed because no provider supports mode $currentMode")
+            Timber.w("Model refresh failed because no provider supports mode %s", currentMode)
             showProviderUnavailable()
             onComplete?.invoke(false)
             return
         }
-        Log.d(
-            LOG_TAG,
-            "Model refresh requested for mode $currentMode from ${provider.id}; attached=$attached",
+        Timber.d(
+            "Model refresh requested for mode %s from %s; attached=%s",
+            currentMode,
+            provider.id,
+            attached,
         )
         val queryGeneration = ++modelQueryGeneration
         var completionDelivered = false
@@ -399,20 +399,19 @@ class HandwritingWindow :
         updateCandidates(emptyList())
         updateStatus()
         scheduleModelQueryTimeout(queryGeneration) {
-            Log.w(LOG_TAG, "Model refresh timed out for mode $currentMode")
+            Timber.w("Model refresh timed out for mode %s", currentMode)
             completeOnce(false)
         }
         try {
-            Log.d(LOG_TAG, "Sending model refresh IPC for mode $currentMode")
+            Timber.d("Sending model refresh IPC for mode %s", currentMode)
             provider.remote.refreshModelState(
                 currentMode,
                 modelCallback(currentMode, queryGeneration) { state ->
-                    Log.d(LOG_TAG, "Model refresh settled with state=$state")
+                    Timber.d("Model refresh settled with state=%s", state)
                     completeOnce(state != HandwritingProtocol.MODEL_STATE_FAILED)
                 },
             )
         } catch (e: Exception) {
-            Log.w(LOG_TAG, "Cannot send model refresh IPC for mode $currentMode", e)
             Timber.w(e, "Cannot refresh handwriting model state from %s", provider.id)
             updateModelState(HandwritingProtocol.MODEL_STATE_FAILED)
             completeOnce(false)

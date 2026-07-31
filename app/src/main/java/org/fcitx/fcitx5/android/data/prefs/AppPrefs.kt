@@ -19,6 +19,7 @@ import org.fcitx.fcitx5.android.input.candidates.horizontal.HorizontalCandidateM
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingRecognitionMode
 import org.fcitx.fcitx5.android.input.keyboard.FloatingKeyboardMode
 import org.fcitx.fcitx5.android.input.keyboard.LangSwitchBehavior
+import org.fcitx.fcitx5.android.input.keyboard.OneHandedMode
 import org.fcitx.fcitx5.android.input.keyboard.SpaceLongPressBehavior
 import org.fcitx.fcitx5.android.input.keyboard.SwipeSymbolDirection
 import org.fcitx.fcitx5.android.input.picker.PickerWindow
@@ -46,6 +47,8 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         val floatingKeyboardWidthDp = float("floating_keyboard_width_dp", 0f)
         val floatingKeyboardHeightDp = float("floating_keyboard_height_dp", 0f)
         val floatingKeyboardSizeFormat = int("floating_keyboard_size_format", 0)
+        val oneHandedKeyboardMode =
+            int("one_handed_keyboard_mode", OneHandedMode.Off.preferenceValue)
     }
 
     inner class Advanced : ManagedPreferenceCategory(R.string.advanced, sharedPreferences) {
@@ -343,12 +346,55 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
     }
 
     inner class Clipboard : ManagedPreferenceCategory(R.string.clipboard, sharedPreferences) {
+        private val autoClearTimeoutValues = intArrayOf(
+            1, 2,
+            4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24,
+            36, 48, 60, 72, 84, 96, 108, 120, 132, 144, 156, 168
+        )
+
+        init {
+            val key = "clipboard_auto_clear_timeout"
+            val storedValue = sharedPreferences.all[key]
+            if (storedValue != null) {
+                val hours = when (storedValue) {
+                    is Int -> storedValue
+                    "SixHours" -> 6
+                    "TwelveHours" -> 12
+                    "OneDay" -> 24
+                    "ThreeDays" -> 72
+                    "SevenDays" -> 168
+                    else -> 1
+                }
+                val normalized = autoClearTimeoutValues.minBy {
+                    kotlin.math.abs(it.toLong() - hours.toLong())
+                }
+                if (storedValue !is Int || storedValue != normalized) {
+                    sharedPreferences.edit { putInt(key, normalized) }
+                }
+            }
+        }
+
         val clipboardListening = switch(R.string.clipboard_listening, "clipboard_enable", true)
         val clipboardHistoryLimit = int(
             R.string.clipboard_limit,
             "clipboard_limit",
             10,
         ) { clipboardListening.getValue() }
+        val clipboardAutoClear = switch(
+            R.string.clipboard_auto_clear,
+            "clipboard_auto_clear",
+            false,
+            R.string.clipboard_auto_clear_summary
+        ) { clipboardListening.getValue() }
+        val clipboardAutoClearTimeout = int(
+            R.string.clipboard_auto_clear_timeout,
+            "clipboard_auto_clear_timeout",
+            1,
+            min = 1,
+            max = 168,
+            unit = "h",
+            allowedValues = autoClearTimeoutValues
+        ) { clipboardListening.getValue() && clipboardAutoClear.getValue() }
         val clipboardSuggestion = switch(
             R.string.clipboard_suggestion, "clipboard_suggestion", true
         ) { clipboardListening.getValue() }

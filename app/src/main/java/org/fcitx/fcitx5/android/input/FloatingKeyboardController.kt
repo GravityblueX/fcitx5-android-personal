@@ -267,8 +267,12 @@ internal class FloatingKeyboardController(
     }
 
     fun toggleFloating() {
+        setFloating(!isFloating)
+    }
+
+    fun setFloating(value: Boolean) {
         sessionState.setManualOverride(
-            !isFloating,
+            value,
             mode.getValue(),
             host.resources.configuration.orientation
         )

@@ -46,6 +46,16 @@ class DialogSeekBarPreference @JvmOverloads constructor(
     var max: Int
     var step: Int
     var unit: String
+    var allowedValues: IntArray? = null
+        set(value) {
+            require(value == null || value.size >= 2) {
+                "allowedValues must contain at least two values"
+            }
+            require(value == null || value.asSequence().zipWithNext().all { (a, b) -> a < b }) {
+                "allowedValues must be strictly increasing"
+            }
+            field = value
+        }
 
     var default: Int = 0
     var defaultLabel: String? = null
@@ -82,7 +92,9 @@ class DialogSeekBarPreference @JvmOverloads constructor(
     }
 
     override fun onSetInitialValue(defaultValue: Any?) {
-        value = getPersistedInt(defaultValue as? Int ?: default)
+        val persisted = getPersistedInt(defaultValue as? Int ?: default)
+        value = normalizedValue(persisted)
+        if (value != persisted) persistInt(value)
     }
 
     override fun onClick() {
@@ -141,8 +153,9 @@ class DialogSeekBarPreference @JvmOverloads constructor(
     }
 
     private fun setValue(value: Int) {
-        if (callChangeListener(value)) {
-            persistInt(value)
+        val normalized = normalizedValue(value)
+        if (callChangeListener(normalized)) {
+            persistInt(normalized)
             notifyChanged()
         }
     }
@@ -154,7 +167,12 @@ class DialogSeekBarPreference @JvmOverloads constructor(
      * @param value The actual value.
      * @return the internal value which is used to allow different min and step values.
      */
-    private fun progressForValue(value: Int) = (value - min) / step
+    private fun progressForValue(value: Int): Int {
+        val values = allowedValues ?: return (value - min) / step
+        return values.indices.minBy { index ->
+            kotlin.math.abs(values[index].toLong() - value.toLong())
+        }
+    }
 
     /**
      * Converts the Android SeekBar value to the actual value.
@@ -162,7 +180,12 @@ class DialogSeekBarPreference @JvmOverloads constructor(
      * @param progress The progress value of the SeekBar.
      * @return the actual value which is ready to use.
      */
-    private fun valueForProgress(progress: Int) = (progress * step) + min
+    private fun valueForProgress(progress: Int): Int {
+        val values = allowedValues ?: return (progress * step) + min
+        return values[progress.coerceIn(values.indices)]
+    }
+
+    private fun normalizedValue(value: Int) = valueForProgress(progressForValue(value))
 
     private fun textForValue(value: Int = this@DialogSeekBarPreference.value): String =
         if (value == default && defaultLabel != null) defaultLabel!! else "$value $unit"

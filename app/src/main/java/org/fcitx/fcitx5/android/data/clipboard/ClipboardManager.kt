@@ -12,7 +12,9 @@ import androidx.room.Room
 import androidx.room.withTransaction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -26,6 +28,7 @@ import org.fcitx.fcitx5.android.utils.WeakHashSet
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.clipboardManager
 import timber.log.Timber
+import java.util.concurrent.TimeUnit
 
 object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
     CoroutineScope by CoroutineScope(SupervisorJob() + Dispatchers.Default) {
@@ -72,10 +75,43 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
 
     private val limitPref = AppPrefs.getInstance().clipboard.clipboardHistoryLimit
 
+    private val autoClearPref = AppPrefs.getInstance().clipboard.clipboardAutoClear
+    private val autoClearTimeoutPref =
+        AppPrefs.getInstance().clipboard.clipboardAutoClearTimeout
+
+    private var expirationJob: Job? = null
+
     @Keep
     private val limitListener = ManagedPreference.OnChangeListener<Int> { _, _ ->
-        launch { removeOutdated() }
+        launch {
+            mutex.withLock {
+                removeOutdated()
+                updateItemCount()
+                scheduleExpirationLocked()
+            }
+        }
     }
+
+    @Keep
+    private val autoClearListener = ManagedPreference.OnChangeListener<Boolean> { _, enabled ->
+        launch {
+            mutex.withLock {
+                if (enabled) removeExpiredLocked()
+                scheduleExpirationLocked()
+            }
+        }
+    }
+
+    @Keep
+    private val autoClearTimeoutListener =
+        ManagedPreference.OnChangeListener<Int> { _, _ ->
+            launch {
+                mutex.withLock {
+                    removeExpiredLocked()
+                    scheduleExpirationLocked()
+                }
+            }
+        }
 
     var lastEntry: ClipboardEntry? = null
 
@@ -95,7 +131,15 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
         enabledPref.registerOnChangeListener(enabledListener)
         limitListener.onChange(limitPref.key, limitPref.getValue())
         limitPref.registerOnChangeListener(limitListener)
-        launch { updateItemCount() }
+        autoClearPref.registerOnChangeListener(autoClearListener)
+        autoClearTimeoutPref.registerOnChangeListener(autoClearTimeoutListener)
+        launch {
+            mutex.withLock {
+                removeExpiredLocked()
+                updateItemCount()
+                scheduleExpirationLocked()
+            }
+        }
     }
 
     suspend fun get(id: Int) = clbDao.get(id)
@@ -104,9 +148,22 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
 
     fun allEntries() = clbDao.allEntries()
 
-    suspend fun pin(id: Int) = clbDao.updatePinStatus(id, true)
+    suspend fun pin(id: Int) = mutex.withLock {
+        clbDao.updatePinStatus(id, true)
+        lastEntry?.let {
+            if (it.id == id) lastEntry = it.copy(pinned = true)
+        }
+        scheduleExpirationLocked()
+    }
 
-    suspend fun unpin(id: Int) = clbDao.updatePinStatus(id, false)
+    suspend fun unpin(id: Int) = mutex.withLock {
+        clbDao.updatePinStatus(id, false)
+        lastEntry?.let {
+            if (it.id == id) lastEntry = it.copy(pinned = false)
+        }
+        removeExpiredLocked()
+        scheduleExpirationLocked()
+    }
 
     suspend fun updateText(id: Int, text: String) {
         lastEntry?.let {
@@ -116,24 +173,34 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
     }
 
     suspend fun delete(id: Int) {
-        clbDao.markAsDeleted(id)
-        updateItemCount()
+        mutex.withLock {
+            clbDao.markAsDeleted(id)
+            updateItemCount()
+            scheduleExpirationLocked()
+        }
     }
 
     suspend fun deleteAll(skipPinned: Boolean = true): IntArray {
-        val ids = if (skipPinned) {
-            clbDao.findUnpinnedIds()
-        } else {
-            clbDao.findAllIds()
+        return mutex.withLock {
+            val ids = if (skipPinned) {
+                clbDao.findUnpinnedIds()
+            } else {
+                clbDao.findAllIds()
+            }
+            clbDao.markAsDeleted(*ids)
+            updateItemCount()
+            scheduleExpirationLocked()
+            ids
         }
-        clbDao.markAsDeleted(*ids)
-        updateItemCount()
-        return ids
     }
 
     suspend fun undoDelete(vararg ids: Int) {
-        clbDao.undoDelete(*ids)
-        updateItemCount()
+        mutex.withLock {
+            clbDao.undoDelete(*ids)
+            removeExpiredLocked()
+            updateItemCount()
+            scheduleExpirationLocked()
+        }
     }
 
     suspend fun realDelete() {
@@ -141,9 +208,12 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
     }
 
     suspend fun nukeTable() {
-        withContext(coroutineContext) {
-            clbDb.clearAllTables()
-            updateItemCount()
+        mutex.withLock {
+            withContext(coroutineContext) {
+                clbDb.clearAllTables()
+                updateItemCount()
+                scheduleExpirationLocked()
+            }
         }
     }
 
@@ -175,16 +245,20 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
                     clbDao.find(entry.text, entry.sensitive)?.let {
                         updateLastEntry(it.copy(timestamp = entry.timestamp))
                         clbDao.updateTime(it.id, entry.timestamp)
+                        removeExpiredLocked()
+                        scheduleExpirationLocked()
                         return@withLock
                     }
                     val insertedEntry = clbDb.withTransaction {
                         val rowId = clbDao.insert(entry)
                         removeOutdated()
+                        removeExpiredLocked()
                         // new entry can be deleted immediately if clipboard limit == 0
                         clbDao.get(rowId) ?: entry
                     }
                     updateLastEntry(insertedEntry)
                     updateItemCount()
+                    scheduleExpirationLocked()
                 } catch (exception: Exception) {
                     Timber.w("Failed to update clipboard database: $exception")
                     updateLastEntry(entry)
@@ -203,6 +277,39 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
                 .getOrNull(unpinned.size - limit)
             // delete all unpinned before that, or delete all when limit <= 0
             clbDao.markUnpinnedAsDeletedEarlierThan(last?.timestamp ?: System.currentTimeMillis())
+        }
+    }
+
+    private fun expirationTimeoutMillis(): Long =
+        TimeUnit.HOURS.toMillis(autoClearTimeoutPref.getValue().toLong())
+
+    private suspend fun removeExpiredLocked() {
+        if (!autoClearPref.getValue()) return
+        val cutoff = System.currentTimeMillis() - expirationTimeoutMillis()
+        val deleted = clbDao.deleteExpiredUnpinned(cutoff)
+        if (deleted > 0) {
+            lastEntry?.let {
+                if (!it.pinned && it.timestamp <= cutoff) lastEntry = null
+            }
+            updateItemCount()
+        }
+    }
+
+    private suspend fun scheduleExpirationLocked() {
+        expirationJob?.cancel()
+        expirationJob = null
+        if (!autoClearPref.getValue()) return
+        val oldestTimestamp = clbDao.oldestUnpinnedTimestamp() ?: return
+        val delayMillis =
+            (oldestTimestamp + expirationTimeoutMillis() - System.currentTimeMillis())
+                .coerceAtLeast(0L)
+        expirationJob = launch {
+            delay(delayMillis)
+            mutex.withLock {
+                expirationJob = null
+                removeExpiredLocked()
+                scheduleExpirationLocked()
+            }
         }
     }
 

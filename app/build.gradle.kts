@@ -56,11 +56,6 @@ android {
         generateLocaleConfig = true
     }
 
-    lint {
-        // Translation coverage is inherited technical debt. Keep it in a baseline so newly
-        // introduced untranslated strings still fail lint instead of disabling the rule globally.
-        baseline = file("lint-baseline.xml")
-    }
 }
 
 fcitxComponent {

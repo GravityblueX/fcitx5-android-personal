@@ -1,8 +1,8 @@
 {
-    "sha256": "8022578fb69516b99101dd901909291338ef6a4b1f35c9c60974806991bf65c7",
+    "sha256": "6173cfe3de440c902394b86c9358ac1e9a0299e8450117066e535f09f7b7c27d",
     "files": {
         "usr": "",
-        "usr/share/fcitx5/inputmethod/handwriting-zh-cn.conf": "a9501e10ec762c9383a1db756f7898ab1b64c3109b40a4cb7c9f6d0160435fb5",
+        "usr/share/fcitx5/inputmethod/handwriting-zh-cn.conf": "124d8ce6c526001fe9aa7c8ceb8a85ffd2e8398411ae84770e34f870ce733ed6",
         "usr\\share": "",
         "usr\\share\\fcitx5": "",
         "usr\\share\\fcitx5\\inputmethod": ""

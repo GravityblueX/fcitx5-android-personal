@@ -111,7 +111,8 @@ class LayoutSwitchKey(
     displayText: String,
     val to: String = "",
     percentWidth: Float = 0.15f,
-    variant: Variant = Variant.Alternative
+    variant: Variant = Variant.Alternative,
+    popup: Array<Popup> = emptyArray(),
 ) : KeyDef(
     Appearance.Text(
         displayText,
@@ -122,7 +123,8 @@ class LayoutSwitchKey(
     ),
     setOf(
         Behavior.Press(KeyAction.LayoutSwitchAction(to))
-    )
+    ),
+    popup,
 )
 
 class BackspaceKey(
@@ -219,7 +221,10 @@ class SpaceKey : KeyDef(
     )
 )
 
-class ReturnKey(percentWidth: Float = 0.15f) : KeyDef(
+class ReturnKey(
+    percentWidth: Float = 0.15f,
+    enableOneHandedShortcut: Boolean = true,
+) : KeyDef(
     Appearance.Image(
         src = R.drawable.ic_baseline_keyboard_return_24,
         percentWidth = percentWidth,
@@ -231,17 +236,21 @@ class ReturnKey(percentWidth: Float = 0.15f) : KeyDef(
     setOf(
         Behavior.Press(KeyAction.SymAction(KeySym(FcitxKeyMapping.FcitxKey_Return)))
     ),
-    arrayOf(
-        Popup.Menu(
-            arrayOf(
-                Popup.Menu.Item(
-                    "Emoji",
-                    R.drawable.ic_baseline_tag_faces_24,
-                    KeyAction.PickerSwitchAction(PickerWindow.Key.Emoji)
+    if (enableOneHandedShortcut) {
+        arrayOf(
+            Popup.Menu(
+                arrayOf(
+                    Popup.Menu.Item(
+                        "Right-handed mode",
+                        R.drawable.ic_material_mobile_hand_24,
+                        KeyAction.OneHandedModeAction(OneHandedMode.Right)
+                    )
                 )
             )
         )
-    ),
+    } else {
+        emptyArray()
+    },
 )
 
 class ImageLayoutSwitchKey(

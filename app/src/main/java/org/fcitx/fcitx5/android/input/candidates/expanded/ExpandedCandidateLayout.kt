@@ -68,7 +68,7 @@ class ExpandedCandidateLayout(context: Context, theme: Theme) : ConstraintLayout
                     )
                 ),
                 listOf(BackspaceKey(percentWidth = 1f, KeyDef.Appearance.Variant.Alternative)),
-                listOf(ReturnKey(percentWidth = 1f))
+                listOf(ReturnKey(percentWidth = 1f, enableOneHandedShortcut = false))
             )
         }
 
@@ -124,11 +124,11 @@ class ExpandedCandidateLayout(context: Context, theme: Theme) : ConstraintLayout
         val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         val inset = dp(if (landscape) keyVerticalMarginLandscape else keyVerticalMargin)
         tabsContainer.background =
-            singleSideBorderDrawable(dp(1), theme.dividerColor, Gravity.RIGHT, inset)
+            singleSideBorderDrawable(dp(1), theme.dividerColor, Gravity.END, inset)
         if (!keyBorder) {
             backgroundColor = theme.barColor
             embeddedKeyboard.background =
-                singleSideBorderDrawable(dp(1), theme.dividerColor, Gravity.LEFT, inset)
+                singleSideBorderDrawable(dp(1), theme.dividerColor, Gravity.START, inset)
         }
 
         add(tabsContainer, lParams {

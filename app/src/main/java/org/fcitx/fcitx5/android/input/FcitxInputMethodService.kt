@@ -66,6 +66,7 @@ import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.cursor.CursorRange
 import org.fcitx.fcitx5.android.input.cursor.CursorTracker
+import org.fcitx.fcitx5.android.input.keyboard.OneHandedMode
 import org.fcitx.fcitx5.android.utils.InputMethodUtil
 import org.fcitx.fcitx5.android.utils.alpha
 import org.fcitx.fcitx5.android.utils.forceShowSelf
@@ -102,6 +103,16 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private var inputView: InputView? = null
     private var candidatesView: CandidatesView? = null
     private val floatingKeyboardSessionState = FloatingKeyboardSessionState()
+    private val oneHandedKeyboardModePreference =
+        AppPrefs.getInstance().internal.oneHandedKeyboardMode
+    private val oneHandedKeyboardSessionState = OneHandedKeyboardSessionState(
+        initialMode = OneHandedMode.fromPreferenceValue(
+            oneHandedKeyboardModePreference.getValue()
+        ),
+        persistMode = {
+            oneHandedKeyboardModePreference.setValue(it.preferenceValue)
+        }
+    )
 
     private val navbarMgr = NavigationBarManager()
     private val inputDeviceMgr = InputDeviceManager { isVirtualKeyboard ->
@@ -149,7 +160,13 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     )
 
     private fun replaceInputView(theme: Theme): InputView {
-        val newInputView = InputView(this, fcitx, theme, floatingKeyboardSessionState)
+        val newInputView = InputView(
+            this,
+            fcitx,
+            theme,
+            floatingKeyboardSessionState,
+            oneHandedKeyboardSessionState
+        )
         setInputView(newInputView)
         inputDeviceMgr.setInputView(newInputView)
         inputView = newInputView

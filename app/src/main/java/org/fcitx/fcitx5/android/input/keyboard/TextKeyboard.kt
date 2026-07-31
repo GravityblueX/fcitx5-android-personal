@@ -31,7 +31,21 @@ class TextKeyboard(
         const val Name = "Text"
 
         val BottomRow: List<KeyDef> = listOf(
-            LayoutSwitchKey("?123", ""),
+            LayoutSwitchKey(
+                "?123",
+                "",
+                popup = arrayOf(
+                    KeyDef.Popup.Menu(
+                        arrayOf(
+                            KeyDef.Popup.Menu.Item(
+                                "Left-handed mode",
+                                R.drawable.ic_material_mobile_hand_left_24,
+                                KeyAction.OneHandedModeAction(OneHandedMode.Left)
+                            )
+                        )
+                    )
+                )
+            ),
             CommaKey(0.1f, KeyDef.Appearance.Variant.Alternative),
             LanguageKey(),
             SpaceKey(),

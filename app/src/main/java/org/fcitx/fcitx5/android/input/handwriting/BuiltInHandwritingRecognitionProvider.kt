@@ -6,10 +6,10 @@ package org.fcitx.fcitx5.android.input.handwriting
 
 import android.content.Context
 import android.os.SystemClock
-import android.util.Log
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingProtocol
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingRecognitionCandidate
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingRecognitionRequest
+import timber.log.Timber
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingRecognitionResponse
 import org.fcitx.fcitx5.android.common.handwriting.IHandwritingModelCallback
 import org.fcitx.fcitx5.android.common.handwriting.IHandwritingRecognitionCallback
@@ -214,11 +214,10 @@ class BuiltInHandwritingRecognitionProvider(context: Context) {
     }
 
     private fun log(message: String) {
-        Log.d(LOG_TAG, message)
+        Timber.d(message)
     }
 
     private companion object {
-        const val LOG_TAG = "HandwritingBuiltIn"
         const val PROVIDER_ID = "fcitx17.handwriting.builtin"
         val SUPPORTED_MODES = intArrayOf(
             HandwritingProtocol.MODE_AUTO,

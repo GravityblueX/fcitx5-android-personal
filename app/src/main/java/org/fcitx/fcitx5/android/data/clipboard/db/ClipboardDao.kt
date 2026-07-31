@@ -38,6 +38,9 @@ interface ClipboardDao {
     @Query("SELECT * FROM ${ClipboardEntry.TABLE_NAME} WHERE pinned=0 AND deleted=0")
     suspend fun getAllUnpinned(): List<ClipboardEntry>
 
+    @Query("SELECT MIN(timestamp) FROM ${ClipboardEntry.TABLE_NAME} WHERE pinned=0 AND deleted=0")
+    suspend fun oldestUnpinnedTimestamp(): Long?
+
     @Query("SELECT * FROM ${ClipboardEntry.TABLE_NAME} WHERE deleted=0 ORDER BY pinned DESC, timestamp DESC")
     fun allEntries(): PagingSource<Int, ClipboardEntry>
 
@@ -55,6 +58,9 @@ interface ClipboardDao {
 
     @Query("UPDATE ${ClipboardEntry.TABLE_NAME} SET DELETED=1 WHERE timestamp<:timestamp AND pinned=0 AND deleted=0")
     suspend fun markUnpinnedAsDeletedEarlierThan(timestamp: Long)
+
+    @Query("DELETE FROM ${ClipboardEntry.TABLE_NAME} WHERE timestamp<=:timestamp AND pinned=0 AND deleted=0")
+    suspend fun deleteExpiredUnpinned(timestamp: Long): Int
 
     @Query("UPDATE ${ClipboardEntry.TABLE_NAME} SET deleted=0 WHERE id in (:ids) AND deleted=1")
     suspend fun undoDelete(vararg ids: Int)

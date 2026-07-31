@@ -43,7 +43,12 @@ val Project.buildToolsVersion
 
 val Project.buildVersionName
     get() = ep("BUILD_VERSION_NAME", "buildVersionName") {
-        runCmd("git describe --tags --long --always", Versions.baseVersionName)
+        val gitDescription = runCmd("git describe --tags --long --always")
+        val revisionSuffix = Regex("-\\d+-g[0-9a-f]+(?:-dirty)?$")
+            .find(gitDescription)
+            ?.value
+            .orEmpty()
+        Versions.baseVersionName + revisionSuffix
     }
 
 val Project.buildCommitHash

@@ -12,18 +12,28 @@ import java.util.zip.ZipInputStream
  * @return top-level files in zip file
  */
 fun ZipInputStream.extract(destDir: File): List<File> {
+    val canonicalDest = destDir.canonicalFile
+    canonicalDest.mkdirs()
+    val canonicalDestPrefix = canonicalDest.path + File.separator
     var entry = nextEntry
-    val canonicalDest = destDir.canonicalPath
     while (entry != null) {
-        if (!entry.isDirectory) {
-            val file = File(destDir, entry.name)
-            if (!file.canonicalPath.startsWith(canonicalDest)) throw SecurityException()
-            copyTo(file.outputStream())
-        } else {
-            val dir = File(destDir, entry.name)
-            dir.mkdir()
+        val target = File(canonicalDest, entry.name).canonicalFile
+        if (target != canonicalDest && !target.path.startsWith(canonicalDestPrefix)) {
+            throw SecurityException("Zip entry escapes destination: ${entry.name}")
         }
+        if (entry.isDirectory) {
+            if (!target.mkdirs() && !target.isDirectory) {
+                throw IllegalStateException("Cannot create directory: $target")
+            }
+        } else {
+            val parent = target.parentFile
+            if (parent != null && !parent.mkdirs() && !parent.isDirectory) {
+                throw IllegalStateException("Cannot create directory: $parent")
+            }
+            target.outputStream().use(::copyTo)
+        }
+        closeEntry()
         entry = nextEntry
     }
-    return destDir.listFiles()?.toList() ?: emptyList()
+    return canonicalDest.listFiles()?.toList() ?: emptyList()
 }

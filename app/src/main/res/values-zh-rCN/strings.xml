@@ -83,6 +83,9 @@
     <string name="loading">加载中</string>
     <string name="clipboard_listening">记录剪贴板历史</string>
     <string name="clipboard_limit">剪贴板历史记录上限</string>
+    <string name="clipboard_auto_clear">自动清除剪贴板历史</string>
+    <string name="clipboard_auto_clear_summary">置顶条目会保留，超时的未置顶条目将被永久删除</string>
+    <string name="clipboard_auto_clear_timeout">未置顶条目超时时间</string>
     <string name="clipboard_enable">启用剪贴板</string>
     <string name="expanded_candidate_style">展开候选词样式</string>
     <string name="expanded_candidate_style_grid">表格</string>
@@ -105,6 +108,9 @@
     <string name="disable_floating_keyboard">关闭悬浮键盘</string>
     <string name="floating_keyboard_drag">移动悬浮键盘</string>
     <string name="floating_keyboard_resize">调整悬浮键盘大小</string>
+    <string name="one_handed_keyboard_restore">恢复完整键盘</string>
+    <string name="one_handed_keyboard_switch_left">切换到左手握持</string>
+    <string name="one_handed_keyboard_switch_right">切换到右手握持</string>
     <string name="virtual_keyboard">虚拟键盘</string>
     <string name="clipboard_suggestion_timeout">剪贴板提示超时</string>
     <string name="version">版本</string>
@@ -354,12 +360,13 @@
     <string name="emoji_and_symbols">表情和符号</string>
     <string name="default_emoji_skin_tone">默认表情肤色</string>
     <string name="emoji_skin_tone_none">无</string>
-    <string name="emoji_skin_tone_type_1_2">🏻 浅肤色 (Type-1-2)</string>
-    <string name="emoji_skin_tone_type_3">🏼 中等浅肤色 (Type-3)</string>
-    <string name="emoji_skin_tone_type_4">🏽 中等肤色 (Type-4)</string>
-    <string name="emoji_skin_tone_type_5">🏾 中等深肤色 (Type-5)</string>
-    <string name="emoji_skin_tone_type_6">🏿 深肤色 (Type-6)</string>
+    <string name="emoji_skin_tone_type_1_2">🏻 浅肤色（类型 1–2）</string>
+    <string name="emoji_skin_tone_type_3">🏼 中等浅肤色（类型 3）</string>
+    <string name="emoji_skin_tone_type_4">🏽 中等肤色（类型 4）</string>
+    <string name="emoji_skin_tone_type_5">🏾 中等深肤色（类型 5）</string>
+    <string name="emoji_skin_tone_type_6">🏿 深肤色（类型 6）</string>
     <string name="hide_unsupported_emojis">隐藏不支持的表情</string>
     <string name="key_border_stroke">启用按键边框描边</string>
     <string name="preferred_voice_input">首选语音输入</string>
+    <string name="edit_text_playground">编辑文本游乐场</string>
 </resources>

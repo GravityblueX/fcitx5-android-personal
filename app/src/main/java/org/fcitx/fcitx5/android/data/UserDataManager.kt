@@ -50,11 +50,16 @@ object UserDataManager {
         val exportTime: Long
     )
 
-    private fun writeFileTree(srcDir: File, destPrefix: String, dest: ZipOutputStream) {
+    private fun writeFileTree(
+        srcDir: File,
+        destPrefix: String,
+        dest: ZipOutputStream,
+        include: (File) -> Boolean = { true },
+    ) {
         dest.putNextEntry(ZipEntry("$destPrefix/"))
         srcDir.walkTopDown().forEach { f ->
             val related = f.relativeTo(srcDir)
-            if (related.path != "") {
+            if (related.path != "" && include(f)) {
                 if (f.isDirectory) {
                     dest.putNextEntry(ZipEntry("$destPrefix/${related.path}/"))
                 } else if (f.isFile) {
@@ -74,7 +79,9 @@ object UserDataManager {
     fun export(dest: OutputStream, timestamp: Long = System.currentTimeMillis()) = runCatching {
         ZipOutputStream(dest.buffered()).use { zipStream ->
             // shared_prefs
-            writeFileTree(sharedPrefsDir, "shared_prefs", zipStream)
+            writeFileTree(sharedPrefsDir, "shared_prefs", zipStream) { file ->
+                file.isDirectory || !isTransientSharedPreferenceFile(file.name)
+            }
             // databases
             writeFileTree(dataBasesDir, "databases", zipStream)
             // external
@@ -131,6 +138,15 @@ object UserDataManager {
                 if (metadata.packageName !in compatiblePackageNames)
                     errorRuntime(R.string.exception_user_data_package_name_mismatch)
                 val importedSharedPrefsDir = File(tempDir, "shared_prefs")
+                importedSharedPrefsDir.listFiles()
+                    ?.filter { isTransientSharedPreferenceFile(it.name) }
+                    ?.forEach { transientFile ->
+                        if (!transientFile.delete()) {
+                            Timber.w(
+                                "Failed to discard imported runtime cache: ${transientFile.path}"
+                            )
+                        }
+                    }
                 migrateDefaultSharedPreferences(importedSharedPrefsDir, metadata.packageName)
                 copyDir(importedSharedPrefsDir, sharedPrefsDir)
                 copyDir(File(tempDir, "databases"), dataBasesDir)
@@ -141,4 +157,16 @@ object UserDataManager {
             }
         }
     }
+}
+
+/**
+ * ML Kit's model inventory and the handwriting backend's verified-state cache describe files that
+ * live outside the user-data archive. Restoring them without the model files can report a model as
+ * available when it is not, and Google's MDD preferences may also contain the source package name.
+ */
+internal fun isTransientSharedPreferenceFile(fileName: String): Boolean {
+    val baseName = fileName.removeSuffix(".bak")
+    return baseName == "handwriting_recognition.xml" ||
+        baseName == "com.google.mlkit.internal.xml" ||
+        baseName.startsWith("gms_icing_mdd_")
 }
