@@ -106,12 +106,19 @@ class TextKeyboard(
         updateLangSwitchKey(v)
     }
 
-    private val keepLettersUppercase by AppPrefs.getInstance().keyboard.keepLettersUppercase
+    private val keepLettersUppercase = AppPrefs.getInstance().keyboard.keepLettersUppercase
+
+    @Keep
+    private val keepLettersUppercaseListener = ManagedPreference.OnChangeListener<Boolean> { _, _ ->
+        updateAlphabetKeys()
+    }
+
     private val singleTapCapsLock by AppPrefs.getInstance().keyboard.singleTapCapsLock
 
     init {
         updateLangSwitchKey(showLangSwitchKey.getValue())
         showLangSwitchKey.registerOnChangeListener(showLangSwitchKeyListener)
+        keepLettersUppercase.registerOnChangeListener(keepLettersUppercaseListener)
     }
 
     private val textKeys: List<TextKeyView> by lazy {
@@ -244,7 +251,7 @@ class TextKeyboard(
             if (it.def !is KeyDef.Appearance.AltText) return
             it.mainText.text = it.def.displayText.let { str ->
                 if (str.length != 1 || !str[0].isLetter()) return@forEach
-                if (keepLettersUppercase) str.uppercase() else transformAlphabet(str)
+                if (keepLettersUppercase.getValue()) str.uppercase() else transformAlphabet(str)
             }
         }
     }
