@@ -11,34 +11,45 @@ import org.junit.Test
 class ClipboardSuggestionPolicyTest {
 
     @Test
-    fun allowsHistoryOnlyForAnActiveNonSensitiveInput() {
+    fun allowsHistoryOnlyForAnActiveNonSensitiveUnlockedInput() {
         assertTrue(
             ClipboardSuggestionPolicy.canOpenHistory(
                 hasActiveInput = true,
                 isSensitiveField = false,
+                isDeviceLocked = false,
             )
         )
         assertFalse(
             ClipboardSuggestionPolicy.canOpenHistory(
                 hasActiveInput = false,
                 isSensitiveField = false,
+                isDeviceLocked = false,
             )
         )
         assertFalse(
             ClipboardSuggestionPolicy.canOpenHistory(
                 hasActiveInput = true,
                 isSensitiveField = true,
+                isDeviceLocked = false,
+            )
+        )
+        assertFalse(
+            ClipboardSuggestionPolicy.canOpenHistory(
+                hasActiveInput = true,
+                isSensitiveField = false,
+                isDeviceLocked = true,
             )
         )
     }
 
     @Test
-    fun allowsSuggestionsOnlyForAnActiveNonSensitiveInput() {
+    fun allowsSuggestionsOnlyForAnActiveNonSensitiveUnlockedInput() {
         assertTrue(
             ClipboardSuggestionPolicy.canDisplay(
                 suggestionsEnabled = true,
                 hasActiveInput = true,
                 isSensitiveField = false,
+                isDeviceLocked = false,
             )
         )
         assertFalse(
@@ -46,6 +57,7 @@ class ClipboardSuggestionPolicyTest {
                 suggestionsEnabled = true,
                 hasActiveInput = false,
                 isSensitiveField = false,
+                isDeviceLocked = false,
             )
         )
         assertFalse(
@@ -53,6 +65,15 @@ class ClipboardSuggestionPolicyTest {
                 suggestionsEnabled = true,
                 hasActiveInput = true,
                 isSensitiveField = true,
+                isDeviceLocked = false,
+            )
+        )
+        assertFalse(
+            ClipboardSuggestionPolicy.canDisplay(
+                suggestionsEnabled = true,
+                hasActiveInput = true,
+                isSensitiveField = false,
+                isDeviceLocked = true,
             )
         )
         assertFalse(
@@ -60,6 +81,7 @@ class ClipboardSuggestionPolicyTest {
                 suggestionsEnabled = false,
                 hasActiveInput = true,
                 isSensitiveField = false,
+                isDeviceLocked = false,
             )
         )
     }

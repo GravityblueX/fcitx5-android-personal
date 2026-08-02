@@ -4,6 +4,7 @@
  */
 package org.fcitx.fcitx5.android.utils
 
+import android.app.KeyguardManager
 import android.app.NotificationManager
 import android.content.ClipboardManager
 import android.content.Context
@@ -23,6 +24,9 @@ val Context.clipboardManager
 
 val Context.inputMethodManager
     get() = getSystemService<InputMethodManager>()!!
+
+val Context.keyguardManager
+    get() = getSystemService<KeyguardManager>()!!
 
 val Context.notificationManager
     get() = getSystemService<NotificationManager>()!!

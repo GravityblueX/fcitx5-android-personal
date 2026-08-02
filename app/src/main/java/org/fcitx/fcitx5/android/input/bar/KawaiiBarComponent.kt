@@ -72,6 +72,7 @@ import org.fcitx.fcitx5.android.input.wm.InputWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
 import org.fcitx.fcitx5.android.utils.AppUtil
 import org.fcitx.fcitx5.android.utils.InputMethodUtil
+import org.fcitx.fcitx5.android.utils.keyguardManager
 import org.mechdancer.dependency.DynamicScope
 import org.mechdancer.dependency.manager.must
 import splitties.bitflags.hasFlag
@@ -151,6 +152,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                 suggestionsEnabled = clipboardSuggestion.getValue(),
                 hasActiveInput = isInputActive,
                 isSensitiveField = isSensitiveField,
+                isDeviceLocked = context.keyguardManager.isKeyguardLocked,
             )
         ) {
             clearClipboardSuggestion()
@@ -189,7 +191,12 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
 
     private fun updateClipboardButtonVisibility() {
         idleUi.buttonsUi.clipboardButton.visibility =
-            if (ClipboardSuggestionPolicy.canOpenHistory(isInputActive, isSensitiveField)) {
+            if (ClipboardSuggestionPolicy.canOpenHistory(
+                    hasActiveInput = isInputActive,
+                    isSensitiveField = isSensitiveField,
+                    isDeviceLocked = context.keyguardManager.isKeyguardLocked,
+                )
+            ) {
                 View.VISIBLE
             } else {
                 View.GONE
@@ -357,7 +364,12 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                     windowManager.attachWindow(TextEditingWindow())
                 }
                 clipboardButton.setOnClickListener {
-                    if (ClipboardSuggestionPolicy.canOpenHistory(isInputActive, isSensitiveField)) {
+                    if (ClipboardSuggestionPolicy.canOpenHistory(
+                            hasActiveInput = isInputActive,
+                            isSensitiveField = isSensitiveField,
+                            isDeviceLocked = context.keyguardManager.isKeyguardLocked,
+                        )
+                    ) {
                         windowManager.attachWindow(ClipboardWindow())
                     }
                 }

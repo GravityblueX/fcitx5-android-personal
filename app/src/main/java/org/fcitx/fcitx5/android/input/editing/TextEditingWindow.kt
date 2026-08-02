@@ -19,6 +19,7 @@ import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView
 import org.fcitx.fcitx5.android.input.wm.InputWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
 import org.fcitx.fcitx5.android.input.wm.ScalableInputWindow
+import org.fcitx.fcitx5.android.utils.keyguardManager
 import org.mechdancer.dependency.manager.must
 
 class TextEditingWindow : InputWindow.ExtendedInputWindow<TextEditingWindow>(),
@@ -94,7 +95,9 @@ class TextEditingWindow : InputWindow.ExtendedInputWindow<TextEditingWindow>(),
                 service.sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
             }
             clipboardButton.setOnClickListener {
-                windowManager.attachWindow(ClipboardWindow())
+                if (!service.keyguardManager.isKeyguardLocked) {
+                    windowManager.attachWindow(ClipboardWindow())
+                }
             }
         }
     }

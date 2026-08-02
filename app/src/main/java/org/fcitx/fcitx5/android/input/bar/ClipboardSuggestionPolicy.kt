@@ -10,10 +10,16 @@ internal object ClipboardSuggestionPolicy {
         suggestionsEnabled: Boolean,
         hasActiveInput: Boolean,
         isSensitiveField: Boolean,
-    ): Boolean = suggestionsEnabled && canOpenHistory(hasActiveInput, isSensitiveField)
+        isDeviceLocked: Boolean,
+    ): Boolean = suggestionsEnabled && canOpenHistory(
+        hasActiveInput,
+        isSensitiveField,
+        isDeviceLocked,
+    )
 
     fun canOpenHistory(
         hasActiveInput: Boolean,
         isSensitiveField: Boolean,
-    ): Boolean = hasActiveInput && !isSensitiveField
+        isDeviceLocked: Boolean,
+    ): Boolean = hasActiveInput && !isSensitiveField && !isDeviceLocked
 }

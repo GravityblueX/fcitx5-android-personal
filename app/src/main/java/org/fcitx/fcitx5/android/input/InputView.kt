@@ -6,6 +6,9 @@
 package org.fcitx.fcitx5.android.input
 
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
@@ -25,6 +28,7 @@ import android.widget.ImageView
 import androidx.annotation.Keep
 import androidx.annotation.RequiresApi
 import androidx.constraintlayout.widget.Guideline
+import androidx.core.content.ContextCompat
 import androidx.core.view.updateLayoutParams
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.CapabilityFlags
@@ -116,6 +120,14 @@ class InputView internal constructor(
         // height as keyboardBottomPadding
         // bottomMargin as WindowInsets (Navigation Bar) offset
         setOnClickListener(placeholderOnClickListener)
+    }
+
+    private val clipboardPrivacyReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context, intent: Intent) {
+            if (intent.action == Intent.ACTION_SCREEN_OFF) {
+                finishInput()
+            }
+        }
     }
 
     private val scope = DynamicScope()
@@ -346,6 +358,12 @@ class InputView internal constructor(
     init {
         // MUST call before any operation
         setupScope()
+        ContextCompat.registerReceiver(
+            service,
+            clipboardPrivacyReceiver,
+            IntentFilter(Intent.ACTION_SCREEN_OFF),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
 
         // restore punctuation mapping in case of InputView recreation
         fcitx.launchOnReady {
@@ -906,6 +924,7 @@ class InputView internal constructor(
     }
 
     override fun onDetachedFromWindow() {
+        service.unregisterReceiver(clipboardPrivacyReceiver)
         floatingController?.destroy()
         floatingController = null
         keyboardPrefs.unregisterOnChangeListener(onKeyboardSizeChangeListener)
