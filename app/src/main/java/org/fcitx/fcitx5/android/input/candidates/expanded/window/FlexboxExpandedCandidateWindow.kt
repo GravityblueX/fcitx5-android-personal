@@ -13,6 +13,8 @@ import com.google.android.flexbox.AlignItems
 import com.google.android.flexbox.FlexboxLayoutManager
 import com.google.android.flexbox.JustifyContent
 import org.fcitx.fcitx5.android.input.candidates.CandidateViewHolder
+import org.fcitx.fcitx5.android.data.prefs.AppPrefs
+import org.fcitx.fcitx5.android.input.candidates.candidateItemHeightDp
 import org.fcitx.fcitx5.android.input.candidates.expanded.ExpandedCandidateLayout
 import org.fcitx.fcitx5.android.input.candidates.expanded.PagingCandidateViewAdapter
 import org.fcitx.fcitx5.android.input.candidates.expanded.decoration.FlexboxHorizontalDecoration
@@ -28,12 +30,12 @@ class FlexboxExpandedCandidateWindow :
             override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CandidateViewHolder {
                 return super.onCreateViewHolder(parent, viewType).apply {
                     itemView.apply {
-                        minimumWidth = (dp(40) * contentScale).roundToInt()
+                        minimumWidth = (dp(candidateItemHeightDp(AppPrefs.getInstance().candidates.fontSize.getValue(), resources.displayMetrics.scaledDensity / resources.displayMetrics.density)) * contentScale).roundToInt()
                         val horizontalPadding = (dp(10) * contentScale).roundToInt()
                         setPadding(horizontalPadding, 0, horizontalPadding, 0)
                         layoutParams = FlexboxLayoutManager.LayoutParams(
                             wrapContent,
-                            (dp(40) * contentScale).roundToInt()
+                            (dp(candidateItemHeightDp(AppPrefs.getInstance().candidates.fontSize.getValue(), resources.displayMetrics.scaledDensity / resources.displayMetrics.density)) * contentScale).roundToInt()
                         )
                             .apply { flexGrow = 1f }
                     }
@@ -43,12 +45,12 @@ class FlexboxExpandedCandidateWindow :
             override fun applyContentScale(holder: CandidateViewHolder) {
                 super.applyContentScale(holder)
                 holder.itemView.apply {
-                    minimumWidth = (dp(40) * contentScale).roundToInt()
+                    minimumWidth = (dp(candidateItemHeightDp(AppPrefs.getInstance().candidates.fontSize.getValue(), resources.displayMetrics.scaledDensity / resources.displayMetrics.density)) * contentScale).roundToInt()
                     val horizontalPadding = (dp(10) * contentScale).roundToInt()
                     setPadding(horizontalPadding, 0, horizontalPadding, 0)
                     val params = layoutParams ?: return
                     layoutParams = params.apply {
-                        height = (dp(40) * contentScale).roundToInt()
+                        height = (dp(candidateItemHeightDp(AppPrefs.getInstance().candidates.fontSize.getValue(), resources.displayMetrics.scaledDensity / resources.displayMetrics.density)) * contentScale).roundToInt()
                     }
                 }
             }

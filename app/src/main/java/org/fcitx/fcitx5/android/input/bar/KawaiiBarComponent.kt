@@ -49,6 +49,7 @@ import org.fcitx.fcitx5.android.input.bar.ui.IdleUi
 import org.fcitx.fcitx5.android.input.bar.ui.TitleUi
 import org.fcitx.fcitx5.android.input.bar.ui.ToolButton
 import org.fcitx.fcitx5.android.input.broadcast.InputBroadcastReceiver
+import org.fcitx.fcitx5.android.input.candidates.candidateItemHeightDp
 import org.fcitx.fcitx5.android.input.candidates.expanded.ExpandedCandidateStyle
 import org.fcitx.fcitx5.android.input.candidates.expanded.window.FlexboxExpandedCandidateWindow
 import org.fcitx.fcitx5.android.input.candidates.expanded.window.GridExpandedCandidateWindow
@@ -92,6 +93,14 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
 
     private val context by manager.context()
     private val theme by manager.theme()
+
+    val heightPx: Int
+        get() = context.dp(
+            candidateItemHeightDp(
+                prefs.candidates.fontSize.getValue(),
+                context.resources.displayMetrics.scaledDensity / context.resources.displayMetrics.density
+            )
+        )
     private val service by manager.inputMethodService()
     private val fcitx by manager.fcitx()
     private val inputView by manager.inputView()
@@ -333,7 +342,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
             hideKeyboardButton.apply {
                 setOnClickListener(hideKeyboardCallback)
                 swipeEnabled = true
-                swipeThresholdY = dp(HEIGHT.toFloat())
+                swipeThresholdY = heightPx.toFloat()
                 swipeThresholdX = swipeThresholdY
                 onGestureListener = swipeHideKeyboardCallback
             }
@@ -393,7 +402,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
             }
             expandButton.apply {
                 swipeEnabled = true
-                swipeThresholdY = dp(HEIGHT.toFloat())
+                swipeThresholdY = heightPx.toFloat()
                 onGestureListener = swipeDownExpandCallback
             }
         }
@@ -604,7 +613,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     }
 
     private val suggestionSize by lazy {
-        Size(ViewGroup.LayoutParams.WRAP_CONTENT, context.dp(HEIGHT))
+        Size(ViewGroup.LayoutParams.WRAP_CONTENT, heightPx)
     }
 
     private val directExecutor by lazy {

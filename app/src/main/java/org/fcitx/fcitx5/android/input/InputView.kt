@@ -403,7 +403,7 @@ class InputView internal constructor(
                 centerVertically()
                 centerHorizontally()
             })
-            add(kawaiiBar.view, lParams(matchParent, dp(KawaiiBarComponent.HEIGHT)) {
+            add(kawaiiBar.view, lParams(matchParent, kawaiiBar.heightPx) {
                 topOfParent()
                 centerHorizontally()
             })
@@ -599,7 +599,7 @@ class InputView internal constructor(
             height = floatingHeight ?: (keyboardHeightPx * layoutScale).roundToInt()
         }
         kawaiiBar.view.updateLayoutParams {
-            height = dp(KawaiiBarComponent.HEIGHT)
+            height = kawaiiBar.heightPx
         }
         val bottomPaddingHeight =
             if (floating) 0 else (keyboardBottomPaddingPx * layoutScale).roundToInt()

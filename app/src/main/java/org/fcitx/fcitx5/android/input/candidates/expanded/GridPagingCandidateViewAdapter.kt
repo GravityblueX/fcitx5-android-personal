@@ -13,6 +13,7 @@ import androidx.recyclerview.widget.GridLayoutManager
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.candidates.CandidateViewHolder
+import org.fcitx.fcitx5.android.input.candidates.candidateItemHeightDp
 import splitties.dimensions.dp
 import splitties.views.dsl.core.matchParent
 import kotlin.math.roundToInt
@@ -46,7 +47,7 @@ abstract class GridPagingCandidateViewAdapter(theme: Theme) : PagingCandidateVie
             itemView.apply {
                 layoutParams = GridLayoutManager.LayoutParams(
                     matchParent,
-                    (dp(40) * contentScale).roundToInt()
+                    (dp(candidateItemHeightDp(AppPrefs.getInstance().candidates.fontSize.getValue(), resources.displayMetrics.scaledDensity / resources.displayMetrics.density)) * contentScale).roundToInt()
                 )
             }
         }
@@ -56,7 +57,7 @@ abstract class GridPagingCandidateViewAdapter(theme: Theme) : PagingCandidateVie
         super.applyContentScale(holder)
         val params = holder.itemView.layoutParams ?: return
         holder.itemView.layoutParams = params.apply {
-            height = (holder.itemView.context.dp(40) * contentScale).roundToInt()
+            height = (holder.itemView.context.dp(candidateItemHeightDp(AppPrefs.getInstance().candidates.fontSize.getValue(), holder.itemView.resources.displayMetrics.scaledDensity / holder.itemView.resources.displayMetrics.density)) * contentScale).roundToInt()
         }
     }
 }

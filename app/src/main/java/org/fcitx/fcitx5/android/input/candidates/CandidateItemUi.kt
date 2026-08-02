@@ -24,11 +24,13 @@ import splitties.views.gravityCenter
 
 class CandidateItemUi(override val ctx: Context, val theme: Theme) : Ui {
 
-    private val showCandidateComments by AppPrefs.getInstance().keyboard.showCandidateComments
+    private val prefs = AppPrefs.getInstance()
+    private val showCandidateComments by prefs.keyboard.showCandidateComments
+    private val fontSize by prefs.candidates.fontSize
 
     private val text = view(::AutoScaleTextView) {
         scaleMode = AutoScaleTextView.Mode.Horizontal
-        textSize = 20f // sp
+        textSize = fontSize.toFloat()
         isSingleLine = true
         gravity = gravityCenter
         setTextColor(theme.candidateTextColor)

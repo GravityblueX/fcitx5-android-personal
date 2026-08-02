@@ -22,6 +22,7 @@
 - Opt-in editor-driven auto-capitalization that respects manual Shift overrides.
 - A configurable hold-to-repeat space key mode that does not conflict with input-method switching.
 - Keyboard keys expose focusable, localized TalkBack labels for screen-reader navigation.
+- The candidate-window font-size setting also scales virtual-keyboard candidates and their rows.
 - TalkBack labels for the return key follow each editor action, such as search, send, and done.
 - Clipboard expiration controls plus deterministic history limits for same-time entries.
 - Multi-item text copies are retained in clipboard history, with the primary item prioritized.
