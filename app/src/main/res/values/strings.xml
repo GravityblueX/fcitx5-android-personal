@@ -24,6 +24,7 @@
     <string name="undo">Undo</string>
     <string name="handwriting">Handwriting</string>
     <string name="handwriting_hint">Write here</string>
+    <string name="handwriting_sensitive_input_unavailable">Handwriting is unavailable in sensitive fields</string>
     <string name="handwriting_provider_unavailable">The built-in handwriting engine is unavailable</string>
     <string name="handwriting_model_checking">Checking %1$s…</string>
     <string name="handwriting_model_missing">Download %1$s (about %2$d MB)</string>

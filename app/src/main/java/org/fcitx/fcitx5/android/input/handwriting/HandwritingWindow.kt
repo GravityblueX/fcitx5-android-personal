@@ -19,6 +19,7 @@ import org.fcitx.fcitx5.android.common.handwriting.HandwritingRecognitionRequest
 import org.fcitx.fcitx5.android.common.handwriting.HandwritingRecognitionResponse
 import org.fcitx.fcitx5.android.common.handwriting.IHandwritingModelCallback
 import org.fcitx.fcitx5.android.common.handwriting.IHandwritingRecognitionCallback
+import org.fcitx.fcitx5.android.core.CapabilityFlag
 import org.fcitx.fcitx5.android.core.CapabilityFlags
 import org.fcitx.fcitx5.android.core.CandidateWord
 import org.fcitx.fcitx5.android.core.InputMethodEntry
@@ -88,6 +89,7 @@ class HandwritingWindow :
     private var modelQueryGeneration = 0L
     private var attached = false
     private var recognitionCandidates = emptyList<HandwritingRecognitionCandidate>()
+    private var recognitionAllowed = true
 
     @Keep
     private val modeChangeListener =
@@ -111,6 +113,7 @@ class HandwritingWindow :
             updateStatus()
             recognize()
         }
+        canvas.isEnabled = recognitionAllowed
         downloadButton = actionButton(
             R.drawable.ic_baseline_download_24,
             context.getString(R.string.handwriting_download_model),
@@ -224,6 +227,10 @@ class HandwritingWindow :
     }
 
     override fun onStartInput(info: EditorInfo, capFlags: CapabilityFlags) {
+        recognitionAllowed = HandwritingPrivacyPolicy.canRecognize(capFlags)
+        if (::canvas.isInitialized) {
+            canvas.isEnabled = recognitionAllowed
+        }
         resetInputState()
     }
 
@@ -495,7 +502,7 @@ class HandwritingWindow :
     }
 
     private fun recognize() {
-        if (!::canvas.isInitialized || !canvas.hasInk) return
+        if (!recognitionAllowed || !::canvas.isInitialized || !canvas.hasInk) return
         val provider = HandwritingProviderRegistry.select(currentMode) ?: run {
             updateCandidates(emptyList())
             showProviderUnavailable()
@@ -617,6 +624,12 @@ class HandwritingWindow :
 
     private fun updateStatus() {
         if (!::statusText.isInitialized) return
+        if (!recognitionAllowed) {
+            downloadButton.visibility = View.GONE
+            statusText.visibility = View.VISIBLE
+            statusText.text = context.getString(R.string.handwriting_sensitive_input_unavailable)
+            return
+        }
         downloadButton.visibility = View.GONE
         downloadButton.setIcon(R.drawable.ic_baseline_download_24)
         downloadButton.contentDescription =
