@@ -187,6 +187,11 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
 
         val expandKeypressArea =
             switch(R.string.expand_keypress_area, "expand_keypress_area", false)
+        val commitKeyWhenReleasedOutside = switch(
+            R.string.commit_key_when_released_outside,
+            "commit_key_when_released_outside",
+            false
+        )
         val swipeSymbolDirection = enumList(
             R.string.swipe_symbol_behavior,
             "swipe_symbol_behavior",

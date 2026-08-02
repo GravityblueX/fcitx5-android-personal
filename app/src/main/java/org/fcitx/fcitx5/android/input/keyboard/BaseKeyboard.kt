@@ -55,6 +55,7 @@ abstract class BaseKeyboard(
 
     private val popupOnKeyPress by prefs.keyboard.popupOnKeyPress
     private val expandKeypressArea by prefs.keyboard.expandKeypressArea
+    private val commitKeyWhenReleasedOutside = prefs.keyboard.commitKeyWhenReleasedOutside
     private val swipeSymbolDirection by prefs.keyboard.swipeSymbolDirection
 
     private val spaceSwipeMoveCursor = prefs.keyboard.spaceSwipeMoveCursor
@@ -70,6 +71,14 @@ abstract class BaseKeyboard(
         ManagedPreference.OnChangeListener<SelectionSwipeSensitivity> { _, _ ->
             selectionSwipeKeys.forEach {
                 it.swipeThresholdX = selectionSwipeThreshold
+            }
+        }
+    private val commitKeyWhenReleasedOutsideChangeListener =
+        ManagedPreference.OnChangeListener<Boolean> { _, enabled ->
+            keyRows.forEach { row ->
+                row.children.filterIsInstance<KeyView>().forEach {
+                    it.commitWhenReleasedOutside = enabled
+                }
             }
         }
 
@@ -152,6 +161,9 @@ abstract class BaseKeyboard(
         }
         spaceSwipeMoveCursor.registerOnChangeListener(spaceSwipeChangeListener)
         selectionSwipeSensitivity.registerOnChangeListener(selectionSwipeSensitivityChangeListener)
+        commitKeyWhenReleasedOutside.registerOnChangeListener(
+            commitKeyWhenReleasedOutsideChangeListener
+        )
     }
 
     fun setContentScale(
@@ -181,6 +193,7 @@ abstract class BaseKeyboard(
             is KeyDef.Appearance.Text -> TextKeyView(context, theme, def.appearance)
             is KeyDef.Appearance.Image -> ImageKeyView(context, theme, def.appearance)
         }.apply {
+            commitWhenReleasedOutside = commitKeyWhenReleasedOutside.getValue()
             soundEffect = when (def) {
                 is SpaceKey -> InputFeedbacks.SoundEffect.SpaceBar
                 is MiniSpaceKey -> InputFeedbacks.SoundEffect.SpaceBar

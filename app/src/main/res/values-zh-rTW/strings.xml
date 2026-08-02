@@ -178,6 +178,7 @@
     <string name="disable_addon_warn_optdep">停用%1$s中的某些功能</string>
     <string name="disable_addon_warn_confirm">確實要停用它嗎？</string>
     <string name="swipe_symbol_behavior">划動輸入標點及數字</string>
+    <string name="commit_key_when_released_outside">手指移出按鍵後抬起仍輸入</string>
     <string name="swipe_down">下划</string>
     <string name="swipe_up">上划</string>
     <string name="disabled">已停用</string>

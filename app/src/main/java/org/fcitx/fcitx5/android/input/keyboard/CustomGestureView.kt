@@ -21,6 +21,20 @@ import org.fcitx.fcitx5.android.data.InputFeedbacks
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView.OnGestureListener
 
+internal fun shouldPerformKeyClick(
+    movedOutside: Boolean,
+    commitWhenReleasedOutside: Boolean,
+    longPressTriggered: Boolean,
+    repeatStarted: Boolean,
+    swipeRepeatTriggered: Boolean,
+    gestureConsumed: Boolean
+): Boolean =
+    (!movedOutside || commitWhenReleasedOutside) &&
+        !longPressTriggered &&
+        !repeatStarted &&
+        !swipeRepeatTriggered &&
+        !gestureConsumed
+
 open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
 
     enum class SwipeAxis { X, Y }
@@ -79,6 +93,8 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
     private var swipeTotalX = 0
     private var swipeTotalY = 0
     private var gestureConsumed = false
+
+    var commitWhenReleasedOutside = false
 
     var doubleTapEnabled = false
     private var lastClickTime = 0L
@@ -182,11 +198,14 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
                 isPressed = false
                 InputFeedbacks.hapticFeedback(this, longPress = true, keyUp = true)
                 dispatchGestureEvent(GestureType.Up, event.x, event.y)
-                val shouldPerformClick = !(touchMovedOutside ||
-                        longPressTriggered ||
-                        repeatStarted ||
-                        swipeRepeatTriggered ||
-                        gestureConsumed)
+                val shouldPerformClick = shouldPerformKeyClick(
+                    touchMovedOutside,
+                    commitWhenReleasedOutside,
+                    longPressTriggered,
+                    repeatStarted,
+                    swipeRepeatTriggered,
+                    gestureConsumed
+                )
                 resetState()
                 if (shouldPerformClick) {
                     if (doubleTapEnabled) {
