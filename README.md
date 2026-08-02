@@ -12,7 +12,9 @@
 
 - One-handed keyboard mode.
 - Built-in handwriting recognition integration.
-- Clipboard expiration controls.
+- Clipboard expiration controls plus deterministic history limits for same-time entries.
+- Multi-item text copies are retained in clipboard history, with the primary item prioritized.
+- Clipboard suggestions and history are hidden outside active non-password inputs.
 - Independent package name and application label for side-by-side testing.
 
 For the complete change history, see the [commit log](../../commits/master).
