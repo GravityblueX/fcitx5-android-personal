@@ -65,6 +65,7 @@ class CandidateItemUi(override val ctx: Context, val theme: Theme) : Ui {
                 }
             }
         }
+        root.contentDescription = candidateContentDescription(candidate, showCandidateComments)
     }
 
     fun setContentScale(scale: Float) {
@@ -72,3 +73,12 @@ class CandidateItemUi(override val ctx: Context, val theme: Theme) : Ui {
         text.scaleY = scale
     }
 }
+
+internal fun candidateContentDescription(candidate: CandidateWord, showComment: Boolean): String =
+    buildString {
+        append(candidate.text)
+        if (showComment && candidate.comment.isNotBlank()) {
+            append(", ")
+            append(candidate.comment)
+        }
+    }
