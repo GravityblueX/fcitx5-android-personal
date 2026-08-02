@@ -270,14 +270,9 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
     private suspend fun removeOutdated() {
         val limit = limitPref.getValue()
         val unpinned = clbDao.getAllUnpinned()
-        if (unpinned.size > limit) {
-            // the last one we will keep
-            val last = unpinned
-                .sortedBy { it.id }
-                .getOrNull(unpinned.size - limit)
-            // delete all unpinned before that, or delete all when limit <= 0
-            clbDao.markUnpinnedAsDeletedEarlierThan(last?.timestamp ?: System.currentTimeMillis())
-        }
+        ClipboardHistoryPruner.entryIdsToDelete(unpinned, limit)
+            .takeIf { it.isNotEmpty() }
+            ?.let { clbDao.markAsDeleted(*it) }
     }
 
     private fun expirationTimeoutMillis(): Long =
