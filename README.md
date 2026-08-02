@@ -26,7 +26,10 @@
 - TalkBack labels for the return key follow each editor action, such as search, send, and done.
 - Clipboard expiration controls plus deterministic history limits for same-time entries.
 - Multi-item text copies are retained in clipboard history, with the primary item prioritized.
-- Clipboard suggestions and history are hidden outside active non-password inputs.
+- Clipboard suggestions and history are hidden outside active non-password inputs and while the device is locked.
+- Pasted clipboard entries return to the top of history, making frequently reused text easier to reach.
+- Candidate labels and comments are announced by TalkBack; virtual candidate text follows the candidate font-size setting.
+- Optional mixed Chinese/Latin spacing, double-space period input, and accepting the first English correction candidate with the space key.
 - Independent package name and application label for side-by-side testing.
 
 For the complete change history, see the [commit log](../../commits/master).
@@ -36,7 +39,8 @@ For the complete change history, see the [commit log](../../commits/master).
 This fork does not reuse or redistribute the official project's APKs. The links
 in the next section install the official app and will not include Fcitx17-only
 changes. For normal installation, download `fcitx17-release-apk` from the
-repository's **Personal build** GitHub Actions workflow. Install
+repository's [Personal build GitHub Actions workflow](../../actions/workflows/personal-build.yml).
+Install
 `fcitx17-release-plugins` as well when using optional plugins such as
 handwriting. These release artifacts use Fcitx17's stable signing certificate,
 so later builds can update them in place.
@@ -48,11 +52,19 @@ APKs built from a revision you trust.
 
 ## Download
 
+> [!IMPORTANT]
+> The stores and official project's GitHub Release below distribute the official
+> Fcitx5 package, **not** this Fcitx17 personal build. To install this fork, use
+> the [Personal build GitHub Actions workflow](../../actions/workflows/personal-build.yml)
+> described above.
+
+### Official Fcitx5 builds
+
 [<img src="https://github.com/rubenpgrady/get-it-on-github/raw/refs/heads/main/get-it-on-github.png" alt="Git it on GitHub" width="207" height="80">](https://github.com/fcitx5-android/fcitx5-android/releases/latest)
 [<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" width="207" height="80">](https://f-droid.org/packages/org.fcitx.fcitx5.android)
 [<img alt="Get it on Google Play" src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" width="207" height="80">](https://play.google.com/store/apps/details?id=org.fcitx.fcitx5.android)
 
-You can also download the **latest CI build** on our Jeninks server: [![build status](https://img.shields.io/jenkins/build.svg?jobUrl=https://jenkins.fcitx-im.org/job/android/job/fcitx5-android/)](https://jenkins.fcitx-im.org/job/android/job/fcitx5-android/)
+You can also download the **latest official CI build** on the Jenkins server: [![build status](https://img.shields.io/jenkins/build.svg?jobUrl=https://jenkins.fcitx-im.org/job/android/job/fcitx5-android/)](https://jenkins.fcitx-im.org/job/android/job/fcitx5-android/)
 
 > [!NOTE]
 > APKs downloaded from GitHub Release/F-Droid/Jenkins have the same signature, which means they're compatible when upgrading, but Google Play's do not.
