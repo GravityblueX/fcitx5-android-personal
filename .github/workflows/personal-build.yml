@@ -20,9 +20,13 @@ permissions:
 
 jobs:
   build:
-    name: Build test APKs
+    name: Build and verify APKs
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    env:
+      SIGN_KEY_BASE64: ${{ secrets.SIGN_KEY_BASE64 }}
+      SIGN_KEY_PWD: ${{ secrets.SIGN_KEY_PWD }}
+      SIGN_KEY_ALIAS: ${{ secrets.SIGN_KEY_ALIAS }}
     steps:
       - name: Check out source
         uses: actions/checkout@v6
@@ -86,18 +90,18 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload unsigned release APK
+      - name: Upload signed release APK
         uses: actions/upload-artifact@v6
         with:
-          name: fcitx17-unsigned-release-apk
+          name: fcitx17-release-apk
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload unsigned release plugins
+      - name: Upload signed release plugins
         uses: actions/upload-artifact@v6
         with:
-          name: fcitx17-unsigned-release-plugins
+          name: fcitx17-release-plugins
           path: plugin/**/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14

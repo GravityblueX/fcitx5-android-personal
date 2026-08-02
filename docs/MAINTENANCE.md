@@ -41,7 +41,7 @@ small and reviewable.
 The `Personal build` workflow runs on pushes to `master` and can also be started
 manually from the Actions tab. It runs lint and unit tests, verifies that debug
 plugins share the host signature and service wiring, then retains both installable
-debug APKs and unsigned release APKs as workflow artifacts for 14 days.
+debug APKs and stable-signed release APKs as workflow artifacts for 14 days.
 
 For a local build, first install the SDK, NDK, CMake, `extra-cmake-modules`, and
 GNU gettext prerequisites listed in the root README. Then run:
@@ -50,10 +50,11 @@ GNU gettext prerequisites listed in the root README. Then run:
 ./gradlew :app:lintDebug :app:testDebugUnitTest :app:assembleDebug :assembleDebugPlugins :app:assembleRelease :assembleReleasePlugins
 ```
 
-Installable debug APKs are placed under `app/build/outputs/apk/debug/`. Release
-APKs under `app/build/outputs/apk/release/` are unsigned until a protected signing
-key is configured. Do not publish a release build until it has been signed,
-installed, and smoke-tested on a device.
+Installable debug APKs are placed under `app/build/outputs/apk/debug/`. CI release
+APKs under `app/build/outputs/apk/release/` are signed using the protected Fcitx17
+release key. Configure `SIGN_KEY_BASE64`, `SIGN_KEY_PWD`, and `SIGN_KEY_ALIAS` for
+local signed release builds; see [SIGNING.md](SIGNING.md). Do not publish a release
+build until it has been installed and smoke-tested on a device.
 
 ## Release checklist
 
