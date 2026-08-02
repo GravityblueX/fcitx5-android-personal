@@ -8,6 +8,10 @@ on:
       - 'lib/**'
       - '.github/workflows/publish.yml'
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   publish:
     runs-on: ubuntu-24.04
@@ -39,8 +43,8 @@ jobs:
 
       - name: Publish build convention and libs
         env:
-          GITHUB_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
-          GITHUB_ACTOR: fcitx5-android-bot
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_ACTOR: ${{ github.actor }}
         run: |
           ./gradlew :build-logic:convention:publish
           ./gradlew :lib:common:publish
