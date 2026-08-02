@@ -1111,6 +1111,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     override fun onFinishInputView(finishingInput: Boolean) {
         Timber.d("onFinishInputView: finishingInput=$finishingInput")
         decorLocationUpdated = false
+        inputView?.finishInput()
         inputDeviceMgr.onFinishInputView()
         currentInputConnection?.apply {
             finishComposingText()
@@ -1126,6 +1127,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     override fun onFinishInput() {
         Timber.d("onFinishInput")
+        inputView?.finishInput()
         postFcitxJob {
             focus(false)
         }

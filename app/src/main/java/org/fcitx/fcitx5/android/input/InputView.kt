@@ -802,6 +802,10 @@ class InputView internal constructor(
     /**
      * called when [InputView] is about to show, or restart
      */
+    fun finishInput() {
+        broadcaster.onFinishInput()
+    }
+
     fun startInput(info: EditorInfo, capFlags: CapabilityFlags, restarting: Boolean = false) {
         broadcaster.onStartInput(info, capFlags)
         returnKeyDrawable.updateDrawableOnEditorInfo(info)

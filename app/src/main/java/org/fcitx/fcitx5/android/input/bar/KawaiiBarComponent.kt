@@ -114,6 +114,8 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     private var clipboardTimeoutJob: Job? = null
 
     private var isClipboardFresh: Boolean = false
+    private var isInputActive: Boolean = false
+    private var isPasswordField: Boolean = false
     private var isInlineSuggestionPresent: Boolean = false
     private var isCapabilityFlagsPassword: Boolean = false
     private var isKeyboardLayoutNumber: Boolean = false
@@ -128,32 +130,60 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
 
     @Keep
     private val onClipboardUpdateListener =
-        ClipboardManager.OnClipboardUpdateListener {
-            if (!clipboardSuggestion.getValue()) return@OnClipboardUpdateListener
+        ClipboardManager.OnClipboardUpdateListener { entry ->
             service.lifecycleScope.launch {
-                if (it.text.isEmpty()) {
-                    isClipboardFresh = false
-                } else {
-                    idleUi.clipboardUi.text.text = if (it.sensitive && clipboardMaskSensitive) {
-                        ClipboardEntry.BULLET.repeat(min(42, it.text.length))
-                    } else {
-                        it.text.take(42)
-                    }
-                    isClipboardFresh = true
-                    launchClipboardTimeoutJob()
-                }
-                evalIdleUiState()
+                updateClipboardSuggestion(entry)
             }
         }
 
+    private fun updateClipboardSuggestion(entry: ClipboardEntry) {
+        if (
+            !ClipboardSuggestionPolicy.canDisplay(
+                suggestionsEnabled = clipboardSuggestion.getValue(),
+                hasActiveInput = isInputActive,
+                isPasswordField = isPasswordField,
+            )
+        ) {
+            clearClipboardSuggestion()
+            evalIdleUiState()
+            return
+        }
+        if (entry.text.isEmpty()) {
+            clearClipboardSuggestion()
+        } else {
+            idleUi.clipboardUi.text.text = if (entry.sensitive && clipboardMaskSensitive) {
+                ClipboardEntry.BULLET.repeat(min(42, entry.text.length))
+            } else {
+                entry.text.take(42)
+            }
+            isClipboardFresh = true
+            launchClipboardTimeoutJob()
+        }
+        evalIdleUiState()
+    }
+
+    private fun restoreRecentClipboardSuggestion() {
+        ClipboardManager.lastEntry?.let {
+            val now = System.currentTimeMillis()
+            val clipboardTimeout = clipboardItemTimeout.getValue() * 1000L
+            if (now - it.timestamp < clipboardTimeout) {
+                updateClipboardSuggestion(it)
+            }
+        }
+    }
+
+    private fun clearClipboardSuggestion() {
+        isClipboardFresh = false
+        clipboardTimeoutJob?.cancel()
+        clipboardTimeoutJob = null
+    }
+
     @Keep
     private val onClipboardSuggestionUpdateListener =
-        ManagedPreference.OnChangeListener<Boolean> { _, it ->
-            if (!it) {
-                isClipboardFresh = false
+        ManagedPreference.OnChangeListener<Boolean> { _, enabled ->
+            if (!enabled) {
+                clearClipboardSuggestion()
                 evalIdleUiState()
-                clipboardTimeoutJob?.cancel()
-                clipboardTimeoutJob = null
             }
         }
 
@@ -309,7 +339,9 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                     windowManager.attachWindow(TextEditingWindow())
                 }
                 clipboardButton.setOnClickListener {
-                    windowManager.attachWindow(ClipboardWindow())
+                    if (!isPasswordField) {
+                        windowManager.attachWindow(ClipboardWindow())
+                    }
                 }
                 floatingKeyboardButton.setOnClickListener {
                     inputView.toggleFloatingKeyboard()
@@ -449,13 +481,6 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     }
 
     override fun onScopeSetupFinished(scope: DynamicScope) {
-        ClipboardManager.lastEntry?.let {
-            val now = System.currentTimeMillis()
-            val clipboardTimeout = clipboardItemTimeout.getValue() * 1000L
-            if (now - it.timestamp < clipboardTimeout) {
-                onClipboardUpdateListener.onUpdate(it)
-            }
-        }
         ClipboardManager.addOnUpdateListener(onClipboardUpdateListener)
         clipboardSuggestion.registerOnChangeListener(onClipboardSuggestionUpdateListener)
         clipboardItemTimeout.registerOnChangeListener(onClipboardTimeoutUpdateListener)
@@ -479,7 +504,15 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             idleUi.privateMode(info.imeOptions.hasFlag(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING))
         }
-        isCapabilityFlagsPassword = toolbarNumRowOnPassword && capFlags.has(CapabilityFlag.Password)
+        isInputActive = true
+        isPasswordField = capFlags.has(CapabilityFlag.Password)
+        isCapabilityFlagsPassword = toolbarNumRowOnPassword && isPasswordField
+        idleUi.buttonsUi.clipboardButton.visibility = if (isPasswordField) View.GONE else View.VISIBLE
+        if (isPasswordField) {
+            clearClipboardSuggestion()
+        } else {
+            restoreRecentClipboardSuggestion()
+        }
         isInlineSuggestionPresent = false
         numberRowState = NumberRowState.Auto
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -492,6 +525,13 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
             shouldShowVoiceInput,
             if (shouldShowVoiceInput) switchToVoiceInputCallback else hideKeyboardCallback
         )
+        evalIdleUiState()
+    }
+
+    override fun onFinishInput() {
+        isInputActive = false
+        isPasswordField = false
+        clearClipboardSuggestion()
         evalIdleUiState()
     }
 
