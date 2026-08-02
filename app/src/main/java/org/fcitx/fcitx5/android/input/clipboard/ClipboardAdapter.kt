@@ -116,6 +116,9 @@ abstract class ClipboardAdapter(
                 menu.item(R.string.edit, R.drawable.ic_baseline_edit_24, iconTint) {
                     onEdit(entry.id)
                 }
+                menu.item(android.R.string.copy, R.drawable.ic_clipboard, iconTint) {
+                    onCopy(entry)
+                }
                 menu.item(R.string.share, R.drawable.ic_baseline_share_24, iconTint) {
                     onShare(entry)
                 }
@@ -150,6 +153,8 @@ abstract class ClipboardAdapter(
     abstract fun onUnpin(id: Int)
 
     abstract fun onEdit(id: Int)
+
+    abstract fun onCopy(entry: ClipboardEntry)
 
     abstract fun onShare(entry: ClipboardEntry)
 

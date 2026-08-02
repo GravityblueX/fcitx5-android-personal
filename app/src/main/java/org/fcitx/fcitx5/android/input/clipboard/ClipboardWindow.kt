@@ -4,6 +4,7 @@
  */
 package org.fcitx.fcitx5.android.input.clipboard
 
+import android.content.ClipData
 import android.content.Intent
 import android.view.View
 import android.view.ViewGroup
@@ -47,6 +48,7 @@ import org.fcitx.fcitx5.android.input.wm.InputWindowManager
 import org.fcitx.fcitx5.android.input.wm.ScalableInputWindow
 import org.fcitx.fcitx5.android.utils.AppUtil
 import org.fcitx.fcitx5.android.utils.EventStateMachine
+import org.fcitx.fcitx5.android.utils.clipboardManager
 import org.fcitx.fcitx5.android.utils.item
 import org.mechdancer.dependency.manager.must
 import splitties.dimensions.dp
@@ -104,6 +106,10 @@ class ClipboardWindow : InputWindow.ExtendedInputWindow<ClipboardWindow>(), Scal
 
             override fun onEdit(id: Int) {
                 AppUtil.launchClipboardEdit(context, id)
+            }
+
+            override fun onCopy(entry: ClipboardEntry) {
+                service.clipboardManager.setPrimaryClip(ClipData.newPlainText("", entry.text))
             }
 
             override fun onShare(entry: ClipboardEntry) {
