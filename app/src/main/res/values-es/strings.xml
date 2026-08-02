@@ -398,4 +398,5 @@
     <string name="accessibility_previous">Anterior</string>
     <string name="accessibility_shift_once">Una letra mayúscula</string>
     <string name="accessibility_caps_lock">Bloq Mayús</string>
+    <string name="double_space_period">Pulsar espacio dos veces inserta un punto</string>
 </resources>

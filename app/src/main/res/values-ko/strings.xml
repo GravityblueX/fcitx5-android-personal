@@ -398,4 +398,5 @@
     <string name="accessibility_previous">이전</string>
     <string name="accessibility_shift_once">한 글자 대문자</string>
     <string name="accessibility_caps_lock">Caps Lock</string>
+    <string name="double_space_period">스페이스바를 두 번 누르면 마침표 입력</string>
 </resources>

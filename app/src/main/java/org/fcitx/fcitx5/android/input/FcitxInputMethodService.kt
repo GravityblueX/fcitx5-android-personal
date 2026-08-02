@@ -47,11 +47,13 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.launch
 import org.fcitx.fcitx5.android.R
+import org.fcitx.fcitx5.android.core.CapabilityFlag
 import org.fcitx.fcitx5.android.core.CapabilityFlags
 import org.fcitx.fcitx5.android.core.FcitxAPI
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.core.FcitxKeyMapping
 import org.fcitx.fcitx5.android.core.FormattedText
+import org.fcitx.fcitx5.android.core.KeyState
 import org.fcitx.fcitx5.android.core.KeyStates
 import org.fcitx.fcitx5.android.core.KeySym
 import org.fcitx.fcitx5.android.core.ScancodeMapping
@@ -67,6 +69,7 @@ import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.cursor.CursorRange
 import org.fcitx.fcitx5.android.input.cursor.CursorTracker
 import org.fcitx.fcitx5.android.input.keyboard.OneHandedMode
+import org.fcitx.fcitx5.android.input.keyboard.shouldReplaceDoubleSpacePeriod
 import org.fcitx.fcitx5.android.utils.InputMethodUtil
 import org.fcitx.fcitx5.android.utils.alpha
 import org.fcitx.fcitx5.android.utils.forceShowSelf
@@ -105,6 +108,8 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private val floatingKeyboardSessionState = FloatingKeyboardSessionState()
     private val oneHandedKeyboardModePreference =
         AppPrefs.getInstance().internal.oneHandedKeyboardMode
+    private val doubleSpacePeriod by AppPrefs.getInstance().keyboard.doubleSpacePeriod
+    private var lastVirtualSpaceTimestamp: Long? = null
     private val oneHandedKeyboardSessionState = OneHandedKeyboardSessionState(
         initialMode = OneHandedMode.fromPreferenceValue(
             oneHandedKeyboardModePreference.getValue()
@@ -251,23 +256,39 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private fun handleFcitxEvent(event: FcitxEvent<*>) {
         when (event) {
             is FcitxEvent.CommitStringEvent -> {
+                resetDoubleSpacePeriod()
                 commitText(event.data.text, event.data.cursor)
             }
             is FcitxEvent.KeyEvent -> event.data.let event@{
                 if (it.states.virtual) {
                     // KeyEvent from virtual keyboard
                     when (it.sym.sym) {
-                        FcitxKeyMapping.FcitxKey_BackSpace -> handleBackspaceKey()
-                        FcitxKeyMapping.FcitxKey_Return -> handleReturnKey()
-                        FcitxKeyMapping.FcitxKey_Left -> handleArrowKey(KeyEvent.KEYCODE_DPAD_LEFT)
-                        FcitxKeyMapping.FcitxKey_Right -> handleArrowKey(KeyEvent.KEYCODE_DPAD_RIGHT)
+                        FcitxKeyMapping.FcitxKey_space -> handleSpaceKey(it.states.has(KeyState.Repeat))
+                        FcitxKeyMapping.FcitxKey_BackSpace -> {
+                            resetDoubleSpacePeriod()
+                            handleBackspaceKey()
+                        }
+                        FcitxKeyMapping.FcitxKey_Return -> {
+                            resetDoubleSpacePeriod()
+                            handleReturnKey()
+                        }
+                        FcitxKeyMapping.FcitxKey_Left -> {
+                            resetDoubleSpacePeriod()
+                            handleArrowKey(KeyEvent.KEYCODE_DPAD_LEFT)
+                        }
+                        FcitxKeyMapping.FcitxKey_Right -> {
+                            resetDoubleSpacePeriod()
+                            handleArrowKey(KeyEvent.KEYCODE_DPAD_RIGHT)
+                        }
                         else -> if (it.unicode > 0) {
+                            resetDoubleSpacePeriod()
                             commitText(Character.toString(it.unicode))
                         } else {
                             Timber.w("Unhandled Virtual KeyEvent: $it")
                         }
                     }
                 } else {
+                    resetDoubleSpacePeriod()
                     // KeyEvent from physical keyboard (or input method engine forwardKey)
                     // use cached event if available
                     cachedKeyEvents.remove(it.timestamp)?.let { keyEvent ->
@@ -326,6 +347,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 updateComposingText(event.data)
             }
             is FcitxEvent.DeleteSurroundingEvent -> {
+                resetDoubleSpacePeriod()
                 val (before, after) = event.data
                 handleDeleteSurrounding(before, after)
             }
@@ -365,6 +387,52 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             ic.deleteSurroundingTextInCodePoints(before, after)
         } else {
             ic.deleteSurroundingText(before, after)
+        }
+    }
+
+    private fun resetDoubleSpacePeriod() {
+        lastVirtualSpaceTimestamp = null
+    }
+
+    private fun handleSpaceKey(isRepeating: Boolean) {
+        val inputConnection = currentInputConnection ?: run {
+            resetDoubleSpacePeriod()
+            return
+        }
+        val now = SystemClock.uptimeMillis()
+        val selectionBeforeSpace = selection.latest
+        val canInsertPeriod = currentInputEditorInfo.inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_CLASS_TEXT &&
+            !capabilityFlags.hasAny(
+                CapabilityFlag.Password,
+                CapabilityFlag.Sensitive,
+                CapabilityFlag.Email,
+                CapabilityFlag.Url
+            )
+        val shouldReplace = shouldReplaceDoubleSpacePeriod(
+            enabled = doubleSpacePeriod,
+            elapsedMillis = lastVirtualSpaceTimestamp?.let(now::minus),
+            precedingCharacter = inputConnection.getTextBeforeCursor(1, 0)?.lastOrNull(),
+            hasCollapsedSelection = selectionBeforeSpace.isEmpty(),
+            canInsertPeriod = canInsertPeriod,
+            isRepeating = isRepeating
+        )
+        if (shouldReplace) {
+            selection.predictOffset(-1)
+            inputConnection.withBatchEdit {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    deleteSurroundingTextInCodePoints(1, 0)
+                } else {
+                    deleteSurroundingText(1, 0)
+                }
+                commitText(". ", 1)
+            }
+            selection.predictOffset(2)
+            resetDoubleSpacePeriod()
+        } else {
+            commitText(" ")
+            lastVirtualSpaceTimestamp = if (doubleSpacePeriod &&
+                !isRepeating && selectionBeforeSpace.isEmpty() && canInsertPeriod
+            ) now else null
         }
     }
 
@@ -793,6 +861,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         // right cursor position, try to workaround this would simply introduce more bugs.
         selection.resetTo(attribute.initialSelStart, attribute.initialSelEnd)
         resetComposingState()
+        resetDoubleSpacePeriod()
         val flags = CapabilityFlags.fromEditorInfo(attribute)
         capabilityFlags = flags
         // EditorInfo may change between onStartInput and onStartInputView
@@ -935,6 +1004,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         } else {
             // cursor update can't match any prediction: it's treated as a user input
             selection.resetTo(newSelStart, newSelEnd)
+            resetDoubleSpacePeriod()
         }
         // skip selection range update, we only care about selection cursor (zero width) here
         if (newSelStart != newSelEnd) return
@@ -1128,6 +1198,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     override fun onFinishInput() {
         Timber.d("onFinishInput")
+        resetDoubleSpacePeriod()
         inputView?.finishInput()
         postFcitxJob {
             focus(false)

@@ -398,4 +398,5 @@
     <string name="accessibility_previous">前へ</string>
     <string name="accessibility_shift_once">一文字だけ大文字</string>
     <string name="accessibility_caps_lock">Caps Lock</string>
+    <string name="double_space_period">スペースを2回押すと句点を入力</string>
 </resources>

@@ -398,4 +398,5 @@
     <string name="accessibility_previous">上一項</string>
     <string name="accessibility_shift_once">單次大寫</string>
     <string name="accessibility_caps_lock">大寫鎖定</string>
+    <string name="double_space_period">連按兩下空白鍵輸入句點</string>
 </resources>

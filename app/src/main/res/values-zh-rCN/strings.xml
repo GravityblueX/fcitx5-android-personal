@@ -398,4 +398,5 @@
     <string name="accessibility_previous">上一项</string>
     <string name="accessibility_shift_once">单次大写</string>
     <string name="accessibility_caps_lock">大写锁定</string>
+    <string name="double_space_period">双击空格键输入句号</string>
 </resources>

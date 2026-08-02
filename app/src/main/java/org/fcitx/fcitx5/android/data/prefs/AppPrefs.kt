@@ -183,6 +183,11 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             "auto_capitalization",
             false
         )
+        val doubleSpacePeriod = switch(
+            R.string.double_space_period,
+            "double_space_period",
+            false
+        )
         val keepLettersUppercase = switch(
             R.string.keep_keyboard_letters_uppercase,
             "keep_keyboard_letters_uppercase",

@@ -15,6 +15,7 @@ import androidx.core.view.children
 import androidx.core.view.updateLayoutParams
 import org.fcitx.fcitx5.android.core.FcitxKeyMapping
 import org.fcitx.fcitx5.android.core.InputMethodEntry
+import org.fcitx.fcitx5.android.core.KeyState
 import org.fcitx.fcitx5.android.core.KeyStates
 import org.fcitx.fcitx5.android.core.KeySym
 import org.fcitx.fcitx5.android.data.InputFeedbacks
@@ -182,7 +183,7 @@ abstract class BaseKeyboard(
         spaceKeys.forEach { key ->
             key.repeatEnabled = enabled
             key.onRepeatListener = if (enabled) { view ->
-                onAction(KeyAction.SymAction(KeySym(FcitxKeyMapping.FcitxKey_space)))
+                onAction(KeyAction.SymAction(KeySym(FcitxKeyMapping.FcitxKey_space), KeyStates(KeyState.Virtual, KeyState.Repeat)))
                 if (hapticOnRepeat) InputFeedbacks.hapticFeedback(view)
             } else null
         }
@@ -247,7 +248,7 @@ abstract class BaseKeyboard(
                 swipeThresholdY = disabledSwipeThreshold
                 repeatEnabled = shouldRepeatSpacesOnLongPress(spaceKeyLongPressBehavior.getValue())
                 onRepeatListener = if (repeatEnabled) { view ->
-                    onAction(KeyAction.SymAction(KeySym(FcitxKeyMapping.FcitxKey_space)))
+                    onAction(KeyAction.SymAction(KeySym(FcitxKeyMapping.FcitxKey_space), KeyStates(KeyState.Virtual, KeyState.Repeat)))
                     if (hapticOnRepeat) InputFeedbacks.hapticFeedback(view)
                 } else null
                 onGestureListener = OnGestureListener { view, event ->

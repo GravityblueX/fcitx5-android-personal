@@ -398,4 +398,5 @@
     <string name="accessibility_previous">Previous</string>
     <string name="accessibility_shift_once">One uppercase letter</string>
     <string name="accessibility_caps_lock">Caps lock</string>
+    <string name="double_space_period">Double-space inserts a period</string>
 </resources>
