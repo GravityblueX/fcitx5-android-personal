@@ -68,6 +68,9 @@ jobs:
       - name: Build debug and release APKs
         run: ./gradlew :app:assembleDebug :assembleDebugPlugins :app:assembleRelease :assembleReleasePlugins --stacktrace
 
+      - name: Generate release APK checksums
+        run: bash scripts/generate-release-checksums.sh
+
       - name: Verify debug app and plugin integration
         run: |
           mapfile -t plugins < <(find plugin -path "*/build/outputs/apk/debug/*.apk" -type f | sort)
@@ -97,6 +100,14 @@ jobs:
         with:
           name: fcitx17-debug-plugins
           path: plugin/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload release APK checksums
+        uses: actions/upload-artifact@v6
+        with:
+          name: fcitx17-release-checksums
+          path: SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
 
