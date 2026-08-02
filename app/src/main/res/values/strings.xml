@@ -398,6 +398,7 @@
     <string name="accessibility_previous">Previous</string>
     <string name="accessibility_shift_once">One uppercase letter</string>
     <string name="accessibility_caps_lock">Caps lock</string>
+    <string name="space_accept_first_english_candidate">Accept first English candidate with space</string>
     <string name="double_space_period">Double-space inserts a period</string>
     <string name="auto_mixed_text_spacing">Auto-insert spaces between Chinese and English</string>
 </resources>

@@ -398,6 +398,7 @@
     <string name="accessibility_previous">이전</string>
     <string name="accessibility_shift_once">한 글자 대문자</string>
     <string name="accessibility_caps_lock">Caps Lock</string>
+    <string name="space_accept_first_english_candidate">스페이스바로 첫 번째 영어 후보 선택</string>
     <string name="double_space_period">스페이스바를 두 번 누르면 마침표 입력</string>
     <string name="auto_mixed_text_spacing">중국어와 영어 사이에 공백 자동 삽입</string>
 </resources>

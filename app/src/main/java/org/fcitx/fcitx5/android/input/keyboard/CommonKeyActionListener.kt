@@ -9,6 +9,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import org.fcitx.fcitx5.android.core.FcitxAPI
+import org.fcitx.fcitx5.android.core.FcitxKeyMapping
+import org.fcitx.fcitx5.android.core.KeyState
 import org.fcitx.fcitx5.android.daemon.launchOnReady
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.input.broadcast.PreeditEmptyStateComponent
@@ -63,6 +65,7 @@ class CommonKeyActionListener :
     private val kbdPrefs = AppPrefs.getInstance().keyboard
 
     private val spaceKeyLongPressBehavior by kbdPrefs.spaceKeyLongPressBehavior
+    private val spaceAcceptFirstEnglishCandidate by kbdPrefs.spaceAcceptFirstEnglishCandidate
     private val langSwitchKeyBehavior by kbdPrefs.langSwitchKeyBehavior
 
     private var backspaceSwipeState = Stopped
@@ -97,6 +100,16 @@ class CommonKeyActionListener :
                     sendKey(action.act, action.states.states, action.code)
                 }
                 is SymAction -> service.postFcitxJob {
+                    if (SpaceCandidatePolicy.shouldAcceptFirstCandidate(
+                            enabled = spaceAcceptFirstEnglishCandidate,
+                            isVirtualSpace = action.sym.sym == FcitxKeyMapping.FcitxKey_space,
+                            isRepeat = action.states.has(KeyState.Repeat),
+                            isEnglish = inputMethodEntryCached.languageCode.startsWith("en"),
+                            hasPreedit = clientPreeditCached.isNotEmpty() || inputPanelCached.preedit.isNotEmpty(),
+                        )
+                    ) {
+                        select(0)
+                    }
                     sendKey(action.sym, action.states)
                 }
                 is CommitAction -> service.postFcitxJob {

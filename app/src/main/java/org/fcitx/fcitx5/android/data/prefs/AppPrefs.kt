@@ -188,6 +188,11 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             "double_space_period",
             false
         )
+        val spaceAcceptFirstEnglishCandidate = switch(
+            R.string.space_accept_first_english_candidate,
+            "space_accept_first_english_candidate",
+            false
+        )
         val autoMixedTextSpacing = switch(
             R.string.auto_mixed_text_spacing,
             "auto_mixed_text_spacing",

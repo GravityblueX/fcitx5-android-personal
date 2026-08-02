@@ -398,6 +398,7 @@
     <string name="accessibility_previous">上一项</string>
     <string name="accessibility_shift_once">单次大写</string>
     <string name="accessibility_caps_lock">大写锁定</string>
+    <string name="space_accept_first_english_candidate">空格键接受首个英文候选</string>
     <string name="double_space_period">双击空格键输入句号</string>
     <string name="auto_mixed_text_spacing">中英文混输时自动插入空格</string>
 </resources>

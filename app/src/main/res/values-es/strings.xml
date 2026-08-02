@@ -398,6 +398,7 @@
     <string name="accessibility_previous">Anterior</string>
     <string name="accessibility_shift_once">Una letra mayúscula</string>
     <string name="accessibility_caps_lock">Bloq Mayús</string>
+    <string name="space_accept_first_english_candidate">Aceptar la primera sugerencia en inglés con espacio</string>
     <string name="double_space_period">Pulsar espacio dos veces inserta un punto</string>
     <string name="auto_mixed_text_spacing">Insertar espacios automáticamente entre chino e inglés</string>
 </resources>
