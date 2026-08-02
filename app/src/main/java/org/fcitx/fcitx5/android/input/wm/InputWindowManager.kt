@@ -173,6 +173,8 @@ class InputWindowManager : UniqueViewComponent<InputWindowManager, FrameLayout>(
 
     fun isAttached(window: InputWindow) = currentWindow === window
 
+    fun isAttached(windowType: Class<out InputWindow>) = windowType.isInstance(currentWindow)
+
     fun setContentScale(scale: Float, toolbarScale: Float = scale) {
         if (contentScale == scale && this.toolbarScale == toolbarScale) return
         contentScale = scale

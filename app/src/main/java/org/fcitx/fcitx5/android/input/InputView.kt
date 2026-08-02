@@ -40,6 +40,7 @@ import org.fcitx.fcitx5.android.input.broadcast.PreeditEmptyStateComponent
 import org.fcitx.fcitx5.android.input.broadcast.PunctuationComponent
 import org.fcitx.fcitx5.android.input.broadcast.ReturnKeyDrawableComponent
 import org.fcitx.fcitx5.android.input.candidates.horizontal.HorizontalCandidateComponent
+import org.fcitx.fcitx5.android.input.clipboard.ClipboardWindow
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingWindow
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
@@ -802,7 +803,21 @@ class InputView internal constructor(
     /**
      * called when [InputView] is about to show, or restart
      */
+    private fun attachPrimaryInputWindow() {
+        val ime = fcitx.runImmediately { inputMethodEntryCached }
+        windowManager.attachWindow(
+            if (HandwritingWindow.isHandwritingInputMethod(ime)) {
+                HandwritingWindow
+            } else {
+                KeyboardWindow
+            }
+        )
+    }
+
     fun finishInput() {
+        if (windowManager.isAttached(ClipboardWindow::class.java)) {
+            attachPrimaryInputWindow()
+        }
         broadcaster.onFinishInput()
     }
 
@@ -810,14 +825,7 @@ class InputView internal constructor(
         broadcaster.onStartInput(info, capFlags)
         returnKeyDrawable.updateDrawableOnEditorInfo(info)
         if (focusChangeResetKeyboard || !restarting) {
-            val ime = fcitx.runImmediately { inputMethodEntryCached }
-            windowManager.attachWindow(
-                if (HandwritingWindow.isHandwritingInputMethod(ime)) {
-                    HandwritingWindow
-                } else {
-                    KeyboardWindow
-                }
-            )
+            attachPrimaryInputWindow()
         }
     }
 
