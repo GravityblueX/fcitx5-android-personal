@@ -39,8 +39,9 @@ small and reviewable.
 ## Producing a test build
 
 The `Personal build` workflow runs on pushes to `master` and can also be started
-manually from the Actions tab. It runs lint and unit tests, then retains both
-installable debug APKs and unsigned release APKs as workflow artifacts for 14 days.
+manually from the Actions tab. It runs lint and unit tests, verifies that debug
+plugins share the host signature and service wiring, then retains both installable
+debug APKs and unsigned release APKs as workflow artifacts for 14 days.
 
 For a local build, first install the SDK, NDK, CMake, `extra-cmake-modules`, and
 GNU gettext prerequisites listed in the root README. Then run:

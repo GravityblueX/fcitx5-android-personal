@@ -54,6 +54,11 @@ jobs:
       - name: Build debug and release APKs
         run: ./gradlew :app:assembleDebug :assembleDebugPlugins :app:assembleRelease :assembleReleasePlugins --stacktrace
 
+      - name: Verify debug app and plugin integration
+        run: |
+          mapfile -t plugins < <(find plugin -path "*/build/outputs/apk/debug/*.apk" -type f | sort)
+          bash scripts/verify-debug-plugin-compatibility.sh "$(find app/build/outputs/apk/debug -name "*.apk" -type f | head -n 1)" "${plugins[@]}"
+
       - name: Upload quality reports
         if: ${{ always() }}
         uses: actions/upload-artifact@v6
