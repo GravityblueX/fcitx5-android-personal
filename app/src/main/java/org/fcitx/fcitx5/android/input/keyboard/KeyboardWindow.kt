@@ -68,6 +68,8 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
     private val keyboards: HashMap<String, BaseKeyboard> by lazy {
         hashMapOf(
             TextKeyboard.Name to TextKeyboard(context, theme),
+            TextKeyboard.EmailName to TextKeyboard(context, theme, TextKeyboard.EmailBottomRow),
+            TextKeyboard.UrlName to TextKeyboard(context, theme, TextKeyboard.UrlBottomRow),
             NumberKeyboard.Name to NumberKeyboard(context, theme)
         )
     }
@@ -155,12 +157,7 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
     }
 
     override fun onStartInput(info: EditorInfo, capFlags: CapabilityFlags) {
-        val targetLayout = when (info.inputType and InputType.TYPE_MASK_CLASS) {
-            InputType.TYPE_CLASS_NUMBER -> NumberKeyboard.Name
-            InputType.TYPE_CLASS_PHONE -> NumberKeyboard.Name
-            else -> TextKeyboard.Name
-        }
-        switchLayout(targetLayout, remember = false)
+        switchLayout(keyboardLayoutForInputType(info.inputType), remember = false)
     }
 
     override fun onImeUpdate(ime: InputMethodEntry) {
@@ -198,5 +195,19 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
     // 2) currently keyboard window is attached and switchLayout was used
     private fun notifyBarLayoutChanged() {
         bar.onKeyboardLayoutSwitched(currentKeyboardName == NumberKeyboard.Name)
+    }
+}
+
+internal fun keyboardLayoutForInputType(inputType: Int): String {
+    return when (inputType and InputType.TYPE_MASK_CLASS) {
+        InputType.TYPE_CLASS_NUMBER,
+        InputType.TYPE_CLASS_PHONE -> NumberKeyboard.Name
+        InputType.TYPE_CLASS_TEXT -> when (inputType and InputType.TYPE_MASK_VARIATION) {
+            InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS,
+            InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS -> TextKeyboard.EmailName
+            InputType.TYPE_TEXT_VARIATION_URI -> TextKeyboard.UrlName
+            else -> TextKeyboard.Name
+        }
+        else -> TextKeyboard.Name
     }
 }

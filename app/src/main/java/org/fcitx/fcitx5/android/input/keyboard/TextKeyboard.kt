@@ -22,13 +22,16 @@ import splitties.views.imageResource
 @SuppressLint("ViewConstructor")
 class TextKeyboard(
     context: Context,
-    theme: Theme
-) : BaseKeyboard(context, theme, Layout) {
+    theme: Theme,
+    bottomRow: List<KeyDef> = BottomRow
+) : BaseKeyboard(context, theme, Layout.dropLast(1) + listOf(bottomRow)) {
 
     enum class CapsState { None, Once, Lock }
 
     companion object {
         const val Name = "Text"
+        const val EmailName = "TextEmail"
+        const val UrlName = "TextUrl"
 
         val BottomRow: List<KeyDef> = listOf(
             LayoutSwitchKey(
@@ -52,6 +55,16 @@ class TextKeyboard(
             SymbolKey(".", 0.1f, KeyDef.Appearance.Variant.Alternative),
             ReturnKey()
         )
+
+        val EmailBottomRow: List<KeyDef> = BottomRow.toMutableList().apply {
+            this[1] = SymbolKey("@", 0.1f, KeyDef.Appearance.Variant.Alternative)
+            this[4] = DomainSymbolKey(".", 0.1f, KeyDef.Appearance.Variant.Alternative)
+        }
+
+        val UrlBottomRow: List<KeyDef> = BottomRow.toMutableList().apply {
+            this[1] = SymbolKey("/", 0.1f, KeyDef.Appearance.Variant.Alternative)
+            this[4] = DomainSymbolKey(".", 0.1f, KeyDef.Appearance.Variant.Alternative)
+        }
 
         val Layout: List<List<KeyDef>> = listOf(
             listOf(
@@ -218,7 +231,8 @@ class TextKeyboard(
                             )
                         else action
                     }
-                    is KeyDef.Popup.Keyboard.Explicit -> action
+                    is KeyDef.Popup.Keyboard.Explicit,
+                    is KeyDef.Popup.Keyboard.Actions -> action
                 }
             }
             else -> action

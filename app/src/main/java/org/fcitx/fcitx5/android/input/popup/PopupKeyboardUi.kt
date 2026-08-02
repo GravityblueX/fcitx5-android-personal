@@ -53,7 +53,7 @@ class PopupKeyboardUi(
     private val keyHeight: Int,
     private val popupHeight: Int,
     private val contentScale: Float,
-    private val keys: Array<String>,
+    private val actions: Array<KeyAction>,
     private val labels: Array<String>
 ) : PopupContainerUi(ctx, theme, outerBounds, triggerBounds, onDismissSelf) {
 
@@ -98,7 +98,7 @@ class PopupKeyboardUi(
     private val focusColumn: Int
 
     init {
-        val keyCount: Float = keys.size.toFloat()
+        val keyCount: Float = actions.size.toFloat()
         rowCount = ceil(keyCount / 5).toInt()
         columnCount = (keyCount / rowCount).roundToInt()
 
@@ -226,8 +226,7 @@ class PopupKeyboardUi(
     }
 
     override fun onTrigger(): KeyAction? {
-        val key = keys.getOrNull(focusedIndex) ?: return null
-        return KeyAction.FcitxKeyAction(key)
+        return actions.getOrNull(focusedIndex)
     }
 
 }

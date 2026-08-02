@@ -39,6 +39,34 @@ class SymbolKey(
     )
 )
 
+class DomainSymbolKey(
+    symbol: String,
+    percentWidth: Float = 0.1f,
+    variant: Variant = Variant.Normal
+) : KeyDef(
+    Appearance.Text(
+        displayText = symbol,
+        textSize = 23f,
+        percentWidth = percentWidth,
+        variant = variant
+    ),
+    setOf(
+        Behavior.Press(KeyAction.FcitxKeyAction(symbol))
+    ),
+    arrayOf(
+        Popup.Preview(symbol),
+        Popup.Keyboard.Actions(
+            arrayOf(
+                Popup.Keyboard.Actions.Item(".com", KeyAction.CommitAction(".com")),
+                Popup.Keyboard.Actions.Item(".net", KeyAction.CommitAction(".net")),
+                Popup.Keyboard.Actions.Item(".org", KeyAction.CommitAction(".org")),
+                Popup.Keyboard.Actions.Item(".cn", KeyAction.CommitAction(".cn")),
+                Popup.Keyboard.Actions.Item(".edu", KeyAction.CommitAction(".edu"))
+            )
+        )
+    )
+)
+
 class AlphabetKey(
     val character: String,
     val punctuation: String,

@@ -123,19 +123,23 @@ class PopupComponent :
     }
 
     private fun showKeyboard(viewId: Int, keyboard: KeyDef.Popup.Keyboard, bounds: Rect) {
-        var keys: Array<String>
-        var labels: Array<String>
+        val actions: Array<KeyAction>
+        val labels: Array<String>
         when (keyboard) {
             is KeyDef.Popup.Keyboard.Preset -> {
                 val preset = PopupPreset[keyboard.label] ?: return
-                keys = preset
+                actions = Array(preset.size) { KeyAction.FcitxKeyAction(preset[it]) }
                 labels = if (keyboard.transformPunctuation && punctuation.enabled) {
-                    Array(keys.size) { punctuation.transform(keys[it]) }
-                } else keys
+                    Array(preset.size) { punctuation.transform(preset[it]) }
+                } else preset
             }
             is KeyDef.Popup.Keyboard.Explicit -> {
-                keys = keyboard.items
+                actions = Array(keyboard.items.size) { KeyAction.FcitxKeyAction(keyboard.items[it]) }
                 labels = keyboard.items
+            }
+            is KeyDef.Popup.Keyboard.Actions -> {
+                actions = Array(keyboard.items.size) { keyboard.items[it].action }
+                labels = Array(keyboard.items.size) { keyboard.items[it].label }
             }
         }
         // clear popup preview text         OR create empty popup preview
@@ -152,7 +156,7 @@ class PopupComponent :
             // position popup keyboard higher, because of [^1]
             popupHeight + keyBottomMargin,
             contentScale,
-            keys,
+            actions,
             labels
         )
         showPopupContainer(viewId, keyboardUi)

@@ -122,6 +122,10 @@ open class KeyDef(
                 Keyboard()
 
             class Explicit(val items: Array<String>) : Keyboard()
+
+            class Actions(val items: Array<Item>) : Keyboard() {
+                class Item(val label: String, val action: KeyAction)
+            }
         }
 
         class Menu(val items: Array<Item>) : Popup() {
