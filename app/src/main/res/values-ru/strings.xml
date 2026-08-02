@@ -370,6 +370,7 @@
     <string name="preferred_voice_input">Предпочтительный голосовой ввод</string>
     <string name="edit_text_playground">Игровая площадка EditText</string>
     <string name="handwriting_sensitive_input_unavailable">Рукописный ввод недоступен в конфиденциальных полях</string>
+    <string name="delete_paired_punctuation">Удалять парные знаки препинания Backspace</string>
     <string name="single_tap_caps_lock">Фиксировать верхний регистр одним нажатием Shift</string>
     <string name="commit_key_when_released_outside">Вводить клавишу при отпускании пальца за её пределами</string>
     <string name="show_candidate_comments">Показывать аннотации кандидатов</string>

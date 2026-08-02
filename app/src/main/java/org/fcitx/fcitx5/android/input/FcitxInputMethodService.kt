@@ -111,6 +111,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         AppPrefs.getInstance().internal.oneHandedKeyboardMode
     private val doubleSpacePeriod by AppPrefs.getInstance().keyboard.doubleSpacePeriod
     private val autoMixedTextSpacing by AppPrefs.getInstance().keyboard.autoMixedTextSpacing
+    private val deletePairedPunctuation by AppPrefs.getInstance().keyboard.deletePairedPunctuation
     private var lastVirtualSpaceTimestamp: Long? = null
     private val oneHandedKeyboardSessionState = OneHandedKeyboardSessionState(
         initialMode = OneHandedMode.fromPreferenceValue(
@@ -440,6 +441,18 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
 
     private fun handleBackspaceKey() {
         val lastSelection = selection.latest
+        val inputConnection = currentInputConnection
+        if (lastSelection.isEmpty() && deletePairedPunctuation &&
+            PairedPunctuationDeletionPolicy.shouldDeletePair(
+                inputConnection?.getTextBeforeCursor(1, 0)?.lastOrNull(),
+                inputConnection?.getTextAfterCursor(1, 0)?.firstOrNull(),
+            )
+        ) {
+            selection.predictOffset(-1)
+            sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
+            sendDownUpKeyEvents(KeyEvent.KEYCODE_FORWARD_DEL)
+            return
+        }
         if (lastSelection.isNotEmpty()) {
             selection.predict(lastSelection.start)
         } else if (lastSelection.start > 0) {

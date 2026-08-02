@@ -370,6 +370,7 @@
     <string name="preferred_voice_input">Entrada de voz preferida</string>
     <string name="edit_text_playground">Editar texto patio de juegos</string>
     <string name="handwriting_sensitive_input_unavailable">La escritura a mano no está disponible en campos confidenciales</string>
+    <string name="delete_paired_punctuation">Eliminar puntuación emparejada con Retroceso</string>
     <string name="single_tap_caps_lock">Bloquear mayúsculas con un toque en Mayús</string>
     <string name="commit_key_when_released_outside">Introducir la tecla al soltar el dedo fuera</string>
     <string name="show_candidate_comments">Mostrar anotaciones de candidatos</string>

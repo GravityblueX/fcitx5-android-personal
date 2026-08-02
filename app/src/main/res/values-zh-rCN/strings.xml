@@ -371,6 +371,7 @@
     <string name="preferred_voice_input">首选语音输入</string>
     <string name="edit_text_playground">编辑文本游乐场</string>
     <string name="handwriting_sensitive_input_unavailable">敏感输入框中无法使用手写输入</string>
+    <string name="delete_paired_punctuation">退格键同时删除成对标点</string>
     <string name="single_tap_caps_lock">单击 Shift 键锁定大写</string>
     <string name="show_candidate_comments">显示候选注释</string>
     <string name="selection_swipe_sensitivity">光标和退格键滑动灵敏度</string>

@@ -370,6 +370,7 @@
     <string name="preferred_voice_input">Bevorzugte Spracheingabe</string>
     <string name="edit_text_playground">EditText-Spielplatz</string>
     <string name="handwriting_sensitive_input_unavailable">Handschrifteingabe ist in sensiblen Feldern nicht verfügbar</string>
+    <string name="delete_paired_punctuation">Gepaarte Satzzeichen mit Rücktaste löschen</string>
     <string name="single_tap_caps_lock">Großschreibung mit einem Tippen auf Umschalt aktivieren</string>
     <string name="commit_key_when_released_outside">Taste eingeben, wenn der Finger außerhalb losgelassen wird</string>
     <string name="show_candidate_comments">Kandidatenanmerkungen anzeigen</string>

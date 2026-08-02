@@ -370,6 +370,7 @@
     <string name="preferred_voice_input">선호하는 음성 입력</string>
     <string name="edit_text_playground">EditText 놀이터</string>
     <string name="handwriting_sensitive_input_unavailable">민감한 입력란에서는 손글씨 입력을 사용할 수 없습니다</string>
+    <string name="delete_paired_punctuation">백스페이스로 짝지어진 문장 부호 함께 삭제</string>
     <string name="single_tap_caps_lock">Shift 한 번 누르기로 대문자 고정</string>
     <string name="commit_key_when_released_outside">손가락을 키 밖에서 떼어도 키 입력</string>
     <string name="show_candidate_comments">후보 주석 표시</string>

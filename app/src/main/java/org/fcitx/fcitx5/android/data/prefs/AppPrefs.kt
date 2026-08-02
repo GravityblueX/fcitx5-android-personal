@@ -208,6 +208,11 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             "single_tap_caps_lock",
             false
         )
+        val deletePairedPunctuation = switch(
+            R.string.delete_paired_punctuation,
+            "delete_paired_punctuation",
+            false
+        )
 
         val showVoiceInputButton =
             switch(R.string.show_voice_input_button, "show_voice_input_button", false)

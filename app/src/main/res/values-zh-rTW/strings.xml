@@ -371,6 +371,7 @@
     <string name="key_border_stroke">啟用鍵邊框描邊</string>
     <string name="edit_text_playground">編輯文本遊樂場</string>
     <string name="handwriting_sensitive_input_unavailable">敏感輸入欄位無法使用手寫輸入</string>
+    <string name="delete_paired_punctuation">退格鍵同時刪除成對標點</string>
     <string name="single_tap_caps_lock">單擊 Shift 鍵鎖定大寫</string>
     <string name="show_candidate_comments">顯示候選註解</string>
     <string name="selection_swipe_sensitivity">游標和退格鍵滑動靈敏度</string>
