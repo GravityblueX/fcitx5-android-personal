@@ -1,6 +1,32 @@
-# fcitx5-android
+# Fcitx17
 
 [Fcitx5](https://github.com/fcitx/fcitx5) input method framework and engines ported to Android.
+
+> [!IMPORTANT]
+> This repository is the **Fcitx17 personal build**, maintained as a fork of
+> [Yizuka17/fcitx5-android-personal](https://github.com/Yizuka17/fcitx5-android-personal).
+> It packages the app as `org.fcitx.fcitx17.android` and labels it **Fcitx17**,
+> so it can be installed alongside the official Fcitx5 for Android app.
+
+## Personal-build changes
+
+- One-handed keyboard mode.
+- Built-in handwriting recognition integration.
+- Clipboard expiration controls.
+- Independent package name and application label for side-by-side testing.
+
+For the complete change history, see the [commit log](../../commits/master).
+
+## Install this build
+
+This fork does not reuse or redistribute the official project's APKs. The links
+in the next section install the official app and will not include Fcitx17-only
+changes. To test this build, either build it locally with `./gradlew :app:assembleRelease`
+or download the APK artifact produced by the repository's **Personal build**
+GitHub Actions workflow.
+
+Artifacts are intended for testing and are unsigned unless a release signing
+process is configured. Install only APKs built from a revision you trust.
 
 ## Download
 
