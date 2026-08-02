@@ -6,6 +6,7 @@
 package org.fcitx.fcitx5.android.input.candidates
 
 import android.content.Context
+import android.view.View
 import androidx.core.text.buildSpannedString
 import androidx.core.text.color
 import org.fcitx.fcitx5.android.core.CandidateWord
@@ -32,6 +33,7 @@ class CandidateItemUi(override val ctx: Context, val theme: Theme) : Ui {
         scaleMode = AutoScaleTextView.Mode.Horizontal
         textSize = fontSize.toFloat()
         isSingleLine = true
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         gravity = gravityCenter
         setTextColor(theme.candidateTextColor)
     }
