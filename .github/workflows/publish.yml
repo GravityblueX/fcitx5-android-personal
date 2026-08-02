@@ -30,7 +30,7 @@ jobs:
           java-version: "17"
 
       - name: Setup Android environment
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
           packages: cmake;3.31.6
 

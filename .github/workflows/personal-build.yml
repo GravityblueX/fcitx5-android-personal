@@ -45,7 +45,7 @@ jobs:
           sudo apt-get install --yes extra-cmake-modules gettext
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
           packages: cmake;3.31.6
 
