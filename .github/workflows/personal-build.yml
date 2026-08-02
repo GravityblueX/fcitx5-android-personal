@@ -39,7 +39,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Run unit tests
-        run: ./gradlew :app:testReleaseUnitTest --stacktrace
+        run: ./gradlew :app:testDebugUnitTest --stacktrace
 
       - name: Build release APK and plugins
         run: ./gradlew :app:assembleRelease :assembleReleasePlugins --stacktrace
