@@ -384,4 +384,10 @@
     <string name="key_text_scale">按键文字大小</string>
     <string name="auto_capitalization">键盘自动大写</string>
     <string name="space_behavior_repeat_spaces">连续输入空格</string>
+    <string name="accessibility_shift">Shift</string>
+    <string name="accessibility_quick_phrase">快速输入</string>
+    <string name="accessibility_space">空格</string>
+    <string name="accessibility_enter">回车</string>
+    <string name="accessibility_switch_keyboard_layout">切换键盘布局</string>
+    <string name="accessibility_keyboard_key">键盘按键</string>
 </resources>

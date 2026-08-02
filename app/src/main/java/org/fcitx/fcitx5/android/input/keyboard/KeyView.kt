@@ -18,6 +18,7 @@ import android.graphics.drawable.RippleDrawable
 import android.graphics.drawable.StateListDrawable
 import android.util.TypedValue
 import android.view.View
+import android.widget.Button
 import android.widget.ImageView
 import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
@@ -152,12 +153,16 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
     protected val appearanceView = constraintLayout {
         // sync any state from parent
         isDuplicateParentStateEnabled = true
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
     }
 
     init {
         // trigger setEnabled(true)
         isEnabled = true
         isClickable = true
+        isFocusable = true
+        isFocusableInTouchMode = true
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
         isHapticFeedbackEnabled = false
         if (def.viewId > 0) {
             id = def.viewId
@@ -165,6 +170,8 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
         updateKeyAppearance()
         add(appearanceView, lParams(matchParent, matchParent))
     }
+
+    override fun getAccessibilityClassName(): CharSequence = Button::class.java.name
 
     private fun updateKeyAppearance() {
         // key border

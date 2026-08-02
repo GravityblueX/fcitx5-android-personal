@@ -384,4 +384,10 @@
     <string name="key_text_scale">Key label size</string>
     <string name="auto_capitalization">Auto-capitalize keyboard</string>
     <string name="space_behavior_repeat_spaces">Repeat spaces</string>
+    <string name="accessibility_shift">Shift</string>
+    <string name="accessibility_quick_phrase">Quick phrase</string>
+    <string name="accessibility_space">Space</string>
+    <string name="accessibility_enter">Enter</string>
+    <string name="accessibility_switch_keyboard_layout">Switch keyboard layout</string>
+    <string name="accessibility_keyboard_key">Keyboard key</string>
 </resources>

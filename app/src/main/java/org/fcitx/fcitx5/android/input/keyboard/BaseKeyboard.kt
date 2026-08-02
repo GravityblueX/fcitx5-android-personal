@@ -223,6 +223,12 @@ abstract class BaseKeyboard(
             is KeyDef.Appearance.Text -> TextKeyView(context, theme, def.appearance)
             is KeyDef.Appearance.Image -> ImageKeyView(context, theme, def.appearance)
         }.apply {
+            contentDescription = keyAccessibilityLabel(def).run {
+                when (this) {
+                    is KeyAccessibilityLabel.Text -> text
+                    is KeyAccessibilityLabel.Resource -> context.getString(resId)
+                }
+            }
             setTextScale(keyTextScaleForPercent(keyTextScale.getValue()))
             commitWhenReleasedOutside = commitKeyWhenReleasedOutside.getValue()
             soundEffect = when (def) {

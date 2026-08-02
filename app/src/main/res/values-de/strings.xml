@@ -384,4 +384,10 @@
     <string name="key_text_scale">Tastentextgröße</string>
     <string name="auto_capitalization">Automatische Großschreibung</string>
     <string name="space_behavior_repeat_spaces">Leerzeichen wiederholen</string>
+    <string name="accessibility_shift">Umschalttaste</string>
+    <string name="accessibility_quick_phrase">Schnellphrase</string>
+    <string name="accessibility_space">Leertaste</string>
+    <string name="accessibility_enter">Eingabetaste</string>
+    <string name="accessibility_switch_keyboard_layout">Tastaturlayout wechseln</string>
+    <string name="accessibility_keyboard_key">Tastaturtaste</string>
 </resources>

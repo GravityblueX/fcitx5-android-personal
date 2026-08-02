@@ -384,4 +384,10 @@
     <string name="key_text_scale">Tamaño del texto de las teclas</string>
     <string name="auto_capitalization">Mayúsculas automáticas del teclado</string>
     <string name="space_behavior_repeat_spaces">Repetir espacios</string>
+    <string name="accessibility_shift">Mayúsculas</string>
+    <string name="accessibility_quick_phrase">Frase rápida</string>
+    <string name="accessibility_space">Espacio</string>
+    <string name="accessibility_enter">Intro</string>
+    <string name="accessibility_switch_keyboard_layout">Cambiar distribución del teclado</string>
+    <string name="accessibility_keyboard_key">Tecla del teclado</string>
 </resources>

@@ -384,4 +384,10 @@
     <string name="key_text_scale">キー文字サイズ</string>
     <string name="auto_capitalization">キーボードの自動大文字化</string>
     <string name="space_behavior_repeat_spaces">スペースを連続入力</string>
+    <string name="accessibility_shift">シフト</string>
+    <string name="accessibility_quick_phrase">クイックフレーズ</string>
+    <string name="accessibility_space">スペース</string>
+    <string name="accessibility_enter">Enter</string>
+    <string name="accessibility_switch_keyboard_layout">キーボード配列を切り替え</string>
+    <string name="accessibility_keyboard_key">キーボードキー</string>
 </resources>

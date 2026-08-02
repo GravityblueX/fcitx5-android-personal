@@ -384,4 +384,10 @@
     <string name="key_text_scale">Размер текста клавиш</string>
     <string name="auto_capitalization">Автоматические заглавные буквы</string>
     <string name="space_behavior_repeat_spaces">Повторять пробелы</string>
+    <string name="accessibility_shift">Shift</string>
+    <string name="accessibility_quick_phrase">Быстрая фраза</string>
+    <string name="accessibility_space">Пробел</string>
+    <string name="accessibility_enter">Ввод</string>
+    <string name="accessibility_switch_keyboard_layout">Сменить раскладку клавиатуры</string>
+    <string name="accessibility_keyboard_key">Клавиша клавиатуры</string>
 </resources>

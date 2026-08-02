@@ -384,4 +384,10 @@
     <string name="key_text_scale">키 글자 크기</string>
     <string name="auto_capitalization">키보드 자동 대문자</string>
     <string name="space_behavior_repeat_spaces">공백 반복 입력</string>
+    <string name="accessibility_shift">Shift</string>
+    <string name="accessibility_quick_phrase">빠른 문구</string>
+    <string name="accessibility_space">공백</string>
+    <string name="accessibility_enter">Enter</string>
+    <string name="accessibility_switch_keyboard_layout">키보드 레이아웃 전환</string>
+    <string name="accessibility_keyboard_key">키보드 키</string>
 </resources>
