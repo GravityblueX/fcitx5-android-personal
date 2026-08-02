@@ -9,6 +9,7 @@ import android.content.Context
 import androidx.core.text.buildSpannedString
 import androidx.core.text.color
 import org.fcitx.fcitx5.android.core.CandidateWord
+import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.AutoScaleTextView
 import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView
@@ -22,6 +23,8 @@ import splitties.views.dsl.core.wrapContent
 import splitties.views.gravityCenter
 
 class CandidateItemUi(override val ctx: Context, val theme: Theme) : Ui {
+
+    private val showCandidateComments by AppPrefs.getInstance().keyboard.showCandidateComments
 
     private val text = view(::AutoScaleTextView) {
         scaleMode = AutoScaleTextView.Mode.Proportional
@@ -51,7 +54,7 @@ class CandidateItemUi(override val ctx: Context, val theme: Theme) : Ui {
             color(fg) {
                 append(candidate.text)
             }
-            if (candidate.comment.isNotBlank()) {
+            if (showCandidateComments && candidate.comment.isNotBlank()) {
                 if (candidate.spaceBetweenComment) {
                     append(" ")
                 }

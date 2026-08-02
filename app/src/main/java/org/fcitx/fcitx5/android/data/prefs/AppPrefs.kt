@@ -160,6 +160,11 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         val expandToolbarByDefault =
             switch(R.string.expand_toolbar_by_default, "expand_toolbar_by_default", false)
         val inlineSuggestions = switch(R.string.inline_suggestions, "inline_suggestions", true)
+        val showCandidateComments = switch(
+            R.string.show_candidate_comments,
+            "show_candidate_comments",
+            true
+        )
         val toolbarNumRowOnPassword =
             switch(R.string.toolbar_num_row_on_password, "toolbar_num_row_on_password", true)
         val popupOnKeyPress = switch(R.string.popup_on_key_press, "popup_on_key_press", true)
