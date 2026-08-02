@@ -51,6 +51,8 @@ import splitties.views.padding
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+private const val AltTextSize = 10.666667f
+
 abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearance) :
     CustomGestureView(ctx) {
 
@@ -106,6 +108,8 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
         updateBaseMargins(styleOrientation())
         setContentScale(contentScale, horizontalContentScale, verticalContentScale)
     }
+
+    open fun setTextScale(scale: Float) {}
 
     private val cachedLocation = intArrayOf(0, 0)
     private val cachedBounds = Rect()
@@ -346,12 +350,13 @@ abstract class KeyView(ctx: Context, val theme: Theme, val def: KeyDef.Appearanc
 @SuppressLint("ViewConstructor")
 open class TextKeyView(ctx: Context, theme: Theme, def: KeyDef.Appearance.Text) :
     KeyView(ctx, theme, def) {
+    private val textAppearance = def
     val mainText = view(::AutoScaleTextView) {
         isClickable = false
         isFocusable = false
         background = null
         text = def.displayText
-        setTextSize(TypedValue.COMPLEX_UNIT_DIP, def.textSize)
+        setTextSize(TypedValue.COMPLEX_UNIT_DIP, keyTextSize(def.textSize, 1f))
         textDirection = View.TEXT_DIRECTION_FIRST_STRONG_LTR
         // keep original typeface, apply textStyle only
         setTypeface(typeface, def.textStyle)
@@ -372,6 +377,13 @@ open class TextKeyView(ctx: Context, theme: Theme, def: KeyDef.Appearance.Text) 
         }
     }
 
+    override fun setTextScale(scale: Float) {
+        mainText.setTextSize(
+            TypedValue.COMPLEX_UNIT_DIP,
+            keyTextSize(textAppearance.textSize, scale)
+        )
+    }
+
     override fun setContentScale(scale: Float, horizontalScale: Float, verticalScale: Float) {
         super.setContentScale(scale, horizontalScale, verticalScale)
         mainText.scaleX = contentScale
@@ -385,8 +397,7 @@ class AltTextKeyView(ctx: Context, theme: Theme, def: KeyDef.Appearance.AltText)
     val altText = view(::AutoScaleTextView) {
         isClickable = false
         isFocusable = false
-        // TODO hardcoded alt text size
-        setTextSize(TypedValue.COMPLEX_UNIT_DIP, 10.666667f)
+        setTextSize(TypedValue.COMPLEX_UNIT_DIP, keyTextSize(AltTextSize, 1f))
         setTypeface(typeface, Typeface.BOLD)
         text = def.altText
         textDirection = View.TEXT_DIRECTION_FIRST_STRONG_LTR
@@ -403,6 +414,11 @@ class AltTextKeyView(ctx: Context, theme: Theme, def: KeyDef.Appearance.AltText)
             add(altText, lParams(wrapContent, wrapContent))
         }
         applyLayout(styleOrientation())
+    }
+
+    override fun setTextScale(scale: Float) {
+        super.setTextScale(scale)
+        altText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, keyTextSize(AltTextSize, scale))
     }
 
     private fun applyTopRightAltTextPosition() {

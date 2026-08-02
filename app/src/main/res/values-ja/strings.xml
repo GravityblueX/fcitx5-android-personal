@@ -381,4 +381,5 @@
     <string name="display_metrics">ディスプレイ情報 (Resources.getDisplayMetrics)</string>
     <string name="real_size">実サイズ (Display.getRealSize)</string>
     <string name="custom_key_sound">カスタムキー音</string>
+    <string name="key_text_scale">キー文字サイズ</string>
 </resources>

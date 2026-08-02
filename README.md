@@ -18,6 +18,7 @@
 - Configurable selection-swipe sensitivity, forgiving key release, and single-tap Caps Lock.
 - Custom key sounds with persistent file access and system-sound fallback.
 - Context-aware email and URL keys, including direct domain suffixes on long-press.
+- Adjustable key-label size that also applies to key previews and long-press popups.
 - Clipboard expiration controls plus deterministic history limits for same-time entries.
 - Multi-item text copies are retained in clipboard history, with the primary item prioritized.
 - Clipboard suggestions and history are hidden outside active non-password inputs.

@@ -56,6 +56,7 @@ abstract class BaseKeyboard(
     private val popupOnKeyPress by prefs.keyboard.popupOnKeyPress
     private val expandKeypressArea by prefs.keyboard.expandKeypressArea
     private val commitKeyWhenReleasedOutside = prefs.keyboard.commitKeyWhenReleasedOutside
+    private val keyTextScale = prefs.keyboard.keyTextScale
     private val swipeSymbolDirection by prefs.keyboard.swipeSymbolDirection
 
     private val spaceSwipeMoveCursor = prefs.keyboard.spaceSwipeMoveCursor
@@ -80,6 +81,10 @@ abstract class BaseKeyboard(
                     it.commitWhenReleasedOutside = enabled
                 }
             }
+        }
+    private val keyTextScaleChangeListener =
+        ManagedPreference.OnChangeListener<Int> { _, percent ->
+            updateKeyTextScale(keyTextScaleForPercent(percent))
         }
 
     private val vivoKeypressWorkaround by prefs.advanced.vivoKeypressWorkaround
@@ -164,6 +169,15 @@ abstract class BaseKeyboard(
         commitKeyWhenReleasedOutside.registerOnChangeListener(
             commitKeyWhenReleasedOutsideChangeListener
         )
+        keyTextScale.registerOnChangeListener(keyTextScaleChangeListener)
+    }
+
+    private fun updateKeyTextScale(scale: Float) {
+        keyRows.forEach { row ->
+            row.children.filterIsInstance<KeyView>().forEach {
+                it.setTextScale(scale)
+            }
+        }
     }
 
     fun setContentScale(
@@ -193,6 +207,7 @@ abstract class BaseKeyboard(
             is KeyDef.Appearance.Text -> TextKeyView(context, theme, def.appearance)
             is KeyDef.Appearance.Image -> ImageKeyView(context, theme, def.appearance)
         }.apply {
+            setTextScale(keyTextScaleForPercent(keyTextScale.getValue()))
             commitWhenReleasedOutside = commitKeyWhenReleasedOutside.getValue()
             soundEffect = when (def) {
                 is SpaceKey -> InputFeedbacks.SoundEffect.SpaceBar

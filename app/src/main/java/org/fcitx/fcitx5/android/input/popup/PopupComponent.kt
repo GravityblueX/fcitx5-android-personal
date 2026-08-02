@@ -12,6 +12,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.broadcast.PunctuationComponent
 import org.fcitx.fcitx5.android.input.dependency.context
@@ -19,6 +20,7 @@ import org.fcitx.fcitx5.android.input.dependency.inputMethodService
 import org.fcitx.fcitx5.android.input.dependency.theme
 import org.fcitx.fcitx5.android.input.keyboard.KeyAction
 import org.fcitx.fcitx5.android.input.keyboard.KeyDef
+import org.fcitx.fcitx5.android.input.keyboard.keyTextScaleForPercent
 import org.mechdancer.dependency.Dependent
 import org.mechdancer.dependency.UniqueComponent
 import org.mechdancer.dependency.manager.ManagedHandler
@@ -38,6 +40,7 @@ class PopupComponent :
     private val context by manager.context()
     private val theme by manager.theme()
     private val punctuation: PunctuationComponent by manager.must()
+    private val keyTextScale by AppPrefs.getInstance().keyboard.keyTextScale
 
     private val showingEntryUi = HashMap<Int, PopupEntryUi>()
     private val dismissJobs = HashMap<Int, Job>()
@@ -86,6 +89,7 @@ class PopupComponent :
             dismissJobs[viewId]?.also {
                 dismissJobs.remove(viewId)?.cancel()
             }
+            setTextScale(keyTextScaleForPercent(keyTextScale))
             lastShowTime = System.currentTimeMillis()
             setText(content)
             return
@@ -96,8 +100,10 @@ class PopupComponent :
                 theme,
                 popupKeyHeight,
                 popupRadius,
-                contentScale
+                contentScale,
+                keyTextScaleForPercent(keyTextScale)
             )).apply {
+            setTextScale(keyTextScaleForPercent(keyTextScale))
             lastShowTime = System.currentTimeMillis()
             setText(content)
         }
@@ -156,6 +162,7 @@ class PopupComponent :
             // position popup keyboard higher, because of [^1]
             popupHeight + keyBottomMargin,
             contentScale,
+            keyTextScaleForPercent(keyTextScale),
             actions,
             labels
         )

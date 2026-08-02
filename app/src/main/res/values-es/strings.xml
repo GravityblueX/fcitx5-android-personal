@@ -381,4 +381,5 @@
     <string name="display_metrics">Métricas de pantalla (Resources.getDisplayMetrics)</string>
     <string name="real_size">Tamaño real (Display.getRealSize)</string>
     <string name="custom_key_sound">Sonido de tecla personalizado</string>
+    <string name="key_text_scale">Tamaño del texto de las teclas</string>
 </resources>

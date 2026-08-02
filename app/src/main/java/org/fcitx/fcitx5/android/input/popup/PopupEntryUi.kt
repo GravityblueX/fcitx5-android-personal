@@ -26,13 +26,15 @@ class PopupEntryUi(
     theme: Theme,
     keyHeight: Int,
     radius: Float,
-    contentScale: Float
+    contentScale: Float,
+    textScale: Float
 ) : Ui {
 
     var lastShowTime = -1L
+    private var textScale = textScale
 
     val textView = view(::AutoScaleTextView) {
-        textSize = 23f
+        textSize = 23f * this@PopupEntryUi.textScale
         gravity = gravityCenter
         setTextColor(theme.popupTextColor)
         scaleX = contentScale
@@ -54,5 +56,11 @@ class PopupEntryUi(
 
     fun setText(text: String) {
         textView.text = text
+    }
+
+    fun setTextScale(scale: Float) {
+        if (textScale == scale) return
+        textScale = scale
+        textView.textSize = 23f * scale
     }
 }

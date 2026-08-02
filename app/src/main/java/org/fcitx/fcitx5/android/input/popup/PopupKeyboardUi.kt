@@ -53,6 +53,7 @@ class PopupKeyboardUi(
     private val keyHeight: Int,
     private val popupHeight: Int,
     private val contentScale: Float,
+    private val textScale: Float,
     private val actions: Array<KeyAction>,
     private val labels: Array<String>
 ) : PopupContainerUi(ctx, theme, outerBounds, triggerBounds, onDismissSelf) {
@@ -61,13 +62,14 @@ class PopupKeyboardUi(
         override val ctx: Context,
         val theme: Theme,
         val text: String,
-        contentScale: Float
+        contentScale: Float,
+        textScale: Float
     ) : Ui {
 
         val textView = view(::AutoScaleTextView) {
             text = this@PopupKeyUi.text
             scaleMode = AutoScaleTextView.Mode.Proportional
-            textSize = 23f
+            textSize = 23f * textScale
             setTextColor(theme.keyTextColor)
             scaleX = contentScale
             scaleY = contentScale
@@ -160,7 +162,7 @@ class PopupKeyboardUi(
     private var focusedIndex = keyOrders[focusRow][focusColumn]
 
     private val keyUis = labels.map {
-        PopupKeyUi(ctx, theme, it, contentScale)
+        PopupKeyUi(ctx, theme, it, contentScale, textScale)
     }
 
     init {

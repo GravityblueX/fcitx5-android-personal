@@ -381,4 +381,5 @@
     <string name="real_size">Real size (Display.getRealSize)</string>
     <string name="edit_text_playground">EditText Playground</string>
     <string name="custom_key_sound">Custom key sound</string>
+    <string name="key_text_scale">Key label size</string>
 </resources>

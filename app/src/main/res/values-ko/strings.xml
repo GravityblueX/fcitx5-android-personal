@@ -381,4 +381,5 @@
     <string name="display_metrics">디스플레이 측정값 (Resources.getDisplayMetrics)</string>
     <string name="real_size">실제 크기 (Display.getRealSize)</string>
     <string name="custom_key_sound">사용자 지정 키 소리</string>
+    <string name="key_text_scale">키 글자 크기</string>
 </resources>

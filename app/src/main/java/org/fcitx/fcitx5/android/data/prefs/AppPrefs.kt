@@ -170,6 +170,14 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         val toolbarNumRowOnPassword =
             switch(R.string.toolbar_num_row_on_password, "toolbar_num_row_on_password", true)
         val popupOnKeyPress = switch(R.string.popup_on_key_press, "popup_on_key_press", true)
+        val keyTextScale = int(
+            R.string.key_text_scale,
+            "key_text_scale",
+            100,
+            50,
+            200,
+            "%"
+        )
         val keepLettersUppercase = switch(
             R.string.keep_keyboard_letters_uppercase,
             "keep_keyboard_letters_uppercase",
