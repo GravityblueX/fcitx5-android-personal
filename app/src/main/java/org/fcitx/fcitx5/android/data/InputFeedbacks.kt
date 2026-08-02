@@ -4,7 +4,11 @@
  */
 package org.fcitx.fcitx5.android.data
 
+import android.content.res.AssetFileDescriptor
+import android.media.AudioAttributes
 import android.media.AudioManager
+import android.media.SoundPool
+import android.net.Uri
 import android.os.Build
 import android.os.VibrationEffect
 import android.provider.Settings
@@ -12,11 +16,21 @@ import android.view.HapticFeedbackConstants
 import android.view.View
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
+import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreferenceEnum
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.audioManager
 import org.fcitx.fcitx5.android.utils.getSystemSettings
 import org.fcitx.fcitx5.android.utils.vibrator
+
+internal fun shouldPlayKeySound(
+    mode: InputFeedbacks.InputFeedbackMode,
+    systemSoundEffectsEnabled: Boolean
+): Boolean = when (mode) {
+    InputFeedbacks.InputFeedbackMode.Enabled -> true
+    InputFeedbacks.InputFeedbackMode.Disabled -> false
+    InputFeedbacks.InputFeedbackMode.FollowingSystem -> systemSoundEffectsEnabled
+}
 
 object InputFeedbacks {
 
@@ -41,6 +55,7 @@ object InputFeedbacks {
 
     private val soundOnKeyPress by keyboardPrefs.soundOnKeyPress
     private val soundOnKeyPressVolume by keyboardPrefs.soundOnKeyPressVolume
+    private val customKeySoundUri = keyboardPrefs.customKeySoundUri
     private val hapticOnKeyPress by keyboardPrefs.hapticOnKeyPress
     private val hapticOnKeyUp by keyboardPrefs.hapticOnKeyUp
     private val buttonPressVibrationMilliseconds by keyboardPrefs.buttonPressVibrationMilliseconds
@@ -109,12 +124,60 @@ object InputFeedbacks {
     }
 
     private val audioManager = appContext.audioManager
+    private val customSoundPool = SoundPool.Builder()
+        .setMaxStreams(4)
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+        )
+        .build()
+
+    @Volatile
+    private var customSoundId = 0
+
+    @Volatile
+    private var customSoundLoaded = false
+
+    private var loadedCustomSoundUri = ""
+
+    init {
+        customSoundPool.setOnLoadCompleteListener { _, sampleId, status ->
+            if (sampleId == customSoundId) {
+                customSoundLoaded = status == 0
+            }
+        }
+        customKeySoundUri.registerOnChangeListener(
+            ManagedPreference.OnChangeListener<String> { _, uri -> reloadCustomSound(uri) }
+        )
+        reloadCustomSound(customKeySoundUri.getValue())
+    }
+
+    private fun reloadCustomSound(uri: String) {
+        if (uri == loadedCustomSoundUri) return
+        if (customSoundId != 0) {
+            customSoundPool.unload(customSoundId)
+        }
+        loadedCustomSoundUri = uri
+        customSoundId = 0
+        customSoundLoaded = false
+        if (uri.isBlank()) return
+        customSoundId = runCatching {
+            val descriptor: AssetFileDescriptor =
+                appContext.contentResolver.openAssetFileDescriptor(Uri.parse(uri), "r")
+                    ?: return@runCatching 0
+            descriptor.use { customSoundPool.load(it, 1) }
+        }.getOrDefault(0)
+    }
 
     fun soundEffect(effect: SoundEffect) {
-        when (soundOnKeyPress) {
-            InputFeedbackMode.Enabled -> {}
-            InputFeedbackMode.Disabled -> return
-            InputFeedbackMode.FollowingSystem -> if (!systemSoundEffects) return
+        if (!shouldPlayKeySound(soundOnKeyPress, systemSoundEffects)) return
+        val volume = soundOnKeyPressVolume.let { if (it == 0) 1f else it / 100f }
+        if (customSoundLoaded && customSoundId != 0 &&
+            customSoundPool.play(customSoundId, volume, volume, 1, 0, 1f) != 0
+        ) {
+            return
         }
         val fx = when (effect) {
             SoundEffect.Standard -> AudioManager.FX_KEYPRESS_STANDARD
@@ -122,11 +185,10 @@ object InputFeedbacks {
             SoundEffect.Delete -> AudioManager.FX_KEYPRESS_DELETE
             SoundEffect.Return -> AudioManager.FX_KEYPRESS_RETURN
         }
-        val volume = soundOnKeyPressVolume
-        if (volume == 0) {
+        if (soundOnKeyPressVolume == 0) {
             audioManager.playSoundEffect(fx, -1f)
         } else {
-            audioManager.playSoundEffect(fx, volume / 100f)
+            audioManager.playSoundEffect(fx, volume)
         }
     }
 

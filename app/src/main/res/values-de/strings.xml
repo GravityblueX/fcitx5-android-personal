@@ -380,4 +380,5 @@
     <string name="keyboard_height_percent_base">Basis für Prozentsatz der Tastaturhöhe</string>
     <string name="display_metrics">Anzeigedaten (Resources.getDisplayMetrics)</string>
     <string name="real_size">Tatsächliche Größe (Display.getRealSize)</string>
+    <string name="custom_key_sound">Benutzerdefinierter Tastenton</string>
 </resources>

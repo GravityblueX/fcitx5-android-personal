@@ -380,4 +380,5 @@
     <string name="display_metrics">Display metrics (Resources.getDisplayMetrics)</string>
     <string name="real_size">Real size (Display.getRealSize)</string>
     <string name="edit_text_playground">EditText Playground</string>
+    <string name="custom_key_sound">Custom key sound</string>
 </resources>

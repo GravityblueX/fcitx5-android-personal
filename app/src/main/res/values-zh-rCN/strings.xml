@@ -380,4 +380,5 @@
     <string name="keyboard_height_percent_base">键盘高度百分比基准</string>
     <string name="display_metrics">显示指标 (Resources.getDisplayMetrics)</string>
     <string name="real_size">实际尺寸 (Display.getRealSize)</string>
+    <string name="custom_key_sound">自定义按键音效</string>
 </resources>

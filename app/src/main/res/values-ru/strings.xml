@@ -380,4 +380,5 @@
     <string name="keyboard_height_percent_base">Основа процента высоты клавиатуры</string>
     <string name="display_metrics">Метрики экрана (Resources.getDisplayMetrics)</string>
     <string name="real_size">Фактический размер (Display.getRealSize)</string>
+    <string name="custom_key_sound">Пользовательский звук клавиш</string>
 </resources>
