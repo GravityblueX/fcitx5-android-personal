@@ -38,17 +38,33 @@ For the complete change history, see the [commit log](../../commits/master).
 
 This fork does not reuse or redistribute the official project's APKs. The links
 in the next section install the official app and will not include Fcitx17-only
-changes. For normal installation, download `fcitx17-release-apk` from the
-repository's [Personal build GitHub Actions workflow](../../actions/workflows/personal-build.yml).
-Install
-`fcitx17-release-plugins` as well when using optional plugins such as
-handwriting. These release artifacts use Fcitx17's stable signing certificate,
-so later builds can update them in place.
+changes.
 
-`fcitx17-debug-apk` and `fcitx17-debug-plugins` use Android's development
-signing key and are intended only for development troubleshooting. For local
-testing, run `./gradlew :app:assembleDebug :assembleDebugPlugins`. Install only
-APKs built from a revision you trust.
+For normal installation, download the latest Fcitx17 APK and any required
+plugins from this repository's [GitHub Releases](../../releases/latest). Install
+the main APK first, then matching plugin APKs when using optional plugins such
+as handwriting. Release APKs use Fcitx17's stable signing certificate, so later
+releases can update them in place.
+
+The [Personal build GitHub Actions workflow](../../actions/workflows/personal-build.yml)
+also provides `fcitx17-release-apk` and `fcitx17-release-plugins` for testing
+new commits before a tag is published. These workflow artifacts expire after 14
+days and are not the long-term download channel. `fcitx17-debug-apk` and
+`fcitx17-debug-plugins` use Android's development signing key and are intended
+only for development troubleshooting. For local testing, run
+`./gradlew :app:assembleDebug :assembleDebugPlugins`. Install only APKs built
+from a revision you trust.
+
+### Publishing a Fcitx17 release
+
+Maintainers publish a tested version by pushing an annotated tag beginning with
+`v`, for example:
+
+`git tag -a v1.2.3 -m "Fcitx17 v1.2.3" && git push origin v1.2.3`
+
+The tag-triggered Release workflow runs unit tests, builds signed main and
+plugin APKs, and creates the GitHub Release automatically. Do not publish a tag
+unless the signing secrets are configured.
 
 ## Download
 
