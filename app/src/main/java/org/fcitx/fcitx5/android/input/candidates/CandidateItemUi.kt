@@ -76,6 +76,10 @@ class CandidateItemUi(override val ctx: Context, val theme: Theme) : Ui {
 
 internal fun candidateContentDescription(candidate: CandidateWord, showComment: Boolean): String =
     buildString {
+        if (candidate.label.isNotBlank()) {
+            append(candidate.label)
+            append(", ")
+        }
         append(candidate.text)
         if (showComment && candidate.comment.isNotBlank()) {
             append(", ")

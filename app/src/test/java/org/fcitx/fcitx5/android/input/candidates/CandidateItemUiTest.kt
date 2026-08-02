@@ -14,14 +14,15 @@ class CandidateItemUiTest {
     fun contentDescriptionIncludesVisibleComment() {
         val candidate = CandidateWord("1", "example", "comment")
 
-        assertEquals("example, comment", candidateContentDescription(candidate, true))
+        assertEquals("1, example, comment", candidateContentDescription(candidate, true))
     }
 
     @Test
     fun contentDescriptionOmitsHiddenOrBlankComment() {
         val candidate = CandidateWord("1", "example", "comment")
 
-        assertEquals("example", candidateContentDescription(candidate, false))
-        assertEquals("example", candidateContentDescription(candidate.copy(comment = ""), true))
+        assertEquals("1, example", candidateContentDescription(candidate, false))
+        assertEquals("1, example", candidateContentDescription(candidate.copy(comment = ""), true))
+        assertEquals("example", candidateContentDescription(candidate.copy(label = ""), false))
     }
 }
