@@ -390,4 +390,10 @@
     <string name="accessibility_enter">Enter</string>
     <string name="accessibility_switch_keyboard_layout">Switch keyboard layout</string>
     <string name="accessibility_keyboard_key">Keyboard key</string>
+    <string name="accessibility_go">Go</string>
+    <string name="accessibility_search">Search</string>
+    <string name="accessibility_send">Send</string>
+    <string name="accessibility_next">Next</string>
+    <string name="accessibility_done">Done</string>
+    <string name="accessibility_previous">Previous</string>
 </resources>

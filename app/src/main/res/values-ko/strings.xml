@@ -390,4 +390,10 @@
     <string name="accessibility_enter">Enter</string>
     <string name="accessibility_switch_keyboard_layout">키보드 레이아웃 전환</string>
     <string name="accessibility_keyboard_key">키보드 키</string>
+    <string name="accessibility_go">이동</string>
+    <string name="accessibility_search">검색</string>
+    <string name="accessibility_send">전송</string>
+    <string name="accessibility_next">다음</string>
+    <string name="accessibility_done">완료</string>
+    <string name="accessibility_previous">이전</string>
 </resources>

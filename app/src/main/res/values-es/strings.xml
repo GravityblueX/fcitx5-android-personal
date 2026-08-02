@@ -390,4 +390,10 @@
     <string name="accessibility_enter">Intro</string>
     <string name="accessibility_switch_keyboard_layout">Cambiar distribución del teclado</string>
     <string name="accessibility_keyboard_key">Tecla del teclado</string>
+    <string name="accessibility_go">Ir</string>
+    <string name="accessibility_search">Buscar</string>
+    <string name="accessibility_send">Enviar</string>
+    <string name="accessibility_next">Siguiente</string>
+    <string name="accessibility_done">Hecho</string>
+    <string name="accessibility_previous">Anterior</string>
 </resources>

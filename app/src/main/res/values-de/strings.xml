@@ -390,4 +390,10 @@
     <string name="accessibility_enter">Eingabetaste</string>
     <string name="accessibility_switch_keyboard_layout">Tastaturlayout wechseln</string>
     <string name="accessibility_keyboard_key">Tastaturtaste</string>
+    <string name="accessibility_go">Los</string>
+    <string name="accessibility_search">Suchen</string>
+    <string name="accessibility_send">Senden</string>
+    <string name="accessibility_next">Weiter</string>
+    <string name="accessibility_done">Fertig</string>
+    <string name="accessibility_previous">Zurück</string>
 </resources>

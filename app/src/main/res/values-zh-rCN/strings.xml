@@ -390,4 +390,10 @@
     <string name="accessibility_enter">回车</string>
     <string name="accessibility_switch_keyboard_layout">切换键盘布局</string>
     <string name="accessibility_keyboard_key">键盘按键</string>
+    <string name="accessibility_go">前往</string>
+    <string name="accessibility_search">搜索</string>
+    <string name="accessibility_send">发送</string>
+    <string name="accessibility_next">下一项</string>
+    <string name="accessibility_done">完成</string>
+    <string name="accessibility_previous">上一项</string>
 </resources>

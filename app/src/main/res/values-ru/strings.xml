@@ -390,4 +390,10 @@
     <string name="accessibility_enter">Ввод</string>
     <string name="accessibility_switch_keyboard_layout">Сменить раскладку клавиатуры</string>
     <string name="accessibility_keyboard_key">Клавиша клавиатуры</string>
+    <string name="accessibility_go">Перейти</string>
+    <string name="accessibility_search">Поиск</string>
+    <string name="accessibility_send">Отправить</string>
+    <string name="accessibility_next">Далее</string>
+    <string name="accessibility_done">Готово</string>
+    <string name="accessibility_previous">Назад</string>
 </resources>

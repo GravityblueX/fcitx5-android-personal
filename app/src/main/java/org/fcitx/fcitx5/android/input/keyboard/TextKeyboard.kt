@@ -225,6 +225,9 @@ class TextKeyboard(
 
     override fun onReturnDrawableUpdate(returnDrawable: Int) {
         `return`.img.imageResource = returnDrawable
+        `return`.contentDescription = context.getString(
+            returnKeyAccessibilityLabel(returnDrawable).resId
+        )
     }
 
     override fun onPunctuationUpdate(mapping: Map<String, String>) {

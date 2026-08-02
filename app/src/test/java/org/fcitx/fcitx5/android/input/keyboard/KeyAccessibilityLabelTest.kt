@@ -23,6 +23,26 @@ class KeyAccessibilityLabelTest {
     }
 
     @Test
+    fun returnKeyLabelsFollowTheirEditorActionIcons() {
+        val expectedLabels = mapOf(
+            R.drawable.ic_baseline_arrow_forward_24 to R.string.accessibility_go,
+            R.drawable.ic_baseline_search_24 to R.string.accessibility_search,
+            R.drawable.ic_baseline_send_24 to R.string.accessibility_send,
+            R.drawable.ic_baseline_keyboard_tab_24 to R.string.accessibility_next,
+            R.drawable.ic_baseline_done_24 to R.string.accessibility_done,
+            R.drawable.ic_baseline_keyboard_tab_reverse_24 to R.string.accessibility_previous,
+            R.drawable.ic_baseline_keyboard_return_24 to R.string.accessibility_enter
+        )
+
+        expectedLabels.forEach { (drawable, label) ->
+            assertEquals(
+                KeyAccessibilityLabel.Resource(label),
+                returnKeyAccessibilityLabel(drawable)
+            )
+        }
+    }
+
+    @Test
     fun iconKeysExposeLocalizedActionLabels() {
         assertEquals(
             KeyAccessibilityLabel.Resource(R.string.accessibility_shift),
