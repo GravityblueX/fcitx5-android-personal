@@ -25,7 +25,7 @@ if [[ -z "$apksigner" || -z "$aapt2" ]]; then
 fi
 
 fingerprint() {
-  "$apksigner" verify --print-certs "$1" 2>&1 | sed -n 's/^Signer #1 certificate SHA-256 digest: //p'
+  "$apksigner" verify --verbose --print-certs "$1" 2>&1 | sed -n 's/^Signer #1 certificate SHA-256 digest: //p'
 }
 
 manifest() {
