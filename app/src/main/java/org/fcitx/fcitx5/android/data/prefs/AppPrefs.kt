@@ -18,6 +18,7 @@ import org.fcitx.fcitx5.android.input.candidates.floating.FloatingCandidatesOrie
 import org.fcitx.fcitx5.android.input.candidates.horizontal.HorizontalCandidateMode
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingRecognitionMode
 import org.fcitx.fcitx5.android.input.keyboard.FloatingKeyboardMode
+import org.fcitx.fcitx5.android.input.keyboard.KeyboardHeightPercentBase
 import org.fcitx.fcitx5.android.input.keyboard.LangSwitchBehavior
 import org.fcitx.fcitx5.android.input.keyboard.OneHandedMode
 import org.fcitx.fcitx5.android.input.keyboard.SpaceLongPressBehavior
@@ -63,6 +64,11 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         )
         val ignoreSystemWindowInsets = switch(
             R.string.ignore_system_window_insets, "ignore_system_window_insets", false
+        )
+        val keyboardHeightPercentBase = enumList(
+            R.string.keyboard_height_percent_base,
+            "keyboard_height_percent_base",
+            KeyboardHeightPercentBase.DisplayMetrics
         )
     }
 

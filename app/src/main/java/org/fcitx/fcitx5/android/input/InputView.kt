@@ -10,6 +10,7 @@ import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Outline
+import android.graphics.Point
 import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
@@ -43,6 +44,8 @@ import org.fcitx.fcitx5.android.input.candidates.horizontal.HorizontalCandidateC
 import org.fcitx.fcitx5.android.input.clipboard.ClipboardWindow
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingWindow
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
+import org.fcitx.fcitx5.android.input.keyboard.KeyboardHeightPercentBase.DisplayMetrics
+import org.fcitx.fcitx5.android.input.keyboard.KeyboardHeightPercentBase.RealSize
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
 import org.fcitx.fcitx5.android.input.keyboard.OneHandedMode
 import org.fcitx.fcitx5.android.input.picker.emojiPicker
@@ -52,6 +55,7 @@ import org.fcitx.fcitx5.android.input.popup.PopupComponent
 import org.fcitx.fcitx5.android.input.preedit.PreeditComponent
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
 import org.fcitx.fcitx5.android.utils.unset
+import org.fcitx.fcitx5.android.utils.windowManager
 import org.mechdancer.dependency.DynamicScope
 import org.mechdancer.dependency.manager.wrapToUniqueComponent
 import org.mechdancer.dependency.plusAssign
@@ -160,6 +164,8 @@ class InputView internal constructor(
     private val keyboardSidePaddingLandscape = keyboardPrefs.keyboardSidePaddingLandscape
     private val keyboardBottomPadding = keyboardPrefs.keyboardBottomPadding
     private val keyboardBottomPaddingLandscape = keyboardPrefs.keyboardBottomPaddingLandscape
+    private val advancedPrefs = AppPrefs.getInstance().advanced
+    private val keyboardHeightPercentBase = advancedPrefs.keyboardHeightPercentBase
     private var navBarBottomInset = 0
 
     private val keyboardSizePrefs = listOf(
@@ -169,15 +175,29 @@ class InputView internal constructor(
         keyboardSidePaddingLandscape,
         keyboardBottomPadding,
         keyboardBottomPaddingLandscape,
+        keyboardHeightPercentBase,
     )
+
+    private fun realDisplaySize(): Point = Point().also {
+        @Suppress("DEPRECATION")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            context.display
+        } else {
+            context.windowManager.defaultDisplay
+        }.getRealSize(it)
+    }
 
     private val keyboardHeightPx: Int
         get() {
+            val base = when (keyboardHeightPercentBase.getValue()) {
+                DisplayMetrics -> resources.displayMetrics.heightPixels
+                RealSize -> realDisplaySize().y
+            }
             val percent = when (resources.configuration.orientation) {
                 Configuration.ORIENTATION_LANDSCAPE -> keyboardHeightPercentLandscape
                 else -> keyboardHeightPercent
             }.getValue()
-            return resources.displayMetrics.heightPixels * percent / 100
+            return base * percent / 100
         }
 
     private val portraitKeyboardContentWidthPx: Int
@@ -191,8 +211,12 @@ class InputView internal constructor(
 
     private val portraitKeyboardHeightPx: Int
         get() {
-            val metrics = resources.displayMetrics
-            val portraitDisplayHeight = max(metrics.widthPixels, metrics.heightPixels)
+            val portraitDisplayHeight = when (keyboardHeightPercentBase.getValue()) {
+                DisplayMetrics -> resources.displayMetrics.let {
+                    max(it.widthPixels, it.heightPixels)
+                }
+                RealSize -> realDisplaySize().let { max(it.x, it.y) }
+            }
             return (
                 portraitDisplayHeight * keyboardHeightPercent.getValue() / 100f
                 ).toInt().coerceAtLeast(1)
@@ -563,6 +587,7 @@ class InputView internal constructor(
         kawaiiBar.updateFloatingKeyboardButton(controller.isFloating)
 
         keyboardPrefs.registerOnChangeListener(onKeyboardSizeChangeListener)
+        advancedPrefs.registerOnChangeListener(onKeyboardSizeChangeListener)
     }
 
     private fun updateKeyboardSize() {
