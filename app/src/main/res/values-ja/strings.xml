@@ -369,4 +369,15 @@
     <string name="key_border_stroke">キー境界線のストロークを有効にする</string>
     <string name="preferred_voice_input">優先される音声入力</string>
     <string name="edit_text_playground">編集テキストプレイグラウンド</string>
+    <string name="handwriting_sensitive_input_unavailable">機密フィールドでは手書き入力を使用できません</string>
+    <string name="single_tap_caps_lock">Shift を1回タップして大文字固定</string>
+    <string name="commit_key_when_released_outside">指をキーの外で離してもキーを入力</string>
+    <string name="show_candidate_comments">候補の注釈を表示</string>
+    <string name="selection_swipe_sensitivity">カーソルとバックスペースのスワイプ感度</string>
+    <string name="swipe_sensitivity_low">低い</string>
+    <string name="swipe_sensitivity_normal">標準</string>
+    <string name="swipe_sensitivity_high">高い</string>
+    <string name="keyboard_height_percent_base">キーボードの高さの割合の基準</string>
+    <string name="display_metrics">ディスプレイ情報 (Resources.getDisplayMetrics)</string>
+    <string name="real_size">実サイズ (Display.getRealSize)</string>
 </resources>

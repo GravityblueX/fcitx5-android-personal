@@ -370,4 +370,14 @@
     <string name="key_border_stroke">启用按键边框描边</string>
     <string name="preferred_voice_input">首选语音输入</string>
     <string name="edit_text_playground">编辑文本游乐场</string>
+    <string name="handwriting_sensitive_input_unavailable">敏感输入框中无法使用手写输入</string>
+    <string name="single_tap_caps_lock">单击 Shift 键锁定大写</string>
+    <string name="show_candidate_comments">显示候选注释</string>
+    <string name="selection_swipe_sensitivity">光标和退格键滑动灵敏度</string>
+    <string name="swipe_sensitivity_low">低</string>
+    <string name="swipe_sensitivity_normal">普通</string>
+    <string name="swipe_sensitivity_high">高</string>
+    <string name="keyboard_height_percent_base">键盘高度百分比基准</string>
+    <string name="display_metrics">显示指标 (Resources.getDisplayMetrics)</string>
+    <string name="real_size">实际尺寸 (Display.getRealSize)</string>
 </resources>

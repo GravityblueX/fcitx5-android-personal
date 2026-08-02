@@ -369,4 +369,15 @@
     <string name="key_border_stroke">키 테두리에 획 활성화</string>
     <string name="preferred_voice_input">선호하는 음성 입력</string>
     <string name="edit_text_playground">EditText 놀이터</string>
+    <string name="handwriting_sensitive_input_unavailable">민감한 입력란에서는 손글씨 입력을 사용할 수 없습니다</string>
+    <string name="single_tap_caps_lock">Shift 한 번 누르기로 대문자 고정</string>
+    <string name="commit_key_when_released_outside">손가락을 키 밖에서 떼어도 키 입력</string>
+    <string name="show_candidate_comments">후보 주석 표시</string>
+    <string name="selection_swipe_sensitivity">커서 및 백스페이스 스와이프 감도</string>
+    <string name="swipe_sensitivity_low">낮음</string>
+    <string name="swipe_sensitivity_normal">보통</string>
+    <string name="swipe_sensitivity_high">높음</string>
+    <string name="keyboard_height_percent_base">키보드 높이 비율 기준</string>
+    <string name="display_metrics">디스플레이 측정값 (Resources.getDisplayMetrics)</string>
+    <string name="real_size">실제 크기 (Display.getRealSize)</string>
 </resources>

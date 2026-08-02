@@ -369,4 +369,15 @@
     <string name="handwriting_model_check_timed_out_settings">Время проверки модели истекло. Перепроверьте модели или перезагрузите механизм рукописного ввода, а затем повторите попытку.</string>
     <string name="preferred_voice_input">Предпочтительный голосовой ввод</string>
     <string name="edit_text_playground">Игровая площадка EditText</string>
+    <string name="handwriting_sensitive_input_unavailable">Рукописный ввод недоступен в конфиденциальных полях</string>
+    <string name="single_tap_caps_lock">Фиксировать верхний регистр одним нажатием Shift</string>
+    <string name="commit_key_when_released_outside">Вводить клавишу при отпускании пальца за её пределами</string>
+    <string name="show_candidate_comments">Показывать аннотации кандидатов</string>
+    <string name="selection_swipe_sensitivity">Чувствительность смахивания курсора и Backspace</string>
+    <string name="swipe_sensitivity_low">Низкая</string>
+    <string name="swipe_sensitivity_normal">Обычная</string>
+    <string name="swipe_sensitivity_high">Высокая</string>
+    <string name="keyboard_height_percent_base">Основа процента высоты клавиатуры</string>
+    <string name="display_metrics">Метрики экрана (Resources.getDisplayMetrics)</string>
+    <string name="real_size">Фактический размер (Display.getRealSize)</string>
 </resources>

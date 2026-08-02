@@ -369,4 +369,15 @@
     <string name="key_border_stroke">Aktivieren Sie den Strich für den Tastenrand</string>
     <string name="preferred_voice_input">Bevorzugte Spracheingabe</string>
     <string name="edit_text_playground">EditText-Spielplatz</string>
+    <string name="handwriting_sensitive_input_unavailable">Handschrifteingabe ist in sensiblen Feldern nicht verfügbar</string>
+    <string name="single_tap_caps_lock">Großschreibung mit einem Tippen auf Umschalt aktivieren</string>
+    <string name="commit_key_when_released_outside">Taste eingeben, wenn der Finger außerhalb losgelassen wird</string>
+    <string name="show_candidate_comments">Kandidatenanmerkungen anzeigen</string>
+    <string name="selection_swipe_sensitivity">Wisch-Empfindlichkeit für Cursor und Rücktaste</string>
+    <string name="swipe_sensitivity_low">Niedrig</string>
+    <string name="swipe_sensitivity_normal">Normal</string>
+    <string name="swipe_sensitivity_high">Hoch</string>
+    <string name="keyboard_height_percent_base">Basis für Prozentsatz der Tastaturhöhe</string>
+    <string name="display_metrics">Anzeigedaten (Resources.getDisplayMetrics)</string>
+    <string name="real_size">Tatsächliche Größe (Display.getRealSize)</string>
 </resources>
