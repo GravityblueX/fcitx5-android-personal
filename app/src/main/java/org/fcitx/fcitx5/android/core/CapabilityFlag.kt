@@ -186,5 +186,7 @@ value class CapabilityFlags constructor(val flags: ULong) {
 
     fun has(flag: CapabilityFlag) = flags.hasFlag(flag.flag)
 
+    fun hasAny(vararg capabilityFlags: CapabilityFlag) = capabilityFlags.any(::has)
+
     fun toLong() = flags.toLong()
 }

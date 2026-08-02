@@ -11,55 +11,55 @@ import org.junit.Test
 class ClipboardSuggestionPolicyTest {
 
     @Test
-    fun allowsHistoryOnlyForAnActiveNonPasswordInput() {
+    fun allowsHistoryOnlyForAnActiveNonSensitiveInput() {
         assertTrue(
             ClipboardSuggestionPolicy.canOpenHistory(
                 hasActiveInput = true,
-                isPasswordField = false,
+                isSensitiveField = false,
             )
         )
         assertFalse(
             ClipboardSuggestionPolicy.canOpenHistory(
                 hasActiveInput = false,
-                isPasswordField = false,
+                isSensitiveField = false,
             )
         )
         assertFalse(
             ClipboardSuggestionPolicy.canOpenHistory(
                 hasActiveInput = true,
-                isPasswordField = true,
+                isSensitiveField = true,
             )
         )
     }
 
     @Test
-    fun allowsSuggestionsOnlyForAnActiveNonPasswordInput() {
+    fun allowsSuggestionsOnlyForAnActiveNonSensitiveInput() {
         assertTrue(
             ClipboardSuggestionPolicy.canDisplay(
                 suggestionsEnabled = true,
                 hasActiveInput = true,
-                isPasswordField = false,
+                isSensitiveField = false,
             )
         )
         assertFalse(
             ClipboardSuggestionPolicy.canDisplay(
                 suggestionsEnabled = true,
                 hasActiveInput = false,
-                isPasswordField = false,
+                isSensitiveField = false,
             )
         )
         assertFalse(
             ClipboardSuggestionPolicy.canDisplay(
                 suggestionsEnabled = true,
                 hasActiveInput = true,
-                isPasswordField = true,
+                isSensitiveField = true,
             )
         )
         assertFalse(
             ClipboardSuggestionPolicy.canDisplay(
                 suggestionsEnabled = false,
                 hasActiveInput = true,
-                isPasswordField = false,
+                isSensitiveField = false,
             )
         )
     }

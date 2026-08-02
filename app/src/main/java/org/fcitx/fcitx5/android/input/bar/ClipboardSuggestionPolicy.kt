@@ -9,11 +9,11 @@ internal object ClipboardSuggestionPolicy {
     fun canDisplay(
         suggestionsEnabled: Boolean,
         hasActiveInput: Boolean,
-        isPasswordField: Boolean,
-    ): Boolean = suggestionsEnabled && canOpenHistory(hasActiveInput, isPasswordField)
+        isSensitiveField: Boolean,
+    ): Boolean = suggestionsEnabled && canOpenHistory(hasActiveInput, isSensitiveField)
 
     fun canOpenHistory(
         hasActiveInput: Boolean,
-        isPasswordField: Boolean,
-    ): Boolean = hasActiveInput && !isPasswordField
+        isSensitiveField: Boolean,
+    ): Boolean = hasActiveInput && !isSensitiveField
 }

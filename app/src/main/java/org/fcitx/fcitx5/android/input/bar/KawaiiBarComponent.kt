@@ -115,7 +115,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
 
     private var isClipboardFresh: Boolean = false
     private var isInputActive: Boolean = false
-    private var isPasswordField: Boolean = false
+    private var isSensitiveField: Boolean = false
     private var isInlineSuggestionPresent: Boolean = false
     private var isCapabilityFlagsPassword: Boolean = false
     private var isKeyboardLayoutNumber: Boolean = false
@@ -141,7 +141,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
             !ClipboardSuggestionPolicy.canDisplay(
                 suggestionsEnabled = clipboardSuggestion.getValue(),
                 hasActiveInput = isInputActive,
-                isPasswordField = isPasswordField,
+                isSensitiveField = isSensitiveField,
             )
         ) {
             clearClipboardSuggestion()
@@ -180,7 +180,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
 
     private fun updateClipboardButtonVisibility() {
         idleUi.buttonsUi.clipboardButton.visibility =
-            if (ClipboardSuggestionPolicy.canOpenHistory(isInputActive, isPasswordField)) {
+            if (ClipboardSuggestionPolicy.canOpenHistory(isInputActive, isSensitiveField)) {
                 View.VISIBLE
             } else {
                 View.GONE
@@ -348,7 +348,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                     windowManager.attachWindow(TextEditingWindow())
                 }
                 clipboardButton.setOnClickListener {
-                    if (ClipboardSuggestionPolicy.canOpenHistory(isInputActive, isPasswordField)) {
+                    if (ClipboardSuggestionPolicy.canOpenHistory(isInputActive, isSensitiveField)) {
                         windowManager.attachWindow(ClipboardWindow())
                     }
                 }
@@ -515,10 +515,10 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
             idleUi.privateMode(info.imeOptions.hasFlag(EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING))
         }
         isInputActive = true
-        isPasswordField = capFlags.has(CapabilityFlag.Password)
-        isCapabilityFlagsPassword = toolbarNumRowOnPassword && isPasswordField
+        isSensitiveField = capFlags.hasAny(CapabilityFlag.Password, CapabilityFlag.Sensitive)
+        isCapabilityFlagsPassword = toolbarNumRowOnPassword && capFlags.has(CapabilityFlag.Password)
         updateClipboardButtonVisibility()
-        if (isPasswordField) {
+        if (isSensitiveField) {
             clearClipboardSuggestion()
         } else {
             restoreRecentClipboardSuggestion()
@@ -530,7 +530,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         }
         voiceInputSubtype = InputMethodUtil.findVoiceSubtype(preferredVoiceInput)
         val shouldShowVoiceInput =
-            showVoiceInputButton && voiceInputSubtype != null && !capFlags.has(CapabilityFlag.Password)
+            showVoiceInputButton && voiceInputSubtype != null && !capFlags.hasAny(CapabilityFlag.Password, CapabilityFlag.Sensitive)
         idleUi.setHideKeyboardIsVoiceInput(
             shouldShowVoiceInput,
             if (shouldShowVoiceInput) switchToVoiceInputCallback else hideKeyboardCallback
@@ -540,7 +540,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
 
     override fun onFinishInput() {
         isInputActive = false
-        isPasswordField = false
+        isSensitiveField = false
         updateClipboardButtonVisibility()
         clearClipboardSuggestion()
         evalIdleUiState()
