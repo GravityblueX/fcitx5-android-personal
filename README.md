@@ -11,6 +11,7 @@
 ## Personal-build changes
 
 - One-handed keyboard mode.
+- Stable keyboard-height basis option for devices with inaccurate display metrics.
 - Built-in handwriting recognition integration.
 - Clipboard expiration controls plus deterministic history limits for same-time entries.
 - Multi-item text copies are retained in clipboard history, with the primary item prioritized.
