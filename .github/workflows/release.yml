@@ -27,6 +27,16 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Verify release signing configuration
+        run: |
+          for secret in SIGN_KEY_BASE64 SIGN_KEY_PWD SIGN_KEY_ALIAS; do
+            if [ -z "${!secret}" ]; then
+              echo "::error title=Missing signing secret::$secret must be configured"
+              exit 1
+            fi
+          done
+          base64 --decode <<< "$SIGN_KEY_BASE64" >/dev/null
+
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
