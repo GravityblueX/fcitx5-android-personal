@@ -76,6 +76,8 @@ class PickerPagesAdapter(
 
     private val recentlyUsed = RecentlyUsed(recentlyUsedFileName, density.pageSize)
 
+    val hasRecentlyUsedItems: Boolean get() = recentlyUsed.items.isNotEmpty()
+
     fun insertRecent(text: String) {
         if (text.length == 1 && text[0].code.let { it in Digit || it in FullWidthDigit }) return
         recentlyUsed.insert(text)

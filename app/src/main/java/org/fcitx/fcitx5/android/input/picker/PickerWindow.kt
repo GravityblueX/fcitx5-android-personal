@@ -28,6 +28,11 @@ import org.fcitx.fcitx5.android.input.wm.InputWindowManager
 import org.fcitx.fcitx5.android.input.wm.ScalableInputWindow
 import org.mechdancer.dependency.manager.must
 
+internal fun initialPickerCategoryIndex(
+    key: PickerWindow.Key,
+    hasRecentlyUsedItems: Boolean
+): Int = if (key == PickerWindow.Key.Emoji && hasRecentlyUsedItems) 0 else 1
+
 class PickerWindow(
     override val key: Key,
     private val data: List<Pair<PickerData.Category, Array<String>>>,
@@ -133,12 +138,15 @@ class PickerWindow(
         }
         pager.apply {
             adapter = pickerPagesAdapter
-            // show first symbol category by default, rather than recently used
-            val range = pickerPagesAdapter.getRangeOfCategoryIndex(1)
+            val initialCategory = initialPickerCategoryIndex(
+                key,
+                pickerPagesAdapter.hasRecentlyUsedItems
+            )
+            val range = pickerPagesAdapter.getRangeOfCategoryIndex(initialCategory)
             setCurrentItem(range.first, false)
             // update initial tab and page manually to avoid
             // "Adding or removing callbacks during dispatch to callbacks"
-            tabsUi.activateTab(1)
+            tabsUi.activateTab(initialCategory)
             paginationUi.updatePageCount(range.run { last - first + 1 })
             registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
                 override fun onPageScrolled(
