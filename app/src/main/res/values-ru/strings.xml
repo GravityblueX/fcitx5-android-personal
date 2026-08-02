@@ -399,4 +399,5 @@
     <string name="accessibility_shift_once">Одна заглавная буква</string>
     <string name="accessibility_caps_lock">Caps Lock</string>
     <string name="double_space_period">Двойное нажатие пробела вставляет точку</string>
+    <string name="auto_mixed_text_spacing">Автоматически вставлять пробелы между китайским и английским</string>
 </resources>

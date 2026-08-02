@@ -188,6 +188,11 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             "double_space_period",
             false
         )
+        val autoMixedTextSpacing = switch(
+            R.string.auto_mixed_text_spacing,
+            "auto_mixed_text_spacing",
+            false
+        )
         val keepLettersUppercase = switch(
             R.string.keep_keyboard_letters_uppercase,
             "keep_keyboard_letters_uppercase",

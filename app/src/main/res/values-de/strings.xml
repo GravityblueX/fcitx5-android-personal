@@ -399,4 +399,5 @@
     <string name="accessibility_shift_once">Ein Großbuchstabe</string>
     <string name="accessibility_caps_lock">Feststelltaste</string>
     <string name="double_space_period">Doppelte Leertaste fügt einen Punkt ein</string>
+    <string name="auto_mixed_text_spacing">Leerzeichen zwischen Chinesisch und Englisch automatisch einfügen</string>
 </resources>

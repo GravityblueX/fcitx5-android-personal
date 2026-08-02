@@ -69,6 +69,7 @@ import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.cursor.CursorRange
 import org.fcitx.fcitx5.android.input.cursor.CursorTracker
 import org.fcitx.fcitx5.android.input.keyboard.OneHandedMode
+import org.fcitx.fcitx5.android.input.keyboard.shouldInsertMixedTextSpace
 import org.fcitx.fcitx5.android.input.keyboard.shouldReplaceDoubleSpacePeriod
 import org.fcitx.fcitx5.android.utils.InputMethodUtil
 import org.fcitx.fcitx5.android.utils.alpha
@@ -109,6 +110,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private val oneHandedKeyboardModePreference =
         AppPrefs.getInstance().internal.oneHandedKeyboardMode
     private val doubleSpacePeriod by AppPrefs.getInstance().keyboard.doubleSpacePeriod
+    private val autoMixedTextSpacing by AppPrefs.getInstance().keyboard.autoMixedTextSpacing
     private var lastVirtualSpaceTimestamp: Long? = null
     private val oneHandedKeyboardSessionState = OneHandedKeyboardSessionState(
         initialMode = OneHandedMode.fromPreferenceValue(
@@ -257,7 +259,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         when (event) {
             is FcitxEvent.CommitStringEvent -> {
                 resetDoubleSpacePeriod()
-                commitText(event.data.text, event.data.cursor)
+                commitFcitxText(event.data.text, event.data.cursor)
             }
             is FcitxEvent.KeyEvent -> event.data.let event@{
                 if (it.states.virtual) {
@@ -282,7 +284,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                         }
                         else -> if (it.unicode > 0) {
                             resetDoubleSpacePeriod()
-                            commitText(Character.toString(it.unicode))
+                            commitFcitxText(Character.toString(it.unicode))
                         } else {
                             Timber.w("Unhandled Virtual KeyEvent: $it")
                         }
@@ -505,6 +507,17 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
             else -> return
         }
         currentInputConnection.setSelection(target, target)
+    }
+
+    private fun commitFcitxText(text: String, cursor: Int = -1) {
+        val canInsertSpace = currentInputEditorInfo.inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_CLASS_TEXT &&
+            currentInputSelection.isEmpty() && !capabilityFlags.hasAny(
+                CapabilityFlag.Password, CapabilityFlag.Sensitive, CapabilityFlag.Email, CapabilityFlag.Url
+            )
+        val prefix = if (autoMixedTextSpacing && canInsertSpace &&
+            shouldInsertMixedTextSpace(currentInputConnection?.getTextBeforeCursor(1, 0)?.lastOrNull(), text)
+        ) " " else ""
+        commitText(prefix + text, if (cursor == -1) cursor else cursor + prefix.length)
     }
 
     fun commitText(text: String, cursor: Int = -1) {
