@@ -99,11 +99,13 @@ In case you want Fcitx5 on other platforms: [macOS](https://github.com/fcitx-con
 
 ## Get involved
 
-Trello kanban: https://trello.com/b/gftk6ZdV/kanban
+For Fcitx17-specific bugs and feature requests, please use this repository's
+[Issues](../../issues) and follow the reporting guidance in
+[CONTRIBUTING.md](CONTRIBUTING.md). Pull requests are welcome for focused,
+tested changes.
 
-Matrix Room: https://matrix.to/#/#fcitx5-android:mozilla.org
-
-Discuss on Telegram: [@fcitx5_android_group](https://t.me/fcitx5_android_group) ([@fcitx5_android](https://t.me/fcitx5_android) originally)
+Changes that also affect the immediate upstream should be discussed or proposed
+there first: [Yizuka17/fcitx5-android-personal](https://github.com/Yizuka17/fcitx5-android-personal).
 
 ## Build
 

@@ -38,8 +38,20 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
 
+      - name: Run unit tests
+        run: ./gradlew :app:testReleaseUnitTest --stacktrace
+
       - name: Build release APK and plugins
         run: ./gradlew :app:assembleRelease :assembleReleasePlugins --stacktrace
+
+      - name: Upload unit-test report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: unit-test-report
+          path: app/build/reports/tests/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Upload main APK
         uses: actions/upload-artifact@v6

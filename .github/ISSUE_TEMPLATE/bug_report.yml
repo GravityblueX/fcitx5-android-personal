@@ -1,0 +1,69 @@
+name: Bug report
+description: Report a reproducible Fcitx17 problem
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report a problem. Please remove any
+        private text, passwords, and unredacted clipboard content.
+  - type: input
+    id: version
+    attributes:
+      label: Fcitx17 version or commit
+      description: Find this in the app's About page, release notes, or the Git commit.
+      placeholder: "0.1.3 / dee37ae1"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and Android version
+      placeholder: "Pixel 8, Android 16"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Keyboard input
+        - Candidates or preedit
+        - Handwriting
+        - One-handed mode
+        - Floating keyboard
+        - Clipboard
+        - Theme or UI
+        - Plugin
+        - Build or installation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs, screenshots, or screen recording
+      description: Please redact sensitive content before uploading.

@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest a focused Fcitx17 improvement
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem first, then the smallest change that would solve it.
+        Please do not include personal or sensitive input text.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What currently feels difficult or impossible?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Include a mockup or interaction flow when helpful.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Keyboard input
+        - Handwriting
+        - One-handed mode
+        - Floating keyboard
+        - Clipboard
+        - Theme or UI
+        - Plugin
+        - Build or distribution
+        - Other
+    validations:
+      required: true
