@@ -5,14 +5,20 @@
 
 package org.fcitx.fcitx5.android.input
 
+import android.graphics.drawable.ColorDrawable
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowInsets
 import android.widget.PopupMenu
+import android.widget.PopupWindow
+import android.widget.ScrollView
+import android.widget.TextView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.text.bold
 import androidx.core.text.buildSpannedString
 import androidx.core.text.color
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.setPadding
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -29,6 +35,7 @@ import org.fcitx.fcitx5.android.utils.navbarFrameHeight
 import splitties.resources.styledColor
 import splitties.views.dsl.core.withTheme
 import kotlin.math.max
+import kotlin.math.min
 
 abstract class BaseInputView(
     val service: FcitxInputMethodService,
@@ -72,16 +79,22 @@ abstract class BaseInputView(
     }
 
     private var candidateActionMenu: PopupMenu? = null
+    private var candidatePreviewPopup: PopupWindow? = null
 
     val themedContext = context.withTheme(R.style.Theme_InputViewTheme)
 
     fun showCandidateActionMenu(idx: Int, text: String, view: View) {
         candidateActionMenu?.dismiss()
         candidateActionMenu = null
+        candidatePreviewPopup?.dismiss()
+        candidatePreviewPopup = null
         service.lifecycleScope.launch {
             val actions = fcitx.runOnReady { getCandidateActions(idx) }
-            if (actions.isEmpty()) return@launch
             InputFeedbacks.hapticFeedback(view, longPress = true)
+            if (actions.isEmpty()) {
+                showCandidatePreview(text, view)
+                return@launch
+            }
             candidateActionMenu = PopupMenu(themedContext, view).apply {
                 menu.add(buildSpannedString {
                     bold {
@@ -102,6 +115,48 @@ abstract class BaseInputView(
                 }
                 show()
             }
+        }
+    }
+
+    private fun showCandidatePreview(text: String, anchor: View) {
+        val density = anchor.resources.displayMetrics.density
+        val padding = (16 * density).toInt()
+        val maxWidth = min(anchor.rootView.width - padding * 2, (320 * density).toInt())
+        val maxHeight = anchor.rootView.height / 2
+        if (maxWidth <= 0 || maxHeight <= 0) return
+
+        val preview = TextView(themedContext).apply {
+            this.text = text
+            setTextColor(theme.popupTextColor)
+            textSize = 20f
+            setPadding(padding)
+        }
+        val content = ScrollView(themedContext).apply {
+            addView(
+                preview,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            )
+        }
+        content.measure(
+            View.MeasureSpec.makeMeasureSpec(maxWidth, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(maxHeight, View.MeasureSpec.AT_MOST)
+        )
+        candidatePreviewPopup = PopupWindow(
+            content,
+            maxWidth,
+            content.measuredHeight.coerceAtMost(maxHeight),
+            true
+        ).apply {
+            setBackgroundDrawable(ColorDrawable(theme.popupBackgroundColor))
+            isOutsideTouchable = true
+            elevation = 8 * density
+            setOnDismissListener {
+                candidatePreviewPopup = null
+            }
+            showAsDropDown(anchor)
         }
     }
 
