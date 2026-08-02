@@ -24,8 +24,12 @@ if [[ -z "$apksigner" || -z "$aapt2" ]]; then
   exit 1
 fi
 
+verification_details() {
+  "$apksigner" verify --verbose --print-certs "$1" 2>&1
+}
+
 fingerprint() {
-  "$apksigner" verify --verbose --print-certs "$1" 2>&1 | sed -n 's/^Signer #1 certificate SHA-256 digest: //p'
+  verification_details "$1" | awk '/Signer #1 certificate SHA-256 digest:/ { print $NF; exit }'
 }
 
 manifest() {
@@ -36,7 +40,9 @@ host_fingerprint="$(fingerprint "$host_apk")"
 host_package="$("$aapt2" dump packagename "$host_apk")"
 
 if [[ -z "$host_fingerprint" ]]; then
-  echo "The host artifact is not signed: $host_apk" >&2
+  echo "Could not read a host signing certificate: $host_apk" >&2
+  echo "apksigner: $apksigner" >&2
+  verification_details "$host_apk" >&2 || true
   exit 1
 fi
 
