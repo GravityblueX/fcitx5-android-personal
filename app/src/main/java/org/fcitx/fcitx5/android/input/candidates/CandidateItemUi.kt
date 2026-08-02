@@ -27,7 +27,7 @@ class CandidateItemUi(override val ctx: Context, val theme: Theme) : Ui {
     private val showCandidateComments by AppPrefs.getInstance().keyboard.showCandidateComments
 
     private val text = view(::AutoScaleTextView) {
-        scaleMode = AutoScaleTextView.Mode.Proportional
+        scaleMode = AutoScaleTextView.Mode.Horizontal
         textSize = 20f // sp
         isSingleLine = true
         gravity = gravityCenter
