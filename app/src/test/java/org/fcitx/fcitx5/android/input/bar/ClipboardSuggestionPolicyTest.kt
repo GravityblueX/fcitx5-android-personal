@@ -11,6 +11,28 @@ import org.junit.Test
 class ClipboardSuggestionPolicyTest {
 
     @Test
+    fun allowsHistoryOnlyForAnActiveNonPasswordInput() {
+        assertTrue(
+            ClipboardSuggestionPolicy.canOpenHistory(
+                hasActiveInput = true,
+                isPasswordField = false,
+            )
+        )
+        assertFalse(
+            ClipboardSuggestionPolicy.canOpenHistory(
+                hasActiveInput = false,
+                isPasswordField = false,
+            )
+        )
+        assertFalse(
+            ClipboardSuggestionPolicy.canOpenHistory(
+                hasActiveInput = true,
+                isPasswordField = true,
+            )
+        )
+    }
+
+    @Test
     fun allowsSuggestionsOnlyForAnActiveNonPasswordInput() {
         assertTrue(
             ClipboardSuggestionPolicy.canDisplay(

@@ -178,6 +178,15 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         clipboardTimeoutJob = null
     }
 
+    private fun updateClipboardButtonVisibility() {
+        idleUi.buttonsUi.clipboardButton.visibility =
+            if (ClipboardSuggestionPolicy.canOpenHistory(isInputActive, isPasswordField)) {
+                View.VISIBLE
+            } else {
+                View.GONE
+            }
+    }
+
     @Keep
     private val onClipboardSuggestionUpdateListener =
         ManagedPreference.OnChangeListener<Boolean> { _, enabled ->
@@ -339,7 +348,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                     windowManager.attachWindow(TextEditingWindow())
                 }
                 clipboardButton.setOnClickListener {
-                    if (!isPasswordField) {
+                    if (ClipboardSuggestionPolicy.canOpenHistory(isInputActive, isPasswordField)) {
                         windowManager.attachWindow(ClipboardWindow())
                     }
                 }
@@ -481,6 +490,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     }
 
     override fun onScopeSetupFinished(scope: DynamicScope) {
+        updateClipboardButtonVisibility()
         ClipboardManager.addOnUpdateListener(onClipboardUpdateListener)
         clipboardSuggestion.registerOnChangeListener(onClipboardSuggestionUpdateListener)
         clipboardItemTimeout.registerOnChangeListener(onClipboardTimeoutUpdateListener)
@@ -507,7 +517,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         isInputActive = true
         isPasswordField = capFlags.has(CapabilityFlag.Password)
         isCapabilityFlagsPassword = toolbarNumRowOnPassword && isPasswordField
-        idleUi.buttonsUi.clipboardButton.visibility = if (isPasswordField) View.GONE else View.VISIBLE
+        updateClipboardButtonVisibility()
         if (isPasswordField) {
             clearClipboardSuggestion()
         } else {
@@ -531,6 +541,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     override fun onFinishInput() {
         isInputActive = false
         isPasswordField = false
+        updateClipboardButtonVisibility()
         clearClipboardSuggestion()
         evalIdleUiState()
     }

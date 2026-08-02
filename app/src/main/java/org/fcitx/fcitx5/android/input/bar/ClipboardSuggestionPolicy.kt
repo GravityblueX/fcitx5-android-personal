@@ -10,5 +10,10 @@ internal object ClipboardSuggestionPolicy {
         suggestionsEnabled: Boolean,
         hasActiveInput: Boolean,
         isPasswordField: Boolean,
-    ): Boolean = suggestionsEnabled && hasActiveInput && !isPasswordField
+    ): Boolean = suggestionsEnabled && canOpenHistory(hasActiveInput, isPasswordField)
+
+    fun canOpenHistory(
+        hasActiveInput: Boolean,
+        isPasswordField: Boolean,
+    ): Boolean = hasActiveInput && !isPasswordField
 }
