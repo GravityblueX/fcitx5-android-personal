@@ -33,10 +33,20 @@ manifest() {
 }
 
 host_fingerprint="$(fingerprint "$host_apk")"
-host_package="$($aapt2 dump badging "$host_apk" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")"
+host_package="$("$aapt2" dump packagename "$host_apk")"
 
-if [[ -z "$host_fingerprint" || -z "$host_package" || "$host_package" != *.debug ]]; then
-  echo "The host artifact must be a signed debug APK." >&2
+if [[ -z "$host_fingerprint" ]]; then
+  echo "The host artifact is not signed: $host_apk" >&2
+  exit 1
+fi
+
+if [[ -z "$host_package" ]]; then
+  echo "Could not read the host package name: $host_apk" >&2
+  exit 1
+fi
+
+if [[ "$host_package" != *.debug ]]; then
+  echo "The host artifact is not a debug APK: $host_package" >&2
   exit 1
 fi
 
