@@ -90,7 +90,8 @@ In case you want Fcitx5 on other platforms: [macOS](https://github.com/fcitx-con
 
 - English (with spell check)
 - Chinese
-  - Pinyin, Shuangpin, Wubi, Cangjie and custom tables (built-in, powered by [fcitx5-chinese-addons](https://github.com/fcitx/fcitx5-chinese-addons))
+  - Pinyin, Shuangpin, Wubi and custom tables (built-in, powered by [fcitx5-chinese-addons](https://github.com/fcitx/fcitx5-chinese-addons))
+  - Cangjie (requires a separately installed Cangjie plugin or table; it is not built in)
   - Zhuyin/Bopomofo (via [Chewing Plugin](./plugin/chewing))
   - Jyutping (via [Jyutping Plugin](./plugin/jyutping/), powered by [libime-jyutping](https://github.com/fcitx/libime-jyutping))
 - Vietnamese (via [UniKey Plugin](./plugin/unikey), supports Telex, VNI and VIQR)
