@@ -3,7 +3,17 @@ name: Personal build
 on:
   push:
     branches: [master]
+    paths-ignore:
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - "docs/**"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
   workflow_dispatch:
+
+concurrency:
+  group: personal-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

@@ -111,8 +111,8 @@ there first: [Yizuka17/fcitx5-android-personal](https://github.com/Yizuka17/fcit
 
 ### Dependencies
 
-- Android SDK Platform & Build-Tools 35.
-- Android NDK (Side by side) 25 & CMake 3.22.1, they can be installed using SDK Manager in Android Studio or `sdkmanager` command line.
+- Android SDK Platform 36 & Build-Tools 36.1.0.
+- Android NDK (Side by side) 28.0.13004108 & CMake 3.31.6. They can be installed using SDK Manager in Android Studio or the `sdkmanager` command line.
 - [KDE/extra-cmake-modules](https://github.com/KDE/extra-cmake-modules)
 - GNU Gettext >= 0.20 (for `msgfmt` binary; or install `appstream` if you really have to use gettext <= 0.19.)
 
@@ -134,8 +134,8 @@ there first: [Yizuka17/fcitx5-android-personal](https://github.com/Yizuka17/fcit
 First, clone this repository and fetch all submodules:
 
 ```shell
-git clone git@github.com:fcitx5-android/fcitx5-android.git
-git submodule update --init --recursive
+git clone --recurse-submodules https://github.com/GravityblueX/fcitx5-android-personal.git
+cd fcitx5-android-personal
 ```
 
 Install `extra-cmake-modules` and `gettext` with your system package manager:
