@@ -383,4 +383,5 @@
     <string name="custom_key_sound">カスタムキー音</string>
     <string name="key_text_scale">キー文字サイズ</string>
     <string name="auto_capitalization">キーボードの自動大文字化</string>
+    <string name="space_behavior_repeat_spaces">スペースを連続入力</string>
 </resources>

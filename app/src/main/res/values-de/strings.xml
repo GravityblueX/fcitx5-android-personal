@@ -383,4 +383,5 @@
     <string name="custom_key_sound">Benutzerdefinierter Tastenton</string>
     <string name="key_text_scale">Tastentextgröße</string>
     <string name="auto_capitalization">Automatische Großschreibung</string>
+    <string name="space_behavior_repeat_spaces">Leerzeichen wiederholen</string>
 </resources>

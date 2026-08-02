@@ -60,6 +60,7 @@ abstract class BaseKeyboard(
     private val swipeSymbolDirection by prefs.keyboard.swipeSymbolDirection
 
     private val spaceSwipeMoveCursor = prefs.keyboard.spaceSwipeMoveCursor
+    private val spaceKeyLongPressBehavior = prefs.keyboard.spaceKeyLongPressBehavior
     private val selectionSwipeSensitivity = prefs.keyboard.selectionSwipeSensitivity
     private val spaceKeys = mutableListOf<KeyView>()
     private val selectionSwipeKeys = mutableListOf<KeyView>()
@@ -73,6 +74,10 @@ abstract class BaseKeyboard(
             selectionSwipeKeys.forEach {
                 it.swipeThresholdX = selectionSwipeThreshold
             }
+        }
+    private val spaceKeyLongPressBehaviorChangeListener =
+        ManagedPreference.OnChangeListener<SpaceLongPressBehavior> { _, behavior ->
+            updateSpaceKeyRepeat(shouldRepeatSpacesOnLongPress(behavior))
         }
     private val commitKeyWhenReleasedOutsideChangeListener =
         ManagedPreference.OnChangeListener<Boolean> { _, enabled ->
@@ -165,11 +170,22 @@ abstract class BaseKeyboard(
             })
         }
         spaceSwipeMoveCursor.registerOnChangeListener(spaceSwipeChangeListener)
+        spaceKeyLongPressBehavior.registerOnChangeListener(spaceKeyLongPressBehaviorChangeListener)
         selectionSwipeSensitivity.registerOnChangeListener(selectionSwipeSensitivityChangeListener)
         commitKeyWhenReleasedOutside.registerOnChangeListener(
             commitKeyWhenReleasedOutsideChangeListener
         )
         keyTextScale.registerOnChangeListener(keyTextScaleChangeListener)
+    }
+
+    private fun updateSpaceKeyRepeat(enabled: Boolean) {
+        spaceKeys.forEach { key ->
+            key.repeatEnabled = enabled
+            key.onRepeatListener = if (enabled) { view ->
+                onAction(KeyAction.SymAction(KeySym(FcitxKeyMapping.FcitxKey_space)))
+                if (hapticOnRepeat) InputFeedbacks.hapticFeedback(view)
+            } else null
+        }
     }
 
     private fun updateKeyTextScale(scale: Float) {
@@ -223,6 +239,11 @@ abstract class BaseKeyboard(
                 swipeRepeatEnabled = true
                 swipeThresholdX = selectionSwipeThreshold
                 swipeThresholdY = disabledSwipeThreshold
+                repeatEnabled = shouldRepeatSpacesOnLongPress(spaceKeyLongPressBehavior.getValue())
+                onRepeatListener = if (repeatEnabled) { view ->
+                    onAction(KeyAction.SymAction(KeySym(FcitxKeyMapping.FcitxKey_space)))
+                    if (hapticOnRepeat) InputFeedbacks.hapticFeedback(view)
+                } else null
                 onGestureListener = OnGestureListener { view, event ->
                     when (event.type) {
                         GestureType.Move -> when (val count = event.countX) {
@@ -274,8 +295,14 @@ abstract class BaseKeyboard(
                     }
                     is KeyDef.Behavior.LongPress -> {
                         setOnLongClickListener { _ ->
-                            onAction(it.action)
-                            true
+                            if (def is SpaceKey &&
+                                shouldRepeatSpacesOnLongPress(spaceKeyLongPressBehavior.getValue())
+                            ) {
+                                false
+                            } else {
+                                onAction(it.action)
+                                true
+                            }
                         }
                     }
                     is KeyDef.Behavior.Repeat -> {

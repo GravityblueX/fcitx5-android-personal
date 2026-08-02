@@ -11,5 +11,9 @@ enum class SpaceLongPressBehavior(override val stringRes: Int) : ManagedPreferen
     None(R.string.space_behavior_none),
     Enumerate(R.string.space_behavior_enumerate),
     ToggleActivate(R.string.space_behavior_activate),
-    ShowPicker(R.string.space_behavior_picker);
+    ShowPicker(R.string.space_behavior_picker),
+    RepeatSpaces(R.string.space_behavior_repeat_spaces);
 }
+
+internal fun shouldRepeatSpacesOnLongPress(behavior: SpaceLongPressBehavior): Boolean =
+    behavior == SpaceLongPressBehavior.RepeatSpaces

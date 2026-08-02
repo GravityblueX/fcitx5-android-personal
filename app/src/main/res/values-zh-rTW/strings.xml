@@ -383,4 +383,5 @@
     <string name="custom_key_sound">自訂按鍵音效</string>
     <string name="key_text_scale">按鍵文字大小</string>
     <string name="auto_capitalization">鍵盤自動大寫</string>
+    <string name="space_behavior_repeat_spaces">連續輸入空格</string>
 </resources>

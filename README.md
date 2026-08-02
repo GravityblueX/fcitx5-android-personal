@@ -20,6 +20,7 @@
 - Context-aware email and URL keys, including direct domain suffixes on long-press.
 - Adjustable key-label size that also applies to key previews and long-press popups.
 - Opt-in editor-driven auto-capitalization that respects manual Shift overrides.
+- A configurable hold-to-repeat space key mode that does not conflict with input-method switching.
 - Clipboard expiration controls plus deterministic history limits for same-time entries.
 - Multi-item text copies are retained in clipboard history, with the primary item prioritized.
 - Clipboard suggestions and history are hidden outside active non-password inputs.

@@ -383,4 +383,5 @@
     <string name="custom_key_sound">사용자 지정 키 소리</string>
     <string name="key_text_scale">키 글자 크기</string>
     <string name="auto_capitalization">키보드 자동 대문자</string>
+    <string name="space_behavior_repeat_spaces">공백 반복 입력</string>
 </resources>

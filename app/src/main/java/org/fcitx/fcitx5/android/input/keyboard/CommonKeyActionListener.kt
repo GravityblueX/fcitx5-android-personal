@@ -183,6 +183,7 @@ class CommonKeyActionListener :
                             toggleIme()
                         }
                         SpaceLongPressBehavior.ShowPicker -> showInputMethodPicker()
+                        SpaceLongPressBehavior.RepeatSpaces -> {}
                     }
                 }
                 is OneHandedModeAction -> inputView.setOneHandedMode(action.mode)
