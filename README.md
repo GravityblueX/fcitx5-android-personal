@@ -46,6 +46,8 @@ the main APK first, then matching plugin APKs when using optional plugins such
 as handwriting. Release APKs use Fcitx17's stable signing certificate, so later
 releases can update them in place.
 
+Every GitHub Release also includes `SHA256SUMS.txt`. After downloading the APKs and this file into the same directory, verify them with `sha256sum -c SHA256SUMS.txt`.
+
 The [Personal build GitHub Actions workflow](../../actions/workflows/personal-build.yml)
 also provides `fcitx17-release-apk` and `fcitx17-release-plugins` for testing
 new commits before a tag is published. These workflow artifacts expire after 14
