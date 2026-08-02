@@ -41,22 +41,44 @@ data class ClipboardEntry(
         fun fromClipData(
             clipData: ClipData,
             transformer: ((String) -> String)? = null
-        ): ClipboardEntry? {
-            val desc = clipData.description
-            // TODO: handle multiple items (when does this happen?)
-            val item = clipData.getItemAt(0) ?: return null
-            val str = item.text?.toString() ?: return null
+        ): ClipboardEntry? = fromClipDataItems(clipData, transformer).firstOrNull()
+
+        fun fromClipDataItems(
+            clipData: ClipData,
+            transformer: ((String) -> String)? = null
+        ): List<ClipboardEntry> {
+            val description = clipData.description
             val sensitive = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                desc.extras?.getBoolean(IS_SENSITIVE) ?: false
+                description.extras?.getBoolean(IS_SENSITIVE) ?: false
             } else {
                 false
             }
-            return ClipboardEntry(
-                text = if (transformer != null) transformer(str) else str,
+            return fromTexts(
+                texts = (0 until clipData.itemCount).map { clipData.getItemAt(it)?.text },
                 timestamp = clipData.timestamp(),
-                type = desc.getMimeType(0),
-                sensitive = sensitive
+                type = description.getMimeType(0),
+                sensitive = sensitive,
+                transformer = transformer,
             )
         }
+
+        internal fun fromTexts(
+            texts: Iterable<CharSequence?>,
+            timestamp: Long,
+            type: String = ClipDescription.MIMETYPE_TEXT_PLAIN,
+            sensitive: Boolean = false,
+            transformer: ((String) -> String)? = null,
+        ): List<ClipboardEntry> = texts
+            .mapNotNull { text ->
+                text?.toString()?.let { value ->
+                    ClipboardEntry(
+                        text = transformer?.invoke(value) ?: value,
+                        timestamp = timestamp,
+                        type = type,
+                        sensitive = sensitive,
+                    )
+                }
+            }
+            .distinctBy { it.text }
     }
 }

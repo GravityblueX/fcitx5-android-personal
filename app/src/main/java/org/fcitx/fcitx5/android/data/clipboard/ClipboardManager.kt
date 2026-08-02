@@ -239,29 +239,32 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
         }
         launch {
             mutex.withLock {
-                val entry = ClipboardEntry.fromClipData(clip, transformer) ?: return@withLock
-                if (entry.text.isBlank()) return@withLock
+                val entries = ClipboardEntry
+                    .fromClipDataItems(clip, transformer)
+                    .filterNot { it.text.isBlank() }
+                if (entries.isEmpty()) return@withLock
+                val primaryEntry = entries.first()
                 try {
-                    clbDao.find(entry.text, entry.sensitive)?.let {
-                        updateLastEntry(it.copy(timestamp = entry.timestamp))
-                        clbDao.updateTime(it.id, entry.timestamp)
-                        removeExpiredLocked()
-                        scheduleExpirationLocked()
-                        return@withLock
+                    val updatedPrimaryEntry = clbDb.withTransaction {
+                        entries.asReversed().map { entry ->
+                            clbDao.find(entry.text, entry.sensitive)?.let {
+                                clbDao.updateTime(it.id, entry.timestamp)
+                                it.copy(timestamp = entry.timestamp)
+                            } ?: run {
+                                val rowId = clbDao.insert(entry)
+                                clbDao.get(rowId) ?: entry
+                            }
+                        }.also {
+                            removeOutdated()
+                            removeExpiredLocked()
+                        }.last()
                     }
-                    val insertedEntry = clbDb.withTransaction {
-                        val rowId = clbDao.insert(entry)
-                        removeOutdated()
-                        removeExpiredLocked()
-                        // new entry can be deleted immediately if clipboard limit == 0
-                        clbDao.get(rowId) ?: entry
-                    }
-                    updateLastEntry(insertedEntry)
+                    updateLastEntry(updatedPrimaryEntry)
                     updateItemCount()
                     scheduleExpirationLocked()
                 } catch (exception: Exception) {
                     Timber.w("Failed to update clipboard database: $exception")
-                    updateLastEntry(entry)
+                    updateLastEntry(primaryEntry)
                 }
             }
         }

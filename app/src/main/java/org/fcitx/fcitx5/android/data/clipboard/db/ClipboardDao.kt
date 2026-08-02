@@ -41,7 +41,7 @@ interface ClipboardDao {
     @Query("SELECT MIN(timestamp) FROM ${ClipboardEntry.TABLE_NAME} WHERE pinned=0 AND deleted=0")
     suspend fun oldestUnpinnedTimestamp(): Long?
 
-    @Query("SELECT * FROM ${ClipboardEntry.TABLE_NAME} WHERE deleted=0 ORDER BY pinned DESC, timestamp DESC")
+    @Query("SELECT * FROM ${ClipboardEntry.TABLE_NAME} WHERE deleted=0 ORDER BY pinned DESC, timestamp DESC, id DESC")
     fun allEntries(): PagingSource<Int, ClipboardEntry>
 
     @Query("SELECT * FROM ${ClipboardEntry.TABLE_NAME} WHERE text=:text AND sensitive=:sensitive AND deleted=0 LIMIT 1")
