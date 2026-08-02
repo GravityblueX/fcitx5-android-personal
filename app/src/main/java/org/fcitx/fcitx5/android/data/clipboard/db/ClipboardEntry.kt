@@ -53,14 +53,21 @@ data class ClipboardEntry(
             } else {
                 false
             }
-            return fromTexts(
-                texts = (0 until clipData.itemCount).map { clipData.getItemAt(it)?.text },
-                timestamp = clipData.timestamp(),
-                type = description.getMimeType(0),
-                sensitive = sensitive,
-                transformer = transformer,
+            return prioritizeForHistory(
+                fromTexts(
+                    texts = (0 until clipData.itemCount).map { clipData.getItemAt(it)?.text },
+                    timestamp = clipData.timestamp(),
+                    type = description.getMimeType(0),
+                    sensitive = sensitive,
+                    transformer = transformer,
+                )
             )
         }
+
+        internal fun prioritizeForHistory(entries: List<ClipboardEntry>): List<ClipboardEntry> =
+            entries.mapIndexed { index, entry ->
+                entry.copy(timestamp = entry.timestamp + entries.size - index)
+            }
 
         internal fun fromTexts(
             texts: Iterable<CharSequence?>,

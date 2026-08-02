@@ -21,6 +21,19 @@ class ClipboardEntryTest {
     }
 
     @Test
+    fun givesThePrimaryItemTheNewestHistoryTimestamp() {
+        val entries = ClipboardEntry.prioritizeForHistory(
+            ClipboardEntry.fromTexts(
+                texts = listOf("primary", "secondary", "tertiary"),
+                timestamp = 100,
+            )
+        )
+
+        assertEquals(listOf("primary", "secondary", "tertiary"), entries.map { it.text })
+        assertEquals(listOf(103L, 102L, 101L), entries.map { it.timestamp })
+    }
+
+    @Test
     fun appliesTransformBeforeDeduplicatingEntries() {
         val entries = ClipboardEntry.fromTexts(
             texts = listOf(" One ", "one", "Two"),
