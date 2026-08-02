@@ -29,7 +29,7 @@ verification_details() {
 }
 
 fingerprint() {
-  verification_details "$1" | awk '/Signer #1 certificate SHA-256 digest:/ { print $NF; exit }'
+  verification_details "$1" | awk '/certificate SHA-256 digest:/ { print $NF; exit }'
 }
 
 manifest() {
