@@ -11,6 +11,7 @@ import android.widget.TextView
 import androidx.core.text.buildSpannedString
 import androidx.core.text.color
 import org.fcitx.fcitx5.android.core.CandidateWord
+import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.theme.Theme
 import splitties.views.backgroundColor
 import splitties.views.dsl.core.Ui
@@ -21,6 +22,8 @@ class LabeledCandidateItemUi(
     val theme: Theme,
     setupTextView: TextView.() -> Unit
 ) : Ui {
+
+    private val showCandidateComments by AppPrefs.getInstance().keyboard.showCandidateComments
 
     override val root = textView {
         setupTextView(this)
@@ -37,7 +40,7 @@ class LabeledCandidateItemUi(
             color(fg) {
                 append(candidate.text)
             }
-            if (candidate.comment.isNotBlank()) {
+            if (showCandidateComments && candidate.comment.isNotBlank()) {
                 if (candidate.spaceBetweenComment) {
                     append(" ")
                 }

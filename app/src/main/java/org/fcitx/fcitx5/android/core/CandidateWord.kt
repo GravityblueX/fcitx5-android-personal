@@ -11,10 +11,10 @@ data class CandidateWord @JvmOverloads constructor(
     val comment: String,
     val spaceBetweenComment: Boolean = true
 ) {
-    fun textWithComment(): String {
+    fun textWithComment(includeComment: Boolean = true): String {
         return buildString {
             append(text)
-            if (comment.isNotBlank()) {
+            if (includeComment && comment.isNotBlank()) {
                 if (spaceBetweenComment) {
                     append(" ")
                 }
