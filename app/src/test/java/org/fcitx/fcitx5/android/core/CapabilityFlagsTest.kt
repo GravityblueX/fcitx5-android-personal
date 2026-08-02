@@ -26,6 +26,18 @@ class CapabilityFlagsTest {
     }
 
     @Test
+    fun numberPasswordFieldsArePasswordProtected() {
+        val flags = CapabilityFlags.fromEditorInfo(
+            EditorInfo().apply {
+                inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            }
+        )
+
+        assertTrue(flags.has(CapabilityFlag.Password))
+        assertTrue(flags.hasAny(CapabilityFlag.Password, CapabilityFlag.Sensitive))
+    }
+
+    @Test
     fun noPersonalizedLearningEditorsAreSensitive() {
         val flags = CapabilityFlags.fromEditorInfo(
             EditorInfo().apply {

@@ -158,6 +158,9 @@ value class CapabilityFlags constructor(val flags: ULong) {
                     InputType.TYPE_CLASS_NUMBER -> {
                         flags += CapabilityFlag.NoSpellCheck
                         flags += CapabilityFlag.Number
+                        if ((it and InputType.TYPE_MASK_VARIATION) == InputType.TYPE_NUMBER_VARIATION_PASSWORD) {
+                            flags += CapabilityFlag.Password
+                        }
                     }
                     InputType.TYPE_CLASS_PHONE -> {
                         flags += CapabilityFlag.NoSpellCheck
