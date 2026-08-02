@@ -18,6 +18,7 @@ import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.popup.PopupAction
+import org.fcitx.fcitx5.android.input.picker.PickerWindow
 import splitties.views.imageResource
 
 @SuppressLint("ViewConstructor")
@@ -41,6 +42,16 @@ class TextKeyboard(
                 popup = arrayOf(
                     KeyDef.Popup.Menu(
                         arrayOf(
+                            KeyDef.Popup.Menu.Item(
+                                "Number keyboard",
+                                R.drawable.ic_number_pad,
+                                KeyAction.LayoutSwitchAction(NumberKeyboard.Name)
+                            ),
+                            KeyDef.Popup.Menu.Item(
+                                "Symbol keyboard",
+                                R.drawable.ic_baseline_emoji_symbols_24,
+                                KeyAction.LayoutSwitchAction(PickerWindow.Key.Symbol.name)
+                            ),
                             KeyDef.Popup.Menu.Item(
                                 "Left-handed mode",
                                 R.drawable.ic_material_mobile_hand_left_24,
