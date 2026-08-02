@@ -14,7 +14,7 @@ Thanks for helping improve this personal Fcitx5 for Android build.
 1. Sync your branch with the current `master` branch.
 2. Keep each pull request focused on one user-visible fix or improvement.
 3. Add or update a unit test when changing pure Kotlin logic.
-4. Run the relevant Gradle task locally when possible. The **Personal build** workflow runs `:app:testDebugUnitTest` and builds the release APKs.
+4. Run the relevant Gradle task locally when possible. The **Personal build** workflow runs `:app:lintDebug` and `:app:testDebugUnitTest`, then builds the release APKs.
 5. Explain how you tested the change and call out device-specific limitations.
 
 ## Upstream-friendly changes

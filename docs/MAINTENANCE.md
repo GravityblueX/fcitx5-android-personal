@@ -46,7 +46,7 @@ For a local build, first install the SDK, NDK, CMake, `extra-cmake-modules`, and
 GNU gettext prerequisites listed in the root README. Then run:
 
 ```shell
-./gradlew :app:assembleRelease :assembleReleasePlugins
+./gradlew :app:lintDebug :app:testDebugUnitTest :app:assembleRelease :assembleReleasePlugins
 ```
 
 The main APK is placed under `app/build/outputs/apk/release/`. Do not publish a
