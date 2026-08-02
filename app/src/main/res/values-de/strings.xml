@@ -396,4 +396,6 @@
     <string name="accessibility_next">Weiter</string>
     <string name="accessibility_done">Fertig</string>
     <string name="accessibility_previous">Zurück</string>
+    <string name="accessibility_shift_once">Ein Großbuchstabe</string>
+    <string name="accessibility_caps_lock">Feststelltaste</string>
 </resources>

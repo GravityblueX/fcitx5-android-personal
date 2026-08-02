@@ -27,6 +27,15 @@ internal fun returnKeyAccessibilityLabel(@DrawableRes drawable: Int): KeyAccessi
 }
 
 
+internal fun capsStateAccessibilityLabel(state: TextKeyboard.CapsState): KeyAccessibilityLabel.Resource? {
+    val resId = when (state) {
+        TextKeyboard.CapsState.None -> return null
+        TextKeyboard.CapsState.Once -> R.string.accessibility_shift_once
+        TextKeyboard.CapsState.Lock -> R.string.accessibility_caps_lock
+    }
+    return KeyAccessibilityLabel.Resource(resId)
+}
+
 internal fun keyAccessibilityLabel(def: KeyDef): KeyAccessibilityLabel {
     return when (def) {
         is CapsKey -> KeyAccessibilityLabel.Resource(R.string.accessibility_shift)

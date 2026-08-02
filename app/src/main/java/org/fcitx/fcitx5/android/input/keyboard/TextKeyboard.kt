@@ -9,6 +9,7 @@ import android.content.Context
 import android.view.View
 import androidx.annotation.Keep
 import androidx.core.view.allViews
+import androidx.core.view.ViewCompat
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.InputMethodEntry
 import org.fcitx.fcitx5.android.core.KeyState
@@ -293,6 +294,10 @@ class TextKeyboard(
                 CapsState.Lock -> R.drawable.ic_capslock_lock
             }
         }
+        ViewCompat.setStateDescription(
+            caps,
+            capsStateAccessibilityLabel(capsState)?.let { context.getString(it.resId) }
+        )
     }
 
     private fun updateLangSwitchKey(visible: Boolean) {

@@ -396,4 +396,6 @@
     <string name="accessibility_next">다음</string>
     <string name="accessibility_done">완료</string>
     <string name="accessibility_previous">이전</string>
+    <string name="accessibility_shift_once">한 글자 대문자</string>
+    <string name="accessibility_caps_lock">Caps Lock</string>
 </resources>

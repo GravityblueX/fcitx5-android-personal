@@ -43,6 +43,22 @@ class KeyAccessibilityLabelTest {
     }
 
     @Test
+    fun capsStateLabelsDescribeTemporaryAndLockedUppercase() {
+        assertEquals(
+            null,
+            capsStateAccessibilityLabel(TextKeyboard.CapsState.None)
+        )
+        assertEquals(
+            KeyAccessibilityLabel.Resource(R.string.accessibility_shift_once),
+            capsStateAccessibilityLabel(TextKeyboard.CapsState.Once)
+        )
+        assertEquals(
+            KeyAccessibilityLabel.Resource(R.string.accessibility_caps_lock),
+            capsStateAccessibilityLabel(TextKeyboard.CapsState.Lock)
+        )
+    }
+
+    @Test
     fun iconKeysExposeLocalizedActionLabels() {
         assertEquals(
             KeyAccessibilityLabel.Resource(R.string.accessibility_shift),

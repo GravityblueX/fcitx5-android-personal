@@ -396,4 +396,6 @@
     <string name="accessibility_next">Next</string>
     <string name="accessibility_done">Done</string>
     <string name="accessibility_previous">Previous</string>
+    <string name="accessibility_shift_once">One uppercase letter</string>
+    <string name="accessibility_caps_lock">Caps lock</string>
 </resources>

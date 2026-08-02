@@ -396,4 +396,6 @@
     <string name="accessibility_next">Далее</string>
     <string name="accessibility_done">Готово</string>
     <string name="accessibility_previous">Назад</string>
+    <string name="accessibility_shift_once">Одна заглавная буква</string>
+    <string name="accessibility_caps_lock">Caps Lock</string>
 </resources>
