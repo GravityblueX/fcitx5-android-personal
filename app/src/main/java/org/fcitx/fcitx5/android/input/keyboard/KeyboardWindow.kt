@@ -90,6 +90,10 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
         popup.listener
     }
 
+    private val autoCapitalization by AppPrefs.getInstance().keyboard.autoCapitalization
+    private var currentInputType = InputType.TYPE_NULL
+    private var autoCapsMode = AutoCapsMode.None
+
     // This will be called EXACTLY ONCE
     override fun onCreateView(): View {
         keyboardView = context.frameLayout(R.id.keyboard_view)
@@ -115,6 +119,7 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
             it.onAttach()
             it.onReturnDrawableUpdate(returnKeyDrawable.resourceId)
             it.onInputMethodUpdate(fcitx.runImmediately { inputMethodEntryCached })
+            it.onAutoCapsUpdate(autoCapsMode)
         }
     }
 
@@ -157,7 +162,19 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
     }
 
     override fun onStartInput(info: EditorInfo, capFlags: CapabilityFlags) {
+        currentInputType = info.inputType
+        updateAutoCapsMode()
         switchLayout(keyboardLayoutForInputType(info.inputType), remember = false)
+    }
+
+    override fun onSelectionUpdate(start: Int, end: Int) {
+        if (start == end) updateAutoCapsMode()
+    }
+
+    override fun onFinishInput() {
+        currentInputType = InputType.TYPE_NULL
+        autoCapsMode = AutoCapsMode.None
+        currentKeyboard?.onAutoCapsUpdate(autoCapsMode)
     }
 
     override fun onImeUpdate(ime: InputMethodEntry) {
@@ -188,6 +205,18 @@ class KeyboardWindow : InputWindow.SimpleInputWindow<KeyboardWindow>(), Essentia
             it.popupActionListener = null
         }
         popup.dismissAll()
+    }
+
+    private fun updateAutoCapsMode() {
+        val capsMode = if (autoCapitalization &&
+            currentInputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_CLASS_TEXT
+        ) {
+            runCatching {
+                service.currentInputConnection?.getCursorCapsMode(AutoCapsMode.RequestFlags) ?: 0
+            }.getOrDefault(0)
+        } else 0
+        autoCapsMode = autoCapsModeFor(capsMode)
+        currentKeyboard?.onAutoCapsUpdate(autoCapsMode)
     }
 
     // Call this when

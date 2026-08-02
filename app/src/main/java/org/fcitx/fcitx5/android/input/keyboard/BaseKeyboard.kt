@@ -565,6 +565,10 @@ abstract class BaseKeyboard(
         // do nothing by default
     }
 
+    open fun onAutoCapsUpdate(mode: AutoCapsMode) {
+        // do nothing by default
+    }
+
     open fun onInputMethodUpdate(ime: InputMethodEntry) {
         // do nothing by default
     }

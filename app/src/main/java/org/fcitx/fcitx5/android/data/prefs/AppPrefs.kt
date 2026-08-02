@@ -178,6 +178,11 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             200,
             "%"
         )
+        val autoCapitalization = switch(
+            R.string.auto_capitalization,
+            "auto_capitalization",
+            false
+        )
         val keepLettersUppercase = switch(
             R.string.keep_keyboard_letters_uppercase,
             "keep_keyboard_letters_uppercase",

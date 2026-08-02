@@ -382,4 +382,5 @@
     <string name="edit_text_playground">EditText Playground</string>
     <string name="custom_key_sound">Custom key sound</string>
     <string name="key_text_scale">Key label size</string>
+    <string name="auto_capitalization">Auto-capitalize keyboard</string>
 </resources>

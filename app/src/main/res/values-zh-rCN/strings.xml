@@ -382,4 +382,5 @@
     <string name="real_size">实际尺寸 (Display.getRealSize)</string>
     <string name="custom_key_sound">自定义按键音效</string>
     <string name="key_text_scale">按键文字大小</string>
+    <string name="auto_capitalization">键盘自动大写</string>
 </resources>

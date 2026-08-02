@@ -139,6 +139,9 @@ class TextKeyboard(
     }
 
     private var capsState: CapsState = CapsState.None
+    private var autoCapsMode = AutoCapsMode.None
+    private var autoCapsApplied = false
+    private var autoCapsSuppressed = false
 
     private fun transformAlphabet(c: String): String {
         return when (capsState) {
@@ -180,7 +183,13 @@ class TextKeyboard(
                     }
                 }
             }
-            is KeyAction.CapsAction -> switchCapsState(action.lock)
+            is KeyAction.CapsAction -> {
+                if (autoCapsMode != AutoCapsMode.None) {
+                    autoCapsSuppressed = true
+                    autoCapsApplied = false
+                }
+                switchCapsState(action.lock)
+            }
             else -> {}
         }
         super.onAction(transformed, source)
@@ -188,8 +197,30 @@ class TextKeyboard(
 
     override fun onAttach() {
         capsState = CapsState.None
+        autoCapsApplied = false
         updateCapsButtonIcon()
         updateAlphabetKeys()
+    }
+
+    override fun onAutoCapsUpdate(mode: AutoCapsMode) {
+        if (mode == AutoCapsMode.None) {
+            autoCapsMode = mode
+            autoCapsSuppressed = false
+            if (autoCapsApplied) updateCapsState(CapsState.None)
+            autoCapsApplied = false
+            return
+        }
+        autoCapsMode = mode
+        if (autoCapsSuppressed) return
+        val target = when (mode) {
+            AutoCapsMode.Once -> CapsState.Once
+            AutoCapsMode.Lock -> CapsState.Lock
+            AutoCapsMode.None -> CapsState.None
+        }
+        if (capsState == CapsState.None || autoCapsApplied) {
+            autoCapsApplied = true
+            updateCapsState(target)
+        }
     }
 
     override fun onReturnDrawableUpdate(returnDrawable: Int) {
@@ -241,7 +272,12 @@ class TextKeyboard(
     }
 
     private fun switchCapsState(lock: Boolean = false) {
-        capsState = nextCapsState(capsState, lock, singleTapCapsLock)
+        updateCapsState(nextCapsState(capsState, lock, singleTapCapsLock))
+    }
+
+    private fun updateCapsState(state: CapsState) {
+        if (capsState == state) return
+        capsState = state
         updateCapsButtonIcon()
         updateAlphabetKeys()
     }
