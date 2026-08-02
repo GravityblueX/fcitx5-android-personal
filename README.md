@@ -16,6 +16,7 @@
 - Candidate annotation toggle, improved long-entry readability, and full-text preview on hold.
 - Sensitive-field protections that hide clipboard content and disable voice or handwriting input.
 - Configurable selection-swipe sensitivity, forgiving key release, and single-tap Caps Lock.
+- Custom key sounds with persistent file access and system-sound fallback.
 - Clipboard expiration controls plus deterministic history limits for same-time entries.
 - Multi-item text copies are retained in clipboard history, with the primary item prioritized.
 - Clipboard suggestions and history are hidden outside active non-password inputs.
