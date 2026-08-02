@@ -107,6 +107,7 @@ class TextKeyboard(
     }
 
     private val keepLettersUppercase by AppPrefs.getInstance().keyboard.keepLettersUppercase
+    private val singleTapCapsLock by AppPrefs.getInstance().keyboard.singleTapCapsLock
 
     init {
         updateLangSwitchKey(showLangSwitchKey.getValue())
@@ -219,18 +220,7 @@ class TextKeyboard(
     }
 
     private fun switchCapsState(lock: Boolean = false) {
-        capsState =
-            if (lock) {
-                when (capsState) {
-                    CapsState.Lock -> CapsState.None
-                    else -> CapsState.Lock
-                }
-            } else {
-                when (capsState) {
-                    CapsState.None -> CapsState.Once
-                    else -> CapsState.None
-                }
-            }
+        capsState = nextCapsState(capsState, lock, singleTapCapsLock)
         updateCapsButtonIcon()
         updateAlphabetKeys()
     }
@@ -274,4 +264,25 @@ class TextKeyboard(
         }
     }
 
+}
+
+
+internal fun nextCapsState(
+    current: TextKeyboard.CapsState,
+    lock: Boolean,
+    singleTapLocks: Boolean
+): TextKeyboard.CapsState {
+    return if (lock || singleTapLocks) {
+        if (current == TextKeyboard.CapsState.Lock) {
+            TextKeyboard.CapsState.None
+        } else {
+            TextKeyboard.CapsState.Lock
+        }
+    } else {
+        if (current == TextKeyboard.CapsState.None) {
+            TextKeyboard.CapsState.Once
+        } else {
+            TextKeyboard.CapsState.None
+        }
+    }
 }

@@ -168,6 +168,11 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             "keep_keyboard_letters_uppercase",
             false
         )
+        val singleTapCapsLock = switch(
+            R.string.single_tap_caps_lock,
+            "single_tap_caps_lock",
+            false
+        )
 
         val showVoiceInputButton =
             switch(R.string.show_voice_input_button, "show_voice_input_button", false)
