@@ -21,12 +21,16 @@ For the complete change history, see the [commit log](../../commits/master).
 
 This fork does not reuse or redistribute the official project's APKs. The links
 in the next section install the official app and will not include Fcitx17-only
-changes. To test this build, either build it locally with `./gradlew :app:assembleRelease`
-or download the APK artifact produced by the repository's **Personal build**
-GitHub Actions workflow.
+changes. To try Fcitx17, install the `fcitx17-debug-apk` artifact from the
+repository's **Personal build** GitHub Actions workflow. Install
+`fcitx17-debug-plugins` as well when testing optional plugins such as
+handwriting.
 
-Artifacts are intended for testing and are unsigned unless a release signing
-process is configured. Install only APKs built from a revision you trust.
+Debug artifacts use Android's development signing key and are for testing only.
+The separately uploaded `fcitx17-unsigned-release-apk` artifact is deliberately
+**not installable** until it is signed with a protected release key. For local
+testing, run `./gradlew :app:assembleDebug :assembleDebugPlugins`. Install only
+APKs built from a revision you trust.
 
 ## Download
 

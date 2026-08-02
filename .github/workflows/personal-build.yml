@@ -51,8 +51,8 @@ jobs:
       - name: Run lint and unit tests
         run: ./gradlew :app:lintDebug :app:testDebugUnitTest --stacktrace
 
-      - name: Build release APK and plugins
-        run: ./gradlew :app:assembleRelease :assembleReleasePlugins --stacktrace
+      - name: Build debug and release APKs
+        run: ./gradlew :app:assembleDebug :assembleDebugPlugins :app:assembleRelease :assembleReleasePlugins --stacktrace
 
       - name: Upload quality reports
         if: ${{ always() }}
@@ -65,18 +65,34 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Upload main APK
+      - name: Upload installable debug APK
         uses: actions/upload-artifact@v6
         with:
-          name: fcitx17-apk
+          name: fcitx17-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload installable debug plugins
+        uses: actions/upload-artifact@v6
+        with:
+          name: fcitx17-debug-plugins
+          path: plugin/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload unsigned release APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: fcitx17-unsigned-release-apk
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload plugin APKs
+      - name: Upload unsigned release plugins
         uses: actions/upload-artifact@v6
         with:
-          name: fcitx17-plugins
+          name: fcitx17-unsigned-release-plugins
           path: plugin/**/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
