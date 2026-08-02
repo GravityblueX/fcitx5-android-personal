@@ -126,6 +126,7 @@ class ClipboardWindow : InputWindow.ExtendedInputWindow<ClipboardWindow>(), Scal
 
             override fun onPaste(entry: ClipboardEntry) {
                 service.commitText(entry.text)
+                service.lifecycleScope.launch { ClipboardManager.markUsed(entry.id) }
                 if (clipboardReturnAfterPaste) windowManager.attachWindow(KeyboardWindow)
             }
         }

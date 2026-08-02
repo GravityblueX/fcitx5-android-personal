@@ -165,6 +165,15 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
         scheduleExpirationLocked()
     }
 
+    suspend fun markUsed(id: Int) = mutex.withLock {
+        val timestamp = System.currentTimeMillis()
+        clbDao.updateTime(id, timestamp)
+        lastEntry?.let {
+            if (it.id == id) lastEntry = it.copy(timestamp = timestamp)
+        }
+        scheduleExpirationLocked()
+    }
+
     suspend fun updateText(id: Int, text: String) {
         lastEntry?.let {
             if (id == it.id) updateLastEntry(it.copy(text = text))
