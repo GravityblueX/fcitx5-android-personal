@@ -22,6 +22,7 @@ import org.fcitx.fcitx5.android.input.keyboard.KeyboardHeightPercentBase
 import org.fcitx.fcitx5.android.input.keyboard.LangSwitchBehavior
 import org.fcitx.fcitx5.android.input.keyboard.OneHandedMode
 import org.fcitx.fcitx5.android.input.keyboard.SpaceLongPressBehavior
+import org.fcitx.fcitx5.android.input.keyboard.SelectionSwipeSensitivity
 import org.fcitx.fcitx5.android.input.keyboard.SwipeSymbolDirection
 import org.fcitx.fcitx5.android.input.picker.PickerWindow
 import org.fcitx.fcitx5.android.input.popup.EmojiModifier
@@ -197,6 +198,11 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         )
         val spaceSwipeMoveCursor =
             switch(R.string.space_swipe_move_cursor, "space_swipe_move_cursor", true)
+        val selectionSwipeSensitivity = enumList(
+            R.string.selection_swipe_sensitivity,
+            "selection_swipe_sensitivity",
+            SelectionSwipeSensitivity.Normal
+        )
         val showLangSwitchKey =
             switch(R.string.show_lang_switch_key, "show_lang_switch_key", true)
         val langSwitchKeyBehavior = enumList(

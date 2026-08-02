@@ -58,12 +58,20 @@ abstract class BaseKeyboard(
     private val swipeSymbolDirection by prefs.keyboard.swipeSymbolDirection
 
     private val spaceSwipeMoveCursor = prefs.keyboard.spaceSwipeMoveCursor
+    private val selectionSwipeSensitivity = prefs.keyboard.selectionSwipeSensitivity
     private val spaceKeys = mutableListOf<KeyView>()
+    private val selectionSwipeKeys = mutableListOf<KeyView>()
     private val spaceSwipeChangeListener = ManagedPreference.OnChangeListener<Boolean> { _, v ->
         spaceKeys.forEach {
             it.swipeEnabled = v
         }
     }
+    private val selectionSwipeSensitivityChangeListener =
+        ManagedPreference.OnChangeListener<SelectionSwipeSensitivity> { _, _ ->
+            selectionSwipeKeys.forEach {
+                it.swipeThresholdX = selectionSwipeThreshold
+            }
+        }
 
     private val vivoKeypressWorkaround by prefs.advanced.vivoKeypressWorkaround
 
@@ -71,7 +79,8 @@ abstract class BaseKeyboard(
 
     var popupActionListener: PopupActionListener? = null
 
-    private val selectionSwipeThreshold = dp(20f)
+    private val selectionSwipeThreshold: Float
+        get() = dp(selectionSwipeSensitivity.getValue().thresholdDp)
     private val inputSwipeThreshold = dp(36f)
 
     // a rather large threshold effectively disables swipe of the direction
@@ -142,6 +151,7 @@ abstract class BaseKeyboard(
             })
         }
         spaceSwipeMoveCursor.registerOnChangeListener(spaceSwipeChangeListener)
+        selectionSwipeSensitivity.registerOnChangeListener(selectionSwipeSensitivityChangeListener)
     }
 
     fun setContentScale(
@@ -180,6 +190,7 @@ abstract class BaseKeyboard(
             }
             if (def is SpaceKey) {
                 spaceKeys.add(this)
+                selectionSwipeKeys.add(this)
                 swipeEnabled = spaceSwipeMoveCursor.getValue()
                 swipeRepeatEnabled = true
                 swipeThresholdX = selectionSwipeThreshold
@@ -203,6 +214,7 @@ abstract class BaseKeyboard(
                     }
                 }
             } else if (def is BackspaceKey) {
+                selectionSwipeKeys.add(this)
                 swipeEnabled = true
                 swipeRepeatEnabled = true
                 swipeThresholdX = selectionSwipeThreshold
