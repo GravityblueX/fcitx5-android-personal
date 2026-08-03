@@ -17,11 +17,15 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.cancellable
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import org.fcitx.fcitx5.android.R
 
 class Logcat(val pid: Int? = Process.myPid()) : CoroutineScope by CoroutineScope(Dispatchers.IO) {
 
+    @Volatile
     private var process: java.lang.Process? = null
+
+    @Volatile
     private var emittingJob: Job? = null
 
     private val flow: MutableSharedFlow<String> = MutableSharedFlow()
@@ -57,30 +61,51 @@ class Logcat(val pid: Int? = Process.myPid()) : CoroutineScope by CoroutineScope
      * Create a process reading logcat, sending lines to [logFlow]
      */
     fun initLogFlow() =
-        if (process != null)
+        if (emittingJob?.isActive == true)
             errorState(R.string.exception_logcat_created)
         else launch {
-            runCatching {
-                Runtime
-                    .getRuntime()
-                    .exec(arrayOf("logcat", pid?.let { "--pid=$it" } ?: "", "-v", "brief"))
-                    .also { process = it }
-                    .inputStream
-                    .bufferedReader()
-                    .lineSequence()
-                    .asFlow()
-                    .flowOn(Dispatchers.IO)
-                    .cancellable()
-                    .collect { flow.emit(it) }
+            var createdProcess: java.lang.Process? = null
+            try {
+                runCatching {
+                    val newProcess = Runtime
+                        .getRuntime()
+                        .exec(arrayOf("logcat", pid?.let { "--pid=$it" } ?: "", "-v", "brief"))
+                    createdProcess = newProcess
+                    if (!coroutineContext.isActive) {
+                        newProcess.destroy()
+                        return@runCatching
+                    }
+                    process = newProcess
+                    newProcess.inputStream
+                        .bufferedReader()
+                        .lineSequence()
+                        .asFlow()
+                        .flowOn(Dispatchers.IO)
+                        .cancellable()
+                        .collect { flow.emit(it) }
+                }
+            } finally {
+                if (process === createdProcess) process = null
             }
-        }.also { emittingJob = it }
+        }.also { job ->
+            emittingJob = job
+            job.invokeOnCompletion {
+                if (emittingJob === job) emittingJob = null
+            }
+        }
 
     /**
      * Destroy the reading process
      */
     fun shutdownLogFlow() {
-        process?.destroy()
-        emittingJob?.cancel()
+        process?.also { activeProcess ->
+            process = null
+            activeProcess.destroy()
+        }
+        emittingJob?.also { activeJob ->
+            emittingJob = null
+            activeJob.cancel()
+        }
     }
 
     companion object {
