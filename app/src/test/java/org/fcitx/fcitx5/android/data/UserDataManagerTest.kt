@@ -7,6 +7,7 @@ package org.fcitx.fcitx5.android.data
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 import java.nio.file.Files
 
 class UserDataManagerTest {
@@ -29,6 +30,28 @@ class UserDataManagerTest {
         assertFalse(isTransientSharedPreferenceFile("org.fcitx.fcitx17.android_preferences.xml"))
         assertFalse(isTransientSharedPreferenceFile("clipboard.xml"))
         assertFalse(isTransientSharedPreferenceFile("recently_used.xml"))
+    }
+
+    @Test
+    fun preservesOnlyTransientSharedPreferencesDuringImport() {
+        val root = Files.createTempDirectory("user-data-").toFile()
+        try {
+            val existing = root.resolve("existing").also(File::mkdir)
+            val staged = root.resolve("staged").also(File::mkdir)
+            existing.resolve("old.xml").writeText("stale preference")
+            existing.resolve("handwriting_recognition.xml").writeText("local model state")
+            staged.resolve("clipboard.xml").writeText("imported clipboard")
+
+            preserveTransientSharedPreferenceFiles(existing, staged)
+
+            assertFalse(staged.resolve("old.xml").exists())
+            assertTrue(staged.resolve("clipboard.xml").readText() == "imported clipboard")
+            assertTrue(
+                staged.resolve("handwriting_recognition.xml").readText() == "local model state"
+            )
+        } finally {
+            root.deleteRecursively()
+        }
     }
 
     @Test

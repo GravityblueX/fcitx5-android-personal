@@ -122,6 +122,7 @@ object UserDataManager {
     private data class ImportDirectory(
         val source: File,
         val target: File,
+        val preserveExistingFiles: ((File, File) -> Unit)? = null,
     )
 
     private class StagedImportDirectory(
@@ -153,14 +154,10 @@ object UserDataManager {
         }
         val staged = createTempDir(parent)
         try {
-            if (target.exists()) {
-                check(target.copyRecursively(staged, overwrite = true)) {
-                    "Failed to stage existing user data: ${target.path}"
-                }
-            }
             check(source.copyRecursively(staged, overwrite = true)) {
                 "Failed to stage imported user data: ${source.path}"
             }
+            directory.preserveExistingFiles?.invoke(target, staged)
             val backup = target.takeIf(File::exists)?.let { createImportBackupPath(parent) }
             return StagedImportDirectory(target, staged, backup)
         } catch (e: Exception) {
@@ -367,7 +364,11 @@ object UserDataManager {
                 migrateDefaultSharedPreferences(importedSharedPrefsDir, metadata.packageName)
                 importDirectories(
                     listOf(
-                        ImportDirectory(importedSharedPrefsDir, sharedPrefsDir),
+                        ImportDirectory(
+                            importedSharedPrefsDir,
+                            sharedPrefsDir,
+                            ::preserveTransientSharedPreferenceFiles,
+                        ),
                         ImportDirectory(File(tempDir, "databases"), dataBasesDir),
                         ImportDirectory(File(tempDir, "external"), externalDir),
                         // keep importing recently_used for backwords compatibility
@@ -396,3 +397,11 @@ internal fun hasRequiredUserDataDirectories(root: File): Boolean =
     listOf("shared_prefs", "databases", "external").all { directoryName ->
         root.resolve(directoryName).isDirectory
     }
+
+internal fun preserveTransientSharedPreferenceFiles(sourceDir: File, targetDir: File) {
+    sourceDir.listFiles()
+        ?.filter { it.isFile && isTransientSharedPreferenceFile(it.name) }
+        ?.forEach { source ->
+            source.copyTo(targetDir.resolve(source.name), overwrite = true)
+        }
+}
