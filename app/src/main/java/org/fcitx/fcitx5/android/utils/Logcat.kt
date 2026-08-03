@@ -16,9 +16,16 @@ import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.cancellable
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import org.fcitx.fcitx5.android.R
+
+internal fun logcatCommand(pid: Int?, vararg arguments: String): Array<String> =
+    buildList {
+        add("logcat")
+        pid?.let { add("--pid=$it") }
+        addAll(arguments)
+    }.toTypedArray()
 
 class Logcat(val pid: Int? = Process.myPid()) : CoroutineScope by CoroutineScope(Dispatchers.IO) {
 
@@ -42,7 +49,7 @@ class Logcat(val pid: Int? = Process.myPid()) : CoroutineScope by CoroutineScope
     fun getLogAsync(): Deferred<Result<List<String>>> = async {
         runCatching {
             Runtime.getRuntime()
-                .exec(arrayOf("logcat", pid?.let { "--pid=$it" } ?: "", "-d"))
+                .exec(logcatCommand(pid, "-d"))
                 .inputStream
                 .bufferedReader()
                 .readLines()
@@ -69,7 +76,7 @@ class Logcat(val pid: Int? = Process.myPid()) : CoroutineScope by CoroutineScope
                 runCatching {
                     val newProcess = Runtime
                         .getRuntime()
-                        .exec(arrayOf("logcat", pid?.let { "--pid=$it" } ?: "", "-v", "brief"))
+                        .exec(logcatCommand(pid, "-v", "brief"))
                     createdProcess = newProcess
                     if (!coroutineContext.isActive) {
                         newProcess.destroy()
