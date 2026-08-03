@@ -77,8 +77,11 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
                 isEnabled = true
                 isChecked = entry.isEnabled
                 setOnCheckedChangeListener { _, isChecked ->
-                    if (isChecked) entry.enable() else entry.disable()
-                    ui.updateItem(ui.indexItem(entry), entry)
+                    if (if (isChecked) entry.enable() else entry.disable()) {
+                        ui.updateItem(ui.indexItem(entry), entry)
+                    } else {
+                        this.isChecked = entry.isEnabled
+                    }
                 }
             },
             initSettingsButton = { entry ->

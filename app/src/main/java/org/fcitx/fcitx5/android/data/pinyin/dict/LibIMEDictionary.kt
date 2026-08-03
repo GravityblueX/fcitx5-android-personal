@@ -36,22 +36,22 @@ class LibIMEDictionary(file: File) : PinyinDictionary() {
         }
     }
 
-    fun enable() {
-        if (isEnabled)
-            return
+    fun enable(): Boolean {
+        if (isEnabled) return true
         val newFile = file.resolveSibling(name + ".${type.ext}")
-        file.renameTo(newFile)
+        if (!file.renameTo(newFile)) return false
         file = newFile
         isEnabled = true
+        return true
     }
 
-    fun disable() {
-        if (!isEnabled)
-            return
+    fun disable(): Boolean {
+        if (!isEnabled) return true
         val newFile = file.resolveSibling(name + ".${type.ext}.$DISABLE")
-        file.renameTo(newFile)
+        if (!file.renameTo(newFile)) return false
         file = newFile
         isEnabled = false
+        return true
     }
 
     override fun toTextDictionary(dest: File): TextDictionary {

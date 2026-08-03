@@ -49,18 +49,16 @@ class BuiltinQuickPhrase(
         override!!.saveData(data)
     }
 
-    override fun enable() {
-        if (isEnabled)
-            return
+    override fun enable(): Boolean {
+        if (isEnabled) return true
         // override must exist in this case
-        override!!.enable()
+        return override!!.enable()
     }
 
-    override fun disable() {
-        if (!isEnabled)
-            return
+    override fun disable(): Boolean {
+        if (!isEnabled) return true
         createOverrideIfNotExist()
-        override!!.disable()
+        return override!!.disable()
     }
 
     fun deleteOverride() {

@@ -46,22 +46,22 @@ class CustomQuickPhrase(
         }
     }
 
-    override fun enable() {
-        if (isEnabled)
-            return
+    override fun enable(): Boolean {
+        if (isEnabled) return true
         val newFile = file.resolveSibling("$name.$EXT")
-        file.renameTo(newFile)
+        if (!file.renameTo(newFile)) return false
         file = newFile
         isEnabled = true
+        return true
     }
 
-    override fun disable() {
-        if (!isEnabled)
-            return
+    override fun disable(): Boolean {
+        if (!isEnabled) return true
         val newFile = file.resolveSibling("$name.$EXT.$DISABLE")
-        file.renameTo(newFile)
+        if (!file.renameTo(newFile)) return false
         file = newFile
         isEnabled = false
+        return true
     }
 
     override fun saveData(data: QuickPhraseData) =

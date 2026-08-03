@@ -64,8 +64,11 @@ class PinyinDictionaryFragment : Fragment(), OnItemChangedListener<PinyinDiction
                 if (entry is LibIMEDictionary) {
                     isChecked = entry.isEnabled
                     setOnCheckedChangeListener { _, isChecked ->
-                        if (isChecked) entry.enable() else entry.disable()
-                        ui.updateItem(ui.indexItem(entry), entry)
+                        if (if (isChecked) entry.enable() else entry.disable()) {
+                            ui.updateItem(ui.indexItem(entry), entry)
+                        } else {
+                            this.isChecked = entry.isEnabled
+                        }
                     }
                 } else {
                     isChecked = true

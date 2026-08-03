@@ -40,9 +40,9 @@ abstract class QuickPhrase : Parcelable {
 
     abstract fun saveData(data: QuickPhraseData)
 
-    abstract fun enable()
+    abstract fun enable(): Boolean
 
-    abstract fun disable()
+    abstract fun disable(): Boolean
 
     companion object {
         const val EXT = "mb"
