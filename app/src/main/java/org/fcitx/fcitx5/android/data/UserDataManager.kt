@@ -105,7 +105,9 @@ object UserDataManager {
         val exists = source.exists()
         val isDir = source.isDirectory
         if (exists && isDir) {
-            source.copyRecursively(target, overwrite = true)
+            check(source.copyRecursively(target, overwrite = true)) {
+                "Failed to import user data: ${source.path}"
+            }
         } else {
             Timber.w("Cannot import user data: path='${source.path}', exists=$exists, isDir=$isDir")
         }
