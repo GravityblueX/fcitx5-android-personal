@@ -242,6 +242,7 @@
     <string name="keep_keyboard_letters_uppercase">Mantener las letras del teclado en mayúsculas</string>
     <string name="choose_input_method">Elija el método de entrada</string>
     <string name="config_addon_not_loaded">No hay opciones de configuración disponibles, ¿tal vez este complemento esté deshabilitado cuando se inicia fcitx?</string>
+    <string name="config_description_invalid">No se pueden cargar las opciones de configuración porque la descripción de la configuración no es válida.</string>
     <string name="keyboard_bottom_padding">Acolchado inferior del teclado</string>
     <string name="keyboard_side_padding">Acolchado lateral del teclado</string>
     <string name="clipboard_suggestion">Mostrar sugerencias del portapapeles</string>

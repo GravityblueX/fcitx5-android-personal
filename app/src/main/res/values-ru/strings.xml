@@ -167,6 +167,7 @@
     <string name="edit_clipboard">Редактировать буфер обмена</string>
     <string name="clipboard_edit_text_hint">Содержимое буфера обмена</string>
     <string name="config_addon_not_loaded">Параметры конфигурации недоступны, возможно, это дополнение отключено при запуске fcitx?</string>
+    <string name="config_description_invalid">Не удалось загрузить параметры конфигурации: описание конфигурации недействительно.</string>
     <string name="portrait">Портретный режим экрана</string>
     <string name="landscape">Горизонтальный режим экрана</string>
     <string name="keyboard_bottom_padding">Нижнее поле клавиатуры</string>

@@ -128,6 +128,7 @@
     <string name="edit_clipboard">Zwischenablage bearbeiten</string>
     <string name="clipboard_edit_text_hint">Inhalt der Zwischenablage</string>
     <string name="config_addon_not_loaded">Keine Konfigurationsoptionen vorhanden, ist das Addon beim Start von fcitx ausgeschaltet?</string>
+    <string name="config_description_invalid">Konfigurationsoptionen können nicht geladen werden, weil die Konfigurationsbeschreibung ungültig ist.</string>
     <string name="portrait">Hochformat</string>
     <string name="landscape">Querformat</string>
     <string name="disable_addon_warn_title">Addon deaktivieren</string>

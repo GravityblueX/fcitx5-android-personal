@@ -206,6 +206,7 @@
     <string name="edit_clipboard">클립보드 편집</string>
     <string name="clipboard_edit_text_hint">클립보드 내용</string>
     <string name="config_addon_not_loaded">사용 가능한 구성 옵션이 없습니다. fcitx가 시작될 때 이 애드온이 비활성화되어 있는 것일까요?</string>
+    <string name="config_description_invalid">구성 설명이 잘못되어 구성 옵션을 불러올 수 없습니다.</string>
     <string name="portrait">초상화</string>
     <string name="landscape">풍경</string>
     <string name="keyboard_bottom_padding">키보드 하단 패딩</string>

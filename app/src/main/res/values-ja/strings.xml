@@ -164,6 +164,7 @@
     <string name="edit_clipboard">クリップボードを編集</string>
     <string name="clipboard_edit_text_hint">クリップボードのコンテンツ</string>
     <string name="config_addon_not_loaded">利用可能な設定オプションがありません。もしかしたらこのアドオンはfcitxの起動時に無効になっているかもしれません</string>
+    <string name="config_description_invalid">設定の説明が無効なため、設定項目を読み込めません。</string>
     <string name="portrait">縦画面時</string>
     <string name="landscape">横画面時</string>
     <string name="keyboard_bottom_padding">キーボードの下部余白</string>
