@@ -318,6 +318,7 @@ class CustomThemeActivity : AppCompatActivity() {
                         }
                     }
                     is CropResult.Success -> {
+                        val cropResultFile = it.file
                         if (newCreated) {
                             MimeTypeMap.getSingleton()
                                 .getExtensionFromMimeType(contentResolver.getType(it.srcUri))
@@ -334,6 +335,7 @@ class CustomThemeActivity : AppCompatActivity() {
                                     srcImageFile.outputStream().use(input::copyTo)
                                 }
                             }.getOrElse {
+                                cropResultFile.delete()
                                 toast(R.string.exception_document_unavailable)
                                 cancel()
                                 return@registerForActivityResult
