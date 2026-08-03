@@ -208,6 +208,7 @@
     <string name="edit_clipboard">Edit clipboard</string>
     <string name="clipboard_edit_text_hint">Clipboard content</string>
     <string name="config_addon_not_loaded">No configuration options available, maybe this addon is disabled when fcitx starts?</string>
+    <string name="config_description_invalid">Unable to load configuration options because the configuration description is invalid.</string>
     <string name="portrait">Portrait</string>
     <string name="landscape">Landscape</string>
     <string name="keyboard_bottom_padding">Keyboard bottom padding</string>

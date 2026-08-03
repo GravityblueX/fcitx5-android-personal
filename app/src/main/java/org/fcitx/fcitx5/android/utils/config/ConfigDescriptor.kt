@@ -337,7 +337,7 @@ sealed class ConfigDescriptor<T, U> : Parcelable {
 
         fun parseTopLevel(raw: RawConfig): Either<ParseException, ConfigTopLevelDef> =
             either {
-                val topLevel = raw.subItems?.get(0) ?: raise(ParseException.BadFormDesc(raw))
+                val topLevel = raw.subItems?.firstOrNull() ?: raise(ParseException.BadFormDesc(raw))
                 val customTypeDef = raw.subItems?.drop(1)?.mapNotNull {
                     it.subItems?.map { ele -> parse(ele).bind() }
                         ?.let { parsed -> ConfigCustomTypeDef(it.name, parsed) }

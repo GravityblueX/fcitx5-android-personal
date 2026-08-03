@@ -167,6 +167,7 @@
     <string name="edit_clipboard">編輯剪貼簿</string>
     <string name="clipboard_edit_text_hint">剪貼簿內容</string>
     <string name="config_addon_not_loaded">尚無可用設定，此附加元件可能在 Fcitx 啟動時處於停用狀態。</string>
+    <string name="config_description_invalid">設定描述無效，無法載入設定選項。</string>
     <string name="portrait">豎屏</string>
     <string name="landscape">横向畫面</string>
     <string name="keyboard_bottom_padding">鍵盤底部邊距</string>

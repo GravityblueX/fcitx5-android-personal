@@ -58,8 +58,15 @@ object PreferenceScreenFactory {
         val cfg = raw["cfg"]
         val desc = raw["desc"]
         val store = FcitxRawConfigStore(cfg)
-        // TODO: needs some error handling
-        val topLevelDesc = ConfigDescriptor.parseTopLevel(desc).getOrElse { throw it }
+        val topLevelDesc = ConfigDescriptor.parseTopLevel(desc).getOrElse { error ->
+            Timber.w(error, "Unable to parse configuration descriptor")
+            screen.addPreference(Preference(context).apply {
+                title = context.getString(R.string.config_description_invalid)
+                isSelectable = false
+                isIconSpaceReserved = false
+            })
+            return screen
+        }
         screen.title = topLevelDesc.name
         topLevelDesc.values.forEach {
             general(context, fragmentManager, cfg.findByName(it.name), screen, it, store, save)
