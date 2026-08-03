@@ -4,9 +4,11 @@
  */
 package org.fcitx.fcitx5.android.data.pinyin
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 class PinyinDictManagerTest {
 
@@ -15,5 +17,24 @@ class PinyinDictManagerTest {
         assertTrue(isPinyinImportStagingFile(".pinyin-import-123.staged"))
         assertFalse(isPinyinImportStagingFile("pinyin-import-123.staged"))
         assertFalse(isPinyinImportStagingFile(".pinyin-import-123.dict"))
+    }
+
+    @Test
+    fun collectsMergedProcessOutput() {
+        val operatingSystemName = System.getProperty("os.name").orEmpty()
+        val executableName = if (operatingSystemName.startsWith("Windows", true)) {
+            "java.exe"
+        } else {
+            "java"
+        }
+        val javaExecutable = File(System.getProperty("java.home"), "bin/${executableName}")
+        val process = ProcessBuilder(javaExecutable.path, "-version")
+            .redirectErrorStream(true)
+            .start()
+
+        val (exitCode, output) = collectProcessOutput(process)
+
+        assertEquals(0, exitCode)
+        assertTrue(output.isNotBlank())
     }
 }

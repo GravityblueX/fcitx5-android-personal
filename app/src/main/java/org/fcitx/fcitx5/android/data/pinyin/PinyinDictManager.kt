@@ -104,14 +104,15 @@ object PinyinDictManager {
     }
 
     fun sougouDictConv(src: String, dest: String) {
-        val process = Runtime.getRuntime()
-            .exec(
-                arrayOf(scel2org5.absolutePath, "-o", dest, src),
-                arrayOf("LD_LIBRARY_PATH=${nativeDir.absolutePath}")
-            )
-        process.waitFor()
-        if (process.exitValue() != 0) {
-            throw IOException(process.errorStream.bufferedReader().readText())
+        val process = ProcessBuilder(scel2org5.absolutePath, "-o", dest, src)
+            .redirectErrorStream(true)
+            .apply {
+                environment()["LD_LIBRARY_PATH"] = nativeDir.absolutePath
+            }
+            .start()
+        val (exitCode, output) = collectProcessOutput(process)
+        if (exitCode != 0) {
+            throw IOException(output)
         }
     }
 
@@ -133,3 +134,22 @@ object PinyinDictManager {
 
 internal fun isPinyinImportStagingFile(fileName: String): Boolean =
     fileName.startsWith(".pinyin-import-") && fileName.endsWith(".staged")
+
+private const val MAX_PROCESS_OUTPUT_CHARS = 64 * 1024
+
+internal fun collectProcessOutput(process: Process): Pair<Int, String> {
+    process.outputStream.close()
+    val output = buildString {
+        process.inputStream.bufferedReader().use { reader ->
+            val buffer = CharArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val readCount = reader.read(buffer)
+                if (readCount < 0) break
+                if (length < MAX_PROCESS_OUTPUT_CHARS) {
+                    append(buffer, 0, minOf(readCount, MAX_PROCESS_OUTPUT_CHARS - length))
+                }
+            }
+        }
+    }
+    return process.waitFor() to output
+}
