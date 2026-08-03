@@ -55,6 +55,12 @@ class FcitxRemoteService : Service() {
         return result
     }
 
+    private fun clipboardTransformerPriority(transformer: IClipboardEntryTransformer): Int =
+        runCatching { transformer.priority }.getOrElse {
+            Timber.w(it, "Cannot query clipboard transformer priority: %s", transformer.desc)
+            Int.MIN_VALUE
+        }
+
     private suspend fun updateClipboardManager() = clipboardTransformerLock.withLock {
         ClipboardManager.transformer =
             if (clipboardTransformers.isEmpty()) null else ::transformClipboard
@@ -76,8 +82,12 @@ class FcitxRemoteService : Service() {
         }
 
         override fun registerClipboardEntryTransformer(transformer: IClipboardEntryTransformer) {
-            Timber.d("registerClipboardEntryTransformer: ${transformer.desc}")
-            if (transformer.description.isNullOrBlank()) {
+            val description = runCatching { transformer.description }.getOrElse {
+                Timber.w(it, "Cannot query clipboard transformer description")
+                return
+            }
+            Timber.d("registerClipboardEntryTransformer: $description")
+            if (description.isNullOrBlank()) {
                 Timber.w("Cannot register ClipboardEntryTransformer of null or empty description")
                 return
             }
@@ -96,7 +106,7 @@ class FcitxRemoteService : Service() {
                 }
                 clipboardTransformerDeathRecipients[binder] = deathRecipient
                 clipboardTransformers.add(transformer)
-                clipboardTransformers.sortByDescending { it.priority }
+                clipboardTransformers.sortByDescending(::clipboardTransformerPriority)
                 updateClipboardManager()
             }
         }
