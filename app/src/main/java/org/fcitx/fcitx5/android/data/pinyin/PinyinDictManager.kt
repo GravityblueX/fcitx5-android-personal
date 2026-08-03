@@ -4,6 +4,7 @@
  */
 package org.fcitx.fcitx5.android.data.pinyin
 
+import android.system.Os
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.data.DataManager
 import org.fcitx.fcitx5.android.data.pinyin.dict.BuiltinDictionary
@@ -20,9 +21,15 @@ import java.io.InputStream
 
 object PinyinDictManager {
 
+    private const val IMPORT_STAGING_PREFIX = ".pinyin-import-"
+    private const val IMPORT_STAGING_SUFFIX = ".staged"
+
     private val pinyinDicDir = File(
         appContext.getExternalFilesDir(null)!!, "data/pinyin/dictionaries"
-    ).also { it.mkdirs() }
+    ).also { directory ->
+        directory.mkdirs()
+        cleanupStagedImports(directory)
+    }
 
     private val builtinPinyinDictDir = File(
         DataManager.dataDir, "usr/share/fcitx5/pinyin/dictionaries"
@@ -60,15 +67,17 @@ object PinyinDictManager {
             destinationName.substringBeforeLast('.') + ".${PinyinDictionary.Type.LibIME.ext}"
         )
         withTempDir { tempDir ->
-            val staged = raw.toLibIMEDictionary(File(tempDir, destination.name))
-            val backup = destination.takeIf(File::exists)?.let { existing ->
-                File.createTempFile("pinyin-import-", ".backup", tempDir).also { existing.copyTo(it) }
-            }
+            val converted = raw.toLibIMEDictionary(File(tempDir, destination.name))
+            val staged = File.createTempFile(
+                IMPORT_STAGING_PREFIX,
+                IMPORT_STAGING_SUFFIX,
+                pinyinDicDir
+            )
             try {
-                staged.file.copyTo(destination, overwrite = true)
-            } catch (e: Exception) {
-                if (backup == null) destination.delete() else backup.copyTo(destination, overwrite = true)
-                throw e
+                converted.file.copyTo(staged, overwrite = true)
+                Os.rename(staged.path, destination.path)
+            } finally {
+                staged.delete()
             }
         }
         LibIMEDictionary(destination).also { Timber.d("Converted $raw to $it") }
@@ -113,4 +122,14 @@ object PinyinDictManager {
     const val MODE_TXT_TO_BIN = false
     private const val scel2org5Name = "libscel2org5.so"
 
+    private fun cleanupStagedImports(directory: File) {
+        directory.listFiles()
+            ?.filter { isPinyinImportStagingFile(it.name) }
+            ?.forEach { staged ->
+                if (!staged.delete()) Timber.w("Failed to remove stale pinyin import: ${staged.path}")
+            }
+    }
 }
+
+internal fun isPinyinImportStagingFile(fileName: String): Boolean =
+    fileName.startsWith(".pinyin-import-") && fileName.endsWith(".staged")
