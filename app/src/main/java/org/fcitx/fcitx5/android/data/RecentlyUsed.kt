@@ -24,8 +24,14 @@ class RecentlyUsed(val type: String, val limit: Int) {
     private val sharedPreferences = FcitxApplication.getInstance().directBootAwareContext
         .getSharedPreferences(PREFERENCE_NAME, Context.MODE_PRIVATE)
 
+    private val initialItems = migrate() ?: load()
+
     private val map = LinkedHashMap<String, Boolean>(limit).apply {
-        (migrate() ?: load()).forEach { put(it, true) }
+        normalizeRecentlyUsed(initialItems, limit).forEach { item -> put(item, true) }
+    }
+
+    init {
+        if (map.keys.toList() != initialItems) save()
     }
 
     private val migrationKey get() = "$MIGRATION_KEY_PREFIX$type"
@@ -63,6 +69,9 @@ class RecentlyUsed(val type: String, val limit: Int) {
             }
             map.put(item, true)
         }
+        if (map.size > limit) {
+            map.remove(map.entries.first().key)
+        }
         save()
     }
 
@@ -95,4 +104,18 @@ class RecentlyUsed(val type: String, val limit: Int) {
         }
         return null
     }
+}
+
+internal fun normalizeRecentlyUsed(items: List<String>, limit: Int): List<String> {
+    require(limit > 0) { "Recently used item limit must be positive" }
+    val recentItems = LinkedHashMap<String, Boolean>(limit)
+    items.forEach { item ->
+        if (item.isBlank()) return@forEach
+        recentItems.remove(item)
+        recentItems[item] = true
+        if (recentItems.size > limit) {
+            recentItems.remove(recentItems.entries.first().key)
+        }
+    }
+    return recentItems.keys.toList()
 }
