@@ -80,4 +80,51 @@ class ZipStreamTest {
             parent.deleteRecursively()
         }
     }
+    @Test
+    fun rejectsEntryLargerThanLimit() {
+        val destination = Files.createTempDirectory("zip-entry-size-").toFile()
+        try {
+            assertThrows(SecurityException::class.java) {
+                ZipInputStream(
+                    ByteArrayInputStream(zip("payload.bin" to "1234"))
+                ).use { it.extract(destination, maxEntryBytes = 3) }
+            }
+            assertFalse(destination.resolve("payload.bin").exists())
+        } finally {
+            destination.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun rejectsArchiveLargerThanLimit() {
+        val destination = Files.createTempDirectory("zip-total-size-").toFile()
+        try {
+            assertThrows(SecurityException::class.java) {
+                ZipInputStream(
+                    ByteArrayInputStream(zip("first.txt" to "123", "second.txt" to "456"))
+                ).use { it.extract(destination, maxTotalBytes = 5) }
+            }
+            assertEquals("123", destination.resolve("first.txt").readText())
+            assertFalse(destination.resolve("second.txt").exists())
+        } finally {
+            destination.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun rejectsArchiveWithTooManyEntries() {
+        val destination = Files.createTempDirectory("zip-entry-count-").toFile()
+        try {
+            assertThrows(SecurityException::class.java) {
+                ZipInputStream(
+                    ByteArrayInputStream(zip("first.txt" to "123", "second.txt" to "456"))
+                ).use { it.extract(destination, maxEntries = 1) }
+            }
+            assertEquals("123", destination.resolve("first.txt").readText())
+            assertFalse(destination.resolve("second.txt").exists())
+        } finally {
+            destination.deleteRecursively()
+        }
+    }
+
 }
