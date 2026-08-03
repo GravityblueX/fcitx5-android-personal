@@ -15,7 +15,6 @@ import android.provider.Settings
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceScreen
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.data.DataManager
 import org.fcitx.fcitx5.android.core.data.FileSource
@@ -38,25 +37,16 @@ class PluginFragment : PaddingPreferenceFragment() {
         }
     }
 
-    private fun DataManager.whenSynced(block: () -> Unit) {
+    private fun runWhenDataSynced(block: () -> Unit) {
         lifecycleScope.launch {
-            if (!synced) {
-                suspendCancellableCoroutine {
-                    if (synced) {
-                        it.resumeWith(Result.success(Unit))
-                    } else {
-                        addOnNextSyncedCallback {
-                            it.resumeWith(Result.success(Unit))
-                        }
-                    }
-                }
+            DataManager.whenSynced {
+                lifecycleScope.launch { block() }
             }
-            block.invoke()
         }
     }
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-        DataManager.whenSynced {
+        runWhenDataSynced {
             synced = DataManager.getSyncedPluginSet()
             detected = DataManager.detectPlugins()
             preferenceScreen = createPreferenceScreen()
@@ -64,7 +54,7 @@ class PluginFragment : PaddingPreferenceFragment() {
     }
 
     private fun refreshPreferencesWhenNeeded() {
-        DataManager.whenSynced {
+        runWhenDataSynced {
             val newDetected = DataManager.detectPlugins()
             if (detected != newDetected) {
                 detected = newDetected

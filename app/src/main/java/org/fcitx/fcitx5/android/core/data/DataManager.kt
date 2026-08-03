@@ -53,6 +53,7 @@ object DataManager {
 
     private val json by lazy { Json { prettyPrint = true } }
 
+    @Volatile
     var synced = false
         private set
 
@@ -84,18 +85,31 @@ object DataManager {
     private val loadedPlugins = mutableSetOf<PluginDescriptor>()
     private val failedPlugins = mutableMapOf<String, PluginLoadFailed>()
 
-    fun getLoadedPlugins(): Set<PluginDescriptor> = loadedPlugins
-    fun getFailedPlugins(): Map<String, PluginLoadFailed> = failedPlugins
+    fun getLoadedPlugins(): Set<PluginDescriptor> = lock.withLock { loadedPlugins.toSet() }
+    fun getFailedPlugins(): Map<String, PluginLoadFailed> = lock.withLock { failedPlugins.toMap() }
 
-    fun getSyncedPluginSet() = PluginSet(loadedPlugins, failedPlugins)
+    fun getSyncedPluginSet() = lock.withLock {
+        PluginSet(loadedPlugins.toSet(), failedPlugins.toMap())
+    }
 
     /**
      * Will be cleared after each sync
      */
     private val callbacks = mutableListOf<() -> Unit>()
 
-    fun addOnNextSyncedCallback(block: () -> Unit) =
+    fun addOnNextSyncedCallback(block: () -> Unit) = lock.withLock {
         callbacks.add(block)
+    }
+
+    fun whenSynced(block: () -> Unit) {
+        val runImmediately = lock.withLock {
+            if (synced) true else {
+                callbacks.add(block)
+                false
+            }
+        }
+        if (runImmediately) block()
+    }
 
     private fun queryPluginActivities(pm: PackageManager): List<ResolveInfo> =
         compatiblePluginIntents.flatMap { action ->
@@ -311,8 +325,6 @@ object DataManager {
         } finally {
             stagedDescriptor.delete()
         }
-        callbacks.forEach { it() }
-        callbacks.clear()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             // remove old assets from credential encrypted storage
             val oldDataDir = appContext.dataDir
@@ -324,6 +336,7 @@ object DataManager {
             }
         }
         synced = true
+        callbacks.toList().also { callbacks.clear() }.forEach { it() }
         Timber.d("Synced")
     }
 
