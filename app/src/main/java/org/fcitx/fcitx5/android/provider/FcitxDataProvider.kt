@@ -194,19 +194,23 @@ class FcitxDataProvider : DocumentsProvider() {
     override fun copyDocument(sourceDocumentId: String, targetParentDocumentId: String): String {
         val oldFile = fileFromDocId(sourceDocumentId)
         val newFile = createAbstractFile(targetParentDocumentId, oldFile.name)
-        oldFile.apply {
-            try {
-                val ok = if (isDirectory) {
-                    copyRecursively(newFile)
-                } else {
-                    copyTo(newFile).exists()
-                }
-                if (!ok) {
-                    throw FileNotFoundException("copyDocument id=$sourceDocumentId to ${newFile.docId} failed")
-                }
-            } catch (e: Exception) {
-                throw FileNotFoundException("copyDocument id=$sourceDocumentId to ${newFile.docId} failed: ${e.message}")
+        try {
+            val copied = if (oldFile.isDirectory) {
+                oldFile.copyRecursively(newFile)
+            } else {
+                oldFile.copyTo(newFile).exists()
             }
+            if (!copied) {
+                throw IOException("copyDocument id=${sourceDocumentId} to ${newFile.docId} failed")
+            }
+        } catch (e: Exception) {
+            val failure = FileNotFoundException(
+                "copyDocument id=${sourceDocumentId} to ${newFile.docId} failed: ${e.message}"
+            ).apply { initCause(e) }
+            if (newFile.exists() && !newFile.deleteRecursively()) {
+                failure.addSuppressed(IOException("Cannot remove partial copy: ${newFile.path}"))
+            }
+            throw failure
         }
         return newFile.docId
     }
