@@ -6,6 +6,7 @@ package org.fcitx.fcitx5.android.data.quickphrase
 
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.data.DataManager
+import org.fcitx.fcitx5.android.utils.safeFileName
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.errorRuntime
 import org.fcitx.fcitx5.android.utils.withTempDir
@@ -55,7 +56,7 @@ object QuickPhraseManager {
     fun importFromInputStream(stream: InputStream, fileName: String): Result<CustomQuickPhrase> {
         return stream.use { i ->
             withTempDir { dir ->
-                val tempFile = dir.resolve(fileName)
+                val tempFile = dir.resolve(fileName.safeFileName())
                 tempFile.outputStream().use { o -> i.copyTo(o) }
                 importFromFile(tempFile)
             }

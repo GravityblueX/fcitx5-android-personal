@@ -7,6 +7,7 @@ package org.fcitx.fcitx5.android.data.table
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.table.dict.Dictionary
 import org.fcitx.fcitx5.android.data.table.dict.LibIMEDictionary
+import org.fcitx.fcitx5.android.utils.safeFileName
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.errorRuntime
 import org.fcitx.fcitx5.android.utils.extract
@@ -59,10 +60,10 @@ object TableManager {
         dictStream: InputStream
     ): Result<TableBasedInputMethod> = runCatching {
         withTempDir { tempDir ->
-            val confFile = File(tempDir, confName).also {
+            val confFile = File(tempDir, confName.safeFileName()).also {
                 it.outputStream().use { o -> confStream.use { i -> i.copyTo(o) } }
             }
-            val dictFile = File(tempDir, dictName).also {
+            val dictFile = File(tempDir, dictName.safeFileName()).also {
                 it.outputStream().use { o -> dictStream.use { i -> i.copyTo(o) } }
             }
             importFiles(confFile, dictFile)
@@ -99,7 +100,7 @@ object TableManager {
         dictStream: InputStream
     ): Result<LibIMEDictionary> = runCatching {
         withTempDir { tempDir ->
-            val dictFile = File(tempDir, dictName).also {
+            val dictFile = File(tempDir, dictName.safeFileName()).also {
                 it.outputStream().use { o -> dictStream.use { i -> i.copyTo(o) } }
             }
             val dict = Dictionary.new(dictFile)!!

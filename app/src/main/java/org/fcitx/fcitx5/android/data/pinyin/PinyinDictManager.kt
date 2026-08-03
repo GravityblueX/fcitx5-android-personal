@@ -9,6 +9,7 @@ import org.fcitx.fcitx5.android.core.data.DataManager
 import org.fcitx.fcitx5.android.data.pinyin.dict.BuiltinDictionary
 import org.fcitx.fcitx5.android.data.pinyin.dict.LibIMEDictionary
 import org.fcitx.fcitx5.android.data.pinyin.dict.PinyinDictionary
+import org.fcitx.fcitx5.android.utils.safeFileName
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.errorArg
 import timber.log.Timber
@@ -66,7 +67,7 @@ object PinyinDictManager {
     }
 
     fun importFromInputStream(stream: InputStream, name: String): Result<LibIMEDictionary> {
-        val tempFile = File(appContext.cacheDir, name)
+        val tempFile = File(appContext.cacheDir, name.safeFileName())
         try {
             stream.use { input ->
                 tempFile.outputStream().use { output ->
