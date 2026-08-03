@@ -40,15 +40,20 @@ class PunctuationEditorFragment : ProgressFragment(), OnItemChangedListener<Punc
     private val dustman = NaiveDustman<PunctuationMapEntry>()
 
     private fun findDesc(raw: RawConfig) {
-        // parse config desc to get description text of the options
-        raw["desc"][PunctuationManager.MAP_ENTRY_CONFIG].subItems!!.forEach {
-            val desc = it["Description"].value
-            when (it.name) {
-                PunctuationManager.KEY -> keyDesc = desc
-                PunctuationManager.MAPPING -> mappingDesc = desc
-                PunctuationManager.ALT_MAPPING -> altMappingDesc = desc
+        keyDesc = PunctuationManager.KEY
+        mappingDesc = PunctuationManager.MAPPING
+        altMappingDesc = PunctuationManager.ALT_MAPPING
+        raw.findByName("desc")
+            ?.findByName(PunctuationManager.MAP_ENTRY_CONFIG)
+            ?.subItems
+            ?.forEach { entry ->
+                val desc = entry.findByName("Description")?.value ?: return@forEach
+                when (entry.name) {
+                    PunctuationManager.KEY -> keyDesc = desc
+                    PunctuationManager.MAPPING -> mappingDesc = desc
+                    PunctuationManager.ALT_MAPPING -> altMappingDesc = desc
+                }
             }
-        }
     }
 
     private fun saveConfig() {

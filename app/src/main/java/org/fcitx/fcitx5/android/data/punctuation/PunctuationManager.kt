@@ -12,8 +12,13 @@ import org.fcitx.fcitx5.android.core.savePunctuationConfig
 object PunctuationManager {
 
     fun parseRawConfig(raw: RawConfig): List<PunctuationMapEntry> {
-        val items = raw.findByName("cfg")?.get(ENTRIES)?.subItems ?: return emptyList()
-        return items.map { PunctuationMapEntry(it) }
+        val items = raw.findByName("cfg")?.findByName(ENTRIES)?.subItems ?: return emptyList()
+        return items.mapNotNull { entry ->
+            val key = entry.findByName(KEY)?.value ?: return@mapNotNull null
+            val mapping = entry.findByName(MAPPING)?.value ?: return@mapNotNull null
+            val altMapping = entry.findByName(ALT_MAPPING)?.value ?: return@mapNotNull null
+            PunctuationMapEntry(key, mapping, altMapping)
+        }
     }
 
     suspend fun load(fcitx: FcitxAPI, lang: String): List<PunctuationMapEntry> {
