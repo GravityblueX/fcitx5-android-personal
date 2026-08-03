@@ -7,10 +7,15 @@ package org.fcitx.fcitx5.android.utils
 
 import java.io.File
 
+@PublishedApi
+internal fun createTempDir(parent: File): File {
+    val dir = File.createTempFile("fcitx-", ".tmp", parent)
+    check(dir.delete() && dir.mkdir()) { "Cannot create temporary directory: $dir" }
+    return dir
+}
+
 inline fun <T> withTempDir(block: (File) -> T): T {
-    val dir = appContext.cacheDir.resolve(System.currentTimeMillis().toString()).also {
-        it.mkdirs()
-    }
+    val dir = createTempDir(appContext.cacheDir)
     try {
         return block(dir)
     } finally {
