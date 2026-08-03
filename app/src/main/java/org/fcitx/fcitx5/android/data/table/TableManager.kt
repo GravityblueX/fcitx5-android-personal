@@ -84,10 +84,20 @@ object TableManager {
             throw it
         }
         val table = Dictionary.new(dictFile)!!
-        im.tableFileName = TableBasedInputMethod.fixedTableFileName(table.name)
-        val tableFile = File(tableDicDir, im.tableFileName)
+        val tableFile = reserveTableFile(
+            tableDicDir,
+            TableBasedInputMethod.fixedTableFileName(table.name)
+        )
+        im.tableFileName = tableFile.name
         runCatching {
-            im.table = table.toLibIMEDictionary(tableFile)
+            val staged = File.createTempFile("table-dict-", ".dict", tableDicDir)
+            try {
+                table.toLibIMEDictionary(staged)
+                Os.rename(staged.path, tableFile.path)
+                im.table = LibIMEDictionary(tableFile)
+            } finally {
+                staged.delete()
+            }
         }.onFailure {
             im.file.delete()
             tableFile.delete()
@@ -143,4 +153,18 @@ object TableManager {
 
     const val MODE_BIN_TO_TXT = true
     const val MODE_TXT_TO_BIN = false
+}
+
+internal fun reserveTableFile(directory: File, preferredName: String): File {
+    val extension = preferredName.substringAfterLast('.', missingDelimiterValue = "")
+    check(extension.isNotEmpty()) { "Dictionary file name must have an extension: ${preferredName}" }
+    val baseName = preferredName.removeSuffix(".${extension}")
+    var suffix = 1
+    while (true) {
+        val fileName = if (suffix == 1) preferredName else "${baseName} (${suffix}).${extension}"
+        val candidate = directory.resolve(fileName)
+        if (candidate.createNewFile()) return candidate
+        check(candidate.exists()) { "Cannot reserve dictionary file: ${candidate.path}" }
+        suffix += 1
+    }
 }
