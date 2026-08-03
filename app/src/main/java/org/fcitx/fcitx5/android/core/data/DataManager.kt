@@ -338,11 +338,29 @@ object DataManager {
         FileUtil.symlink(dataDir.resolve(source), dataDir.resolve(target))
 
     private fun AssetManager.copyFile(filename: String) {
-        open(filename).use { i ->
-            File(dataDir, filename)
-                .also { it.parentFile?.mkdirs() }
-                .outputStream()
-                .use { o -> i.copyTo(o) }
+        val destination = File(dataDir, filename)
+        val parent = destination.parentFile ?: error("Cannot resolve parent for '${filename}'")
+        check(parent.mkdirs() || parent.isDirectory) {
+            "Cannot create directory: $parent"
+        }
+        val staged = File.createTempFile("data-file-", ".staged", parent)
+        try {
+            open(filename).use { input ->
+                staged.outputStream().use { output -> input.copyTo(output) }
+            }
+            val backup = destination.takeIf(File::exists)?.let { existing ->
+                File.createTempFile("data-file-", ".backup", parent).also { existing.copyTo(it) }
+            }
+            try {
+                staged.copyTo(destination, overwrite = true)
+            } catch (e: Exception) {
+                if (backup == null) destination.delete() else backup.copyTo(destination, overwrite = true)
+                throw e
+            } finally {
+                backup?.delete()
+            }
+        } finally {
+            staged.delete()
         }
     }
 
