@@ -10,6 +10,7 @@ import org.fcitx.fcitx5.android.data.pinyin.dict.BuiltinDictionary
 import org.fcitx.fcitx5.android.data.pinyin.dict.LibIMEDictionary
 import org.fcitx.fcitx5.android.data.pinyin.dict.PinyinDictionary
 import org.fcitx.fcitx5.android.utils.safeFileName
+import org.fcitx.fcitx5.android.utils.withTempDir
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.errorArg
 import timber.log.Timber
@@ -54,16 +55,23 @@ object PinyinDictManager {
     fun importFromFile(file: File): Result<LibIMEDictionary> = runCatching {
         val raw =
             PinyinDictionary.new(file) ?: errorArg(R.string.exception_dict_filename, file.path)
-        // convert to libime format in dictionaries dir
-        // preserve original file name
-        val new = raw.toLibIMEDictionary(
-            File(
-                pinyinDicDir,
-                file.nameWithoutExtension + ".${PinyinDictionary.Type.LibIME.ext}"
-            )
+        val destination = File(
+            pinyinDicDir,
+            file.nameWithoutExtension + ".${PinyinDictionary.Type.LibIME.ext}"
         )
-        Timber.d("Converted $raw to $new")
-        new
+        withTempDir { tempDir ->
+            val staged = raw.toLibIMEDictionary(File(tempDir, destination.name))
+            val backup = destination.takeIf(File::exists)?.let { existing ->
+                File.createTempFile("pinyin-import-", ".backup", tempDir).also { existing.copyTo(it) }
+            }
+            try {
+                staged.file.copyTo(destination, overwrite = true)
+            } catch (e: Exception) {
+                if (backup == null) destination.delete() else backup.copyTo(destination, overwrite = true)
+                throw e
+            }
+        }
+        LibIMEDictionary(destination).also { Timber.d("Converted $raw to $it") }
     }
 
     fun importFromInputStream(stream: InputStream, name: String): Result<LibIMEDictionary> {
