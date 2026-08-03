@@ -24,6 +24,7 @@ import org.fcitx.fcitx5.android.daemon.FcitxDaemon.disconnect
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.notificationManager
 import timber.log.Timber
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -49,7 +50,7 @@ object FcitxDaemon {
     private fun mkConnection(name: String) = object : FcitxConnection {
 
         private inline fun <T> ensureConnected(block: () -> T) =
-            if (name in clients)
+            if (clients.containsKey(name))
                 block()
             else throw IllegalStateException("$name is disconnected")
 
@@ -79,13 +80,13 @@ object FcitxDaemon {
 
     private val lock = ReentrantLock()
 
-    private val clients = mutableMapOf<String, FcitxConnection>()
+    private val clients = ConcurrentHashMap<String, FcitxConnection>()
 
     /**
      * Create a connection
      */
     fun connect(name: String): FcitxConnection = lock.withLock {
-        if (name in clients)
+        if (clients.containsKey(name))
             return@withLock clients.getValue(name)
         if (realFcitx.lifecycle.currentState == FcitxLifecycle.State.STOPPED) {
             Timber.d("FcitxDaemon start fcitx")
@@ -100,7 +101,7 @@ object FcitxDaemon {
      * Dispose the connection
      */
     fun disconnect(name: String): Unit = lock.withLock {
-        if (name !in clients)
+        if (!clients.containsKey(name))
             return
         clients -= name
         if (clients.isEmpty()) {
