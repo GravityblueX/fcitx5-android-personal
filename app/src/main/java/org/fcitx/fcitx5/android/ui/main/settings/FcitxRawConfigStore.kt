@@ -8,34 +8,27 @@ import androidx.preference.PreferenceDataStore
 import org.fcitx.fcitx5.android.core.RawConfig
 
 class FcitxRawConfigStore(private var cfg: RawConfig) : PreferenceDataStore() {
-    override fun getBoolean(key: String?, defValue: Boolean): Boolean {
-        if (key == null) return defValue
-        return cfg[key].value == "True"
-    }
+    private fun valueOf(key: String?) = key?.let(cfg::findByName)?.value
+
+    override fun getBoolean(key: String?, defValue: Boolean): Boolean =
+        valueOf(key)?.let { it == "True" } ?: defValue
 
     override fun putBoolean(key: String?, value: Boolean) {
-        if (key == null) return
-        cfg[key].value = if (value) "True" else "False"
+        key?.let(cfg::findByName)?.value = if (value) "True" else "False"
     }
 
-    override fun getInt(key: String?, defValue: Int): Int {
-        if (key == null) return defValue
-        return cfg[key].value.toInt()
-    }
+    override fun getInt(key: String?, defValue: Int): Int =
+        valueOf(key)?.toIntOrNull() ?: defValue
 
     override fun putInt(key: String?, value: Int) {
-        if (key == null) return
-        cfg[key].value = value.toString()
+        key?.let(cfg::findByName)?.value = value.toString()
     }
 
-    override fun getString(key: String?, defValue: String?): String? {
-        if (key == null) return defValue
-        return cfg[key].value
-    }
+    override fun getString(key: String?, defValue: String?): String? =
+        valueOf(key) ?: defValue
 
     override fun putString(key: String?, value: String?) {
-        if (key == null) return
-        cfg[key].value = value ?: ""
+        key?.let(cfg::findByName)?.value = value ?: ""
     }
 
 }
