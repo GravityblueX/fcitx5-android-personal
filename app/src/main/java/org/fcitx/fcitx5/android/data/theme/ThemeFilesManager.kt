@@ -50,7 +50,16 @@ object ThemeFilesManager {
     }
 
     fun saveThemeFiles(theme: Theme.Custom) {
-        themeFile(theme).writeText(Json.encodeToString(CustomThemeSerializer, theme))
+        val file = themeFile(theme)
+        val backup = backup(file, dir)
+        try {
+            file.writeText(Json.encodeToString(CustomThemeSerializer, theme))
+        } catch (e: Exception) {
+            restore(file, backup)
+            throw e
+        } finally {
+            backup?.delete()
+        }
     }
 
     fun deleteThemeFiles(theme: Theme.Custom) {
