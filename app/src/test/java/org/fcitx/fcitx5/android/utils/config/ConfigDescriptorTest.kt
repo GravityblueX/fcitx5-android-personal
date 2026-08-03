@@ -24,4 +24,23 @@ class ConfigDescriptorTest {
         assertEquals("General", descriptor.name)
         assertTrue(descriptor.values.isEmpty())
     }
+    @Test
+    fun invalidIntegerValuesProduceParseFailures() {
+        val descriptors = listOf(
+            RawConfig("Option", arrayOf(RawConfig("Type", "Integer"), RawConfig("DefaultValue", "invalid"))),
+            RawConfig("Option", arrayOf(RawConfig("Type", "Integer"), RawConfig("IntMin", "invalid"))),
+            RawConfig(
+                "Option",
+                arrayOf(
+                    RawConfig("Type", "List|Integer"),
+                    RawConfig("DefaultValue", arrayOf(RawConfig("0", "invalid")))
+                )
+            )
+        )
+
+        descriptors.forEach { descriptor ->
+            assertTrue(ConfigDescriptor.parse(descriptor).fold({ true }, { false }))
+        }
+    }
+
 }

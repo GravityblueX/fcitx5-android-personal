@@ -214,10 +214,6 @@ sealed class ConfigDescriptor<T, U> : Parcelable {
             get() = findByName("Enum")?.subItems?.map { it.value }
         private val RawConfig.enumI18n
             get() = findByName("EnumI18n")?.subItems?.map { it.value }
-        private val RawConfig.intMin
-            get() = findByName("IntMin")?.value?.toInt()
-        private val RawConfig.intMax
-            get() = findByName("IntMax")?.value?.toInt()
         private val RawConfig.tooltip
             get() = findByName("Tooltip")?.value
 
@@ -235,6 +231,11 @@ sealed class ConfigDescriptor<T, U> : Parcelable {
             ((raw.type?.mapLeft { ParseException.TypeNoParse(it) })
                 ?: (Either.Left(ParseException.NoTypeExist(raw)))).flatMap {
                 either {
+                    fun parseInt(value: String?): Int? {
+                        if (value == null) return null
+                        return value.toIntOrNull() ?: raise(ParseException.BadFormDesc(raw))
+                    }
+
                     when (it) {
                         ConfigType.TyBool ->
                             ConfigBool(
@@ -261,10 +262,10 @@ sealed class ConfigDescriptor<T, U> : Parcelable {
                         ConfigType.TyInt -> ConfigInt(
                             raw.name,
                             raw.description,
-                            raw.defaultValue?.toInt(),
+                            parseInt(raw.defaultValue),
                             raw.tooltip,
-                            raw.intMax,
-                            raw.intMin
+                            parseInt(raw.findByName("IntMax")?.value),
+                            parseInt(raw.findByName("IntMin")?.value)
                         )
                         ConfigType.TyKey -> ConfigKey(
                             raw.name,
@@ -294,7 +295,7 @@ sealed class ConfigDescriptor<T, U> : Parcelable {
                                                 ele.value.toBoolean()
                                             )
                                             ConfigType.TyInt -> ConfigListValue.IntValue(
-                                                ele.value.toInt()
+                                                parseInt(ele.value) ?: raise(ParseException.BadFormDesc(raw))
                                             )
                                             ConfigType.TyKey -> ConfigListValue.KeyValue(
                                                 ele.value
