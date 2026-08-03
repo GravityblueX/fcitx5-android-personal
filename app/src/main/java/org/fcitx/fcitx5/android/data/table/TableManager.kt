@@ -92,8 +92,13 @@ object TableManager {
             tableFile.delete()
             errorRuntime(R.string.invalid_table_dict, it.message)
         }
-        im.save()
-        return im
+        try {
+            im.save()
+            return im
+        } catch (e: Exception) {
+            im.delete()
+            throw e
+        }
     }
 
     fun replaceTableDict(
