@@ -4,6 +4,7 @@
  */
 package org.fcitx.fcitx5.android.data.table
 
+import android.system.Os
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.table.dict.Dictionary
 import org.fcitx.fcitx5.android.data.table.dict.LibIMEDictionary
@@ -114,8 +115,18 @@ object TableManager {
             val destination = File(tableDicDir, im.tableFileName)
             runCatching {
                 dict.toLibIMEDictionary(File(tempDir, im.tableFileName))
-            }.onSuccess {
-                it.file.copyTo(destination, overwrite = true)
+            }.onSuccess { converted ->
+                val parent = destination.parentFile ?: error("Cannot resolve dictionary directory")
+                check(parent.mkdirs() || parent.isDirectory) {
+                    "Cannot create directory: $parent"
+                }
+                val staged = File.createTempFile("table-dict-", ".staged", parent)
+                try {
+                    converted.file.copyTo(staged, overwrite = true)
+                    Os.rename(staged.path, destination.path)
+                } finally {
+                    staged.delete()
+                }
             }.onFailure {
                 dictFile.delete()
                 errorRuntime(R.string.invalid_table_dict, it.message)
