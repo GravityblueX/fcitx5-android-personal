@@ -81,11 +81,11 @@ class FcitxRemoteService : Service() {
                 Timber.w("Cannot register ClipboardEntryTransformer of null or empty description")
                 return
             }
-            if (clipboardTransformers.any { it.descEquals(transformer) }) {
-                Timber.w("ClipboardEntryTransformer ${transformer.desc} has already been registered")
-                return
-            }
             scope.launch {
+                if (clipboardTransformers.any { it.descEquals(transformer) }) {
+                    Timber.w("ClipboardEntryTransformer ${transformer.desc} has already been registered")
+                    return@launch
+                }
                 val binder = transformer.asBinder()
                 val deathRecipient = IBinder.DeathRecipient {
                     removeClipboardEntryTransformer(transformer, unlink = false)

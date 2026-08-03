@@ -54,6 +54,7 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
     private val onUpdateListeners = WeakHashSet<OnClipboardUpdateListener>()
     private val onUpdateListenersLock = Any()
 
+    @Volatile
     var transformer: ((String) -> String)? = null
 
     fun addOnUpdateListener(listener: OnClipboardUpdateListener) {
