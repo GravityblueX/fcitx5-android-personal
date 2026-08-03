@@ -4,6 +4,7 @@
  */
 package org.fcitx.fcitx5.android.data
 
+import android.system.Os
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -11,7 +12,9 @@ import kotlinx.serialization.json.encodeToStream
 import org.fcitx.fcitx5.android.BuildConfig
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.utils.Const
+import org.fcitx.fcitx5.android.utils.FileUtil
 import org.fcitx.fcitx5.android.utils.appContext
+import org.fcitx.fcitx5.android.utils.createTempDir
 import org.fcitx.fcitx5.android.utils.errorRuntime
 import org.fcitx.fcitx5.android.utils.extract
 import org.fcitx.fcitx5.android.utils.versionCodeCompat
@@ -101,15 +104,104 @@ object UserDataManager {
         }
     }
 
-    private fun copyDir(source: File, target: File) {
+    private data class ImportDirectory(
+        val source: File,
+        val target: File,
+    )
+
+    private class StagedImportDirectory(
+        val target: File,
+        val staged: File,
+    ) {
+        var backup: File? = null
+        var originalMoved = false
+        var stagedMoved = false
+    }
+
+    private fun stageImportDirectory(directory: ImportDirectory): StagedImportDirectory? {
+        val source = directory.source
+        val target = directory.target
         val exists = source.exists()
         val isDir = source.isDirectory
-        if (exists && isDir) {
-            check(source.copyRecursively(target, overwrite = true)) {
-                "Failed to import user data: ${source.path}"
-            }
-        } else {
+        if (!exists || !isDir) {
             Timber.w("Cannot import user data: path='${source.path}', exists=$exists, isDir=$isDir")
+            return null
+        }
+        val parent = target.parentFile ?: error("Cannot resolve import directory parent: ${target.path}")
+        check(parent.mkdirs() || parent.isDirectory) {
+            "Cannot create import directory parent: $parent"
+        }
+        val staged = createTempDir(parent)
+        try {
+            if (target.exists()) {
+                check(target.copyRecursively(staged, overwrite = true)) {
+                    "Failed to stage existing user data: ${target.path}"
+                }
+            }
+            check(source.copyRecursively(staged, overwrite = true)) {
+                "Failed to stage imported user data: ${source.path}"
+            }
+            return StagedImportDirectory(target, staged)
+        } catch (e: Exception) {
+            staged.deleteRecursively()
+            throw e
+        }
+    }
+
+    private fun replaceImportDirectory(directory: StagedImportDirectory) {
+        val target = directory.target
+        val parent = target.parentFile ?: error("Cannot resolve import directory parent: ${target.path}")
+        if (target.exists()) {
+            val backup = createTempDir(parent)
+            check(backup.delete()) { "Cannot prepare import backup: ${backup.path}" }
+            directory.backup = backup
+            Os.rename(target.path, backup.path)
+            directory.originalMoved = true
+        }
+        Os.rename(directory.staged.path, target.path)
+        directory.stagedMoved = true
+    }
+
+    private fun restoreImportDirectories(
+        directories: List<StagedImportDirectory>,
+        originalFailure: Exception,
+    ) {
+        directories.asReversed().forEach { directory ->
+            try {
+                if (directory.stagedMoved && directory.target.exists()) {
+                    FileUtil.removeFile(directory.target).getOrThrow()
+                }
+                if (directory.originalMoved) {
+                    Os.rename(requireNotNull(directory.backup).path, directory.target.path)
+                }
+            } catch (rollbackFailure: Exception) {
+                originalFailure.addSuppressed(rollbackFailure)
+            }
+        }
+    }
+
+    private fun cleanupStagedImportDirectories(directories: List<StagedImportDirectory>) {
+        directories.forEach { directory ->
+            listOf(directory.staged, directory.backup).filterNotNull().forEach { file ->
+                if (file.exists() && !file.deleteRecursively()) {
+                    Timber.w("Failed to clean temporary user data import directory: ${file.path}")
+                }
+            }
+        }
+    }
+
+    private fun importDirectories(directories: List<ImportDirectory>) {
+        val stagedDirectories = mutableListOf<StagedImportDirectory>()
+        try {
+            directories.mapNotNullTo(stagedDirectories, ::stageImportDirectory)
+            try {
+                stagedDirectories.forEach(::replaceImportDirectory)
+            } catch (e: Exception) {
+                restoreImportDirectories(stagedDirectories, e)
+                throw e
+            }
+        } finally {
+            cleanupStagedImportDirectories(stagedDirectories)
         }
     }
 
@@ -150,11 +242,15 @@ object UserDataManager {
                         }
                     }
                 migrateDefaultSharedPreferences(importedSharedPrefsDir, metadata.packageName)
-                copyDir(importedSharedPrefsDir, sharedPrefsDir)
-                copyDir(File(tempDir, "databases"), dataBasesDir)
-                copyDir(File(tempDir, "external"), externalDir)
-                // keep importing recently_used for backwords compatibility
-                copyDir(File(tempDir, "recently_used"), recentlyUsedDir)
+                importDirectories(
+                    listOf(
+                        ImportDirectory(importedSharedPrefsDir, sharedPrefsDir),
+                        ImportDirectory(File(tempDir, "databases"), dataBasesDir),
+                        ImportDirectory(File(tempDir, "external"), externalDir),
+                        // keep importing recently_used for backwords compatibility
+                        ImportDirectory(File(tempDir, "recently_used"), recentlyUsedDir),
+                    )
+                )
                 metadata
             }
         }
