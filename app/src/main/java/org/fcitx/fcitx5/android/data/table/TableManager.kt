@@ -104,14 +104,16 @@ object TableManager {
                 it.outputStream().use { o -> dictStream.use { i -> i.copyTo(o) } }
             }
             val dict = Dictionary.new(dictFile)!!
+            val destination = File(tableDicDir, im.tableFileName)
             runCatching {
                 dict.toLibIMEDictionary(File(tempDir, im.tableFileName))
             }.onSuccess {
-                it.file.copyTo(File(tableDicDir, im.tableFileName), overwrite = true)
+                it.file.copyTo(destination, overwrite = true)
             }.onFailure {
                 dictFile.delete()
                 errorRuntime(R.string.invalid_table_dict, it.message)
             }.getOrThrow()
+            LibIMEDictionary(destination)
         }
     }
 
