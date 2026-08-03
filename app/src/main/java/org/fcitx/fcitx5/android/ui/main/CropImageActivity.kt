@@ -251,7 +251,11 @@ class CropImageActivity : AppCompatActivity() {
                 reqHeight = cropOption.height,
                 options = CropImageView.RequestSizeOptions.RESIZE_INSIDE,
             )
-            tempOutFile.outputStream().use { bitmap!!.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            tempOutFile.outputStream().use {
+                check(bitmap?.compress(Bitmap.CompressFormat.PNG, 100, it) == true) {
+                    "Failed to compress cropped image"
+                }
+            }
             val success = CropResult.Success(
                 rect = cropView.cropRect!!,
                 rotation = cropView.rotatedDegrees,

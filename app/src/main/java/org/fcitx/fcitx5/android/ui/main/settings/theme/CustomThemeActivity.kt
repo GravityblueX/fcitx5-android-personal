@@ -424,7 +424,9 @@ class CustomThemeActivity : AppCompatActivity() {
                 withContext(Dispatchers.IO) {
                     croppedImageFile.delete()
                     croppedImageFile.outputStream().use {
-                        croppedBitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+                        check(croppedBitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) {
+                            "Failed to compress cropped theme image"
+                        }
                     }
                 }
             }
