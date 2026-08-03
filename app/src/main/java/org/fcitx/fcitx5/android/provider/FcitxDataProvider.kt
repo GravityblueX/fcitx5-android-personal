@@ -218,7 +218,9 @@ class FcitxDataProvider : DocumentsProvider() {
         if (newFile.exists()) {
             throw FileNotFoundException("renameDocument id=$documentId to $displayName failed: target exists")
         }
-        oldFile.renameTo(newFile)
+        if (!oldFile.renameTo(newFile)) {
+            throw FileNotFoundException("renameDocument id=$documentId to $displayName failed")
+        }
         return newFile.docId
     }
 
@@ -230,7 +232,9 @@ class FcitxDataProvider : DocumentsProvider() {
     ): String {
         val oldFile = fileFromDocId(sourceDocumentId)
         val newFile = createAbstractFile(targetParentDocumentId, oldFile.name)
-        oldFile.renameTo(newFile)
+        if (!oldFile.renameTo(newFile)) {
+            throw FileNotFoundException("moveDocument id=$sourceDocumentId to ${newFile.docId} failed")
+        }
         return newFile.docId
     }
 
