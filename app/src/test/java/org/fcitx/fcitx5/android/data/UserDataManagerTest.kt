@@ -7,6 +7,7 @@ package org.fcitx.fcitx5.android.data
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.nio.file.Files
 
 class UserDataManagerTest {
 
@@ -28,5 +29,22 @@ class UserDataManagerTest {
         assertFalse(isTransientSharedPreferenceFile("org.fcitx.fcitx17.android_preferences.xml"))
         assertFalse(isTransientSharedPreferenceFile("clipboard.xml"))
         assertFalse(isTransientSharedPreferenceFile("recently_used.xml"))
+    }
+
+    @Test
+    fun requiresAllExportedUserDataDirectories() {
+        val root = Files.createTempDirectory("user-data-").toFile()
+        try {
+            assertFalse(hasRequiredUserDataDirectories(root))
+
+            root.resolve("shared_prefs").mkdir()
+            root.resolve("databases").mkdir()
+            assertFalse(hasRequiredUserDataDirectories(root))
+
+            root.resolve("external").mkdir()
+            assertTrue(hasRequiredUserDataDirectories(root))
+        } finally {
+            root.deleteRecursively()
+        }
     }
 }

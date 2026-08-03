@@ -352,6 +352,8 @@ object UserDataManager {
                 val metadata = json.decodeFromString<Metadata>(metadataFile.readText())
                 if (metadata.packageName !in compatiblePackageNames)
                     errorRuntime(R.string.exception_user_data_package_name_mismatch)
+                if (!hasRequiredUserDataDirectories(tempDir))
+                    errorRuntime(R.string.exception_user_data_metadata)
                 val importedSharedPrefsDir = File(tempDir, "shared_prefs")
                 importedSharedPrefsDir.listFiles()
                     ?.filter { isTransientSharedPreferenceFile(it.name) }
@@ -389,3 +391,8 @@ internal fun isTransientSharedPreferenceFile(fileName: String): Boolean {
         baseName == "com.google.mlkit.internal.xml" ||
         baseName.startsWith("gms_icing_mdd_")
 }
+
+internal fun hasRequiredUserDataDirectories(root: File): Boolean =
+    listOf("shared_prefs", "databases", "external").all { directoryName ->
+        root.resolve(directoryName).isDirectory
+    }
