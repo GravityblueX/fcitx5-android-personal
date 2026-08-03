@@ -13,9 +13,11 @@ import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.lifecycle.LifecycleCoroutineScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.utils.getGlobalSettings
 import splitties.dimensions.dp
@@ -71,8 +73,13 @@ fun LifecycleCoroutineScope.withLoadingDialog(
         loadingDialog = context.ProgressBarDialogIndeterminate(title).show()
     }
     launch {
-        action()
-        loadingJob.cancelAndJoin()
-        loadingDialog?.dismiss()
+        try {
+            action()
+        } finally {
+            withContext(NonCancellable) {
+                loadingJob.cancelAndJoin()
+                loadingDialog?.dismiss()
+            }
+        }
     }
 }
