@@ -14,6 +14,7 @@ import android.provider.DocumentsContract.Document
 import android.provider.DocumentsContract.Root
 import android.provider.DocumentsProvider
 import android.webkit.MimeTypeMap
+import org.fcitx.fcitx5.android.utils.FileUtil
 import org.fcitx.fcitx5.android.utils.safeFileName
 import org.fcitx.fcitx5.android.R
 import java.io.File
@@ -168,15 +169,13 @@ class FcitxDataProvider : DocumentsProvider() {
 
     @Throws(FileNotFoundException::class)
     override fun deleteDocument(documentId: String) {
-        fileFromDocId(documentId).apply {
-            val ok = if (isDirectory) {
-                deleteRecursively()
-            } else {
-                delete()
-            }
-            if (!ok) {
-                throw FileNotFoundException("deleteDocument id=$documentId failed")
-            }
+        val file = fileFromDocId(documentId)
+        if (!file.exists()) {
+            throw FileNotFoundException("deleteDocument id=$documentId failed: file not found")
+        }
+        FileUtil.removeFile(file).getOrElse { error ->
+            throw FileNotFoundException("deleteDocument id=$documentId failed: ${error.message}")
+                .apply { initCause(error) }
         }
     }
 
@@ -207,8 +206,10 @@ class FcitxDataProvider : DocumentsProvider() {
             val failure = FileNotFoundException(
                 "copyDocument id=${sourceDocumentId} to ${newFile.docId} failed: ${e.message}"
             ).apply { initCause(e) }
-            if (newFile.exists() && !newFile.deleteRecursively()) {
-                failure.addSuppressed(IOException("Cannot remove partial copy: ${newFile.path}"))
+            if (newFile.exists()) {
+                FileUtil.removeFile(newFile).exceptionOrNull()?.let { cleanupFailure ->
+                    failure.addSuppressed(cleanupFailure)
+                }
             }
             throw failure
         }
