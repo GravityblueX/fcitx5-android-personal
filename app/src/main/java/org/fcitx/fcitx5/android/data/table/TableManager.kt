@@ -84,10 +84,12 @@ object TableManager {
         }
         val table = Dictionary.new(dictFile)!!
         im.tableFileName = TableBasedInputMethod.fixedTableFileName(table.name)
+        val tableFile = File(tableDicDir, im.tableFileName)
         runCatching {
-            im.table = table.toLibIMEDictionary(File(tableDicDir, im.tableFileName))
+            im.table = table.toLibIMEDictionary(tableFile)
         }.onFailure {
             im.file.delete()
+            tableFile.delete()
             errorRuntime(R.string.invalid_table_dict, it.message)
         }
         im.save()
