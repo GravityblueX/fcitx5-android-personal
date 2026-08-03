@@ -52,12 +52,12 @@ object PinyinDictManager {
         return builtin + user
     }
 
-    fun importFromFile(file: File): Result<LibIMEDictionary> = runCatching {
+    fun importFromFile(file: File, destinationName: String = file.name): Result<LibIMEDictionary> = runCatching {
         val raw =
             PinyinDictionary.new(file) ?: errorArg(R.string.exception_dict_filename, file.path)
         val destination = File(
             pinyinDicDir,
-            file.nameWithoutExtension + ".${PinyinDictionary.Type.LibIME.ext}"
+            destinationName.substringBeforeLast('.') + ".${PinyinDictionary.Type.LibIME.ext}"
         )
         withTempDir { tempDir ->
             val staged = raw.toLibIMEDictionary(File(tempDir, destination.name))
@@ -75,14 +75,20 @@ object PinyinDictManager {
     }
 
     fun importFromInputStream(stream: InputStream, name: String): Result<LibIMEDictionary> {
-        val tempFile = File(appContext.cacheDir, name.safeFileName())
+        val safeName = name.safeFileName()
+        val suffix = safeName.substringAfter('.', missingDelimiterValue = "")
+        val tempFile = File.createTempFile(
+            "pinyin-import-",
+            suffix.takeIf { it.isNotEmpty() }?.let { ".$it" },
+            appContext.cacheDir
+        )
         try {
             stream.use { input ->
                 tempFile.outputStream().use { output ->
                     input.copyTo(output)
                 }
             }
-            return importFromFile(tempFile)
+            return importFromFile(tempFile, safeName)
         } finally {
             tempFile.delete()
         }
