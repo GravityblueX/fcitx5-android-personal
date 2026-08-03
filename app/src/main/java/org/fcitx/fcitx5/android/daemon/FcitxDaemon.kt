@@ -16,6 +16,7 @@ import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.Fcitx
 import org.fcitx.fcitx5.android.core.FcitxAPI
 import org.fcitx.fcitx5.android.core.FcitxLifecycle
+import org.fcitx.fcitx5.android.core.launchWhenReady
 import org.fcitx.fcitx5.android.core.lifeCycleScope
 import org.fcitx.fcitx5.android.core.whenReady
 import org.fcitx.fcitx5.android.daemon.FcitxDaemon.connect
@@ -103,8 +104,25 @@ object FcitxDaemon {
             return
         clients -= name
         if (clients.isEmpty()) {
-            Timber.d("FcitxDaemon stop fcitx")
-            realFcitx.stop()
+            when (realFcitx.lifecycle.currentState) {
+                FcitxLifecycle.State.STARTING -> stopWhenReadyIfUnused()
+                FcitxLifecycle.State.READY -> {
+                    Timber.d("FcitxDaemon stop fcitx")
+                    realFcitx.stop()
+                }
+                else -> Unit
+            }
+        }
+    }
+
+    private fun stopWhenReadyIfUnused() {
+        realFcitx.lifecycle.launchWhenReady {
+            lock.withLock {
+                if (clients.isEmpty()) {
+                    Timber.d("FcitxDaemon stop fcitx after startup")
+                    realFcitx.stop()
+                }
+            }
         }
     }
 
