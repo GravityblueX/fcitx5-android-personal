@@ -75,6 +75,7 @@
     <string name="reloading">重新加载中</string>
     <string name="importing">正在导入</string>
     <string name="import_error">导入错误</string>
+    <string name="exception_document_unavailable">无法打开所选文档</string>
     <string name="dict_already_exists">词库已存在</string>
     <string name="invalid_dict">词典类型无效</string>
     <string name="whether_import_dict">您想导入这个词库吗？</string>

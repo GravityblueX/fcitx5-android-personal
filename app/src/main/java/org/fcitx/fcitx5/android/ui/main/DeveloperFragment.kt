@@ -21,6 +21,7 @@ import org.fcitx.fcitx5.android.data.clipboard.ClipboardManager
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.ui.common.PaddingPreferenceFragment
 import org.fcitx.fcitx5.android.ui.main.modified.MySwitchPreference
+import org.fcitx.fcitx5.android.utils.requireOutputStream
 import org.fcitx.fcitx5.android.utils.addPreference
 import org.fcitx.fcitx5.android.utils.iso8601UTCDateTime
 import org.fcitx.fcitx5.android.utils.setupForest
@@ -45,7 +46,7 @@ class DeveloperFragment : PaddingPreferenceFragment() {
             lifecycleScope.launch {
                 try {
                     withContext(Dispatchers.IO) {
-                        ctx.contentResolver.openOutputStream(uri)!!.use { o ->
+                        ctx.contentResolver.requireOutputStream(uri).use { o ->
                             hprofFile.inputStream().use { i -> i.copyTo(o) }
                         }
                     }

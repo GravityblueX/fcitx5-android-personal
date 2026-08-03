@@ -23,6 +23,8 @@ import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreferenceFragment
 import org.fcitx.fcitx5.android.ui.common.withLoadingDialog
 import org.fcitx.fcitx5.android.ui.main.MainViewModel
+import org.fcitx.fcitx5.android.utils.requireOutputStream
+import org.fcitx.fcitx5.android.utils.requireInputStream
 import org.fcitx.fcitx5.android.utils.AppUtil
 import org.fcitx.fcitx5.android.utils.addPreference
 import org.fcitx.fcitx5.android.utils.buildDocumentsProviderIntent
@@ -60,7 +62,7 @@ class AdvancedSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
                         // stop fcitx before overwriting files
                         FcitxDaemon.stopFcitx()
                         val metadata = withContext(Dispatchers.IO) {
-                            val inputStream = cr.openInputStream(uri)!!
+                            val inputStream = cr.requireInputStream(uri)
                             UserDataManager.import(inputStream).getOrThrow()
                         }
                         AppUtil.showRestartNotification(ctx)
@@ -85,7 +87,7 @@ class AdvancedSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
                 lifecycleScope.withLoadingDialog(ctx) {
                     try {
                         withContext(Dispatchers.IO) {
-                            val outputStream = ctx.contentResolver.openOutputStream(uri)!!
+                            val outputStream = ctx.contentResolver.requireOutputStream(uri)
                             UserDataManager.export(outputStream, exportTimestamp).getOrThrow()
                         }
                     } catch (e: Exception) {

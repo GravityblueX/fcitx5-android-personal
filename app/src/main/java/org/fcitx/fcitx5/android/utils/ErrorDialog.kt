@@ -23,8 +23,15 @@ suspend fun Context.importErrorDialog(message: String) {
     }
 }
 
+fun Context.userFacingErrorMessage(t: Throwable): String =
+    if (t is DocumentStreamUnavailableException) {
+        getString(R.string.exception_document_unavailable)
+    } else {
+        t.localizedMessage ?: t.stackTraceToString()
+    }
+
 suspend fun Context.importErrorDialog(t: Throwable) {
-    importErrorDialog(t.localizedMessage ?: t.stackTraceToString())
+    importErrorDialog(userFacingErrorMessage(t))
 }
 
 suspend fun Context.importErrorDialog(@StringRes resId: Int, vararg formatArgs: Any?) {

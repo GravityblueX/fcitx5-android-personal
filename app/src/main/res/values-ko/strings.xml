@@ -31,6 +31,7 @@
     <string name="reloading">다시 불러오는 중</string>
     <string name="importing">가져오는 중</string>
     <string name="import_error">가져오기 오류</string>
+    <string name="exception_document_unavailable">선택한 문서를 열 수 없습니다</string>
     <string name="dict_already_exists">사전이 이미 존재합니다</string>
     <string name="invalid_dict">잘못된 사전 유형</string>
     <string name="whether_import_dict">이 사전을 가져오시겠습니까?</string>

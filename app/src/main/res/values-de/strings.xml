@@ -34,6 +34,7 @@
     <string name="reloading">Wird neu geladen</string>
     <string name="importing">Wird importiert</string>
     <string name="import_error">Fehler beim Import</string>
+    <string name="exception_document_unavailable">Das ausgewählte Dokument kann nicht geöffnet werden</string>
     <string name="dict_already_exists">Wörterbuch bereits vorhanden</string>
     <string name="invalid_dict">Ungültiger Typ des Wörterbuchs</string>
     <string name="whether_import_dict">Wollen Sie dieses Wörterbuch importieren?</string>

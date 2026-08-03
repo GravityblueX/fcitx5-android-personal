@@ -76,6 +76,7 @@
     <string name="reloading">Reloading</string>
     <string name="importing">Importing</string>
     <string name="import_error">Import Error</string>
+    <string name="exception_document_unavailable">Unable to open the selected document</string>
     <string name="dict_already_exists">Dictionary already exists</string>
     <string name="invalid_dict">Invalid dictionary type</string>
     <string name="whether_import_dict">Would you like to import this dictionary?</string>

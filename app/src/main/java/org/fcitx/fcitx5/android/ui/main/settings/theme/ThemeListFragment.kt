@@ -22,6 +22,8 @@ import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.data.theme.ThemeFilesManager
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.ui.common.withLoadingDialog
+import org.fcitx.fcitx5.android.utils.requireOutputStream
+import org.fcitx.fcitx5.android.utils.requireInputStream
 import org.fcitx.fcitx5.android.utils.applyNavBarInsetsBottomPadding
 import org.fcitx.fcitx5.android.utils.importErrorDialog
 import org.fcitx.fcitx5.android.utils.queryFileName
@@ -90,7 +92,7 @@ class ThemeListFragment : Fragment() {
                     }
                     try {
                         val (newCreated, theme, migrated) = withContext(Dispatchers.IO) {
-                            val inputStream = cr.openInputStream(uri)!!
+                            val inputStream = cr.requireInputStream(uri)
                             ThemeFilesManager.importTheme(inputStream).getOrThrow()
                         }
                         ThemeManager.refreshThemes()
@@ -116,7 +118,7 @@ class ThemeListFragment : Fragment() {
                 lifecycleScope.withLoadingDialog(requireContext()) {
                     try {
                         withContext(Dispatchers.IO) {
-                            val outputStream = ctx.contentResolver.openOutputStream(uri)!!
+                            val outputStream = ctx.contentResolver.requireOutputStream(uri)
                             ThemeFilesManager.exportTheme(exported, outputStream).getOrThrow()
                         }
                     } catch (e: Exception) {

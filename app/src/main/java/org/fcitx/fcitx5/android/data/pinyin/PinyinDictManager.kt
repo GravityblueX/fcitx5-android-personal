@@ -67,12 +67,16 @@ object PinyinDictManager {
 
     fun importFromInputStream(stream: InputStream, name: String): Result<LibIMEDictionary> {
         val tempFile = File(appContext.cacheDir, name)
-        tempFile.outputStream().use {
-            stream.copyTo(it)
+        try {
+            stream.use { input ->
+                tempFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            return importFromFile(tempFile)
+        } finally {
+            tempFile.delete()
         }
-        val new = importFromFile(tempFile)
-        tempFile.delete()
-        return new
     }
 
     fun sougouDictConv(src: String, dest: String) {

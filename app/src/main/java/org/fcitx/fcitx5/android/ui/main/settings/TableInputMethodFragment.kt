@@ -34,6 +34,7 @@ import org.fcitx.fcitx5.android.ui.common.OnItemChangedListener
 import org.fcitx.fcitx5.android.ui.main.EditDeleteMenuProvider
 import org.fcitx.fcitx5.android.ui.main.MainViewModel
 import org.fcitx.fcitx5.android.ui.main.MainViewModel.ButtonMode
+import org.fcitx.fcitx5.android.utils.requireInputStream
 import org.fcitx.fcitx5.android.utils.NaiveDustman
 import org.fcitx.fcitx5.android.utils.importErrorDialog
 import org.fcitx.fcitx5.android.utils.notificationManager
@@ -248,7 +249,7 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
                 .build().let { nm.notify(importId, it) }
             try {
                 val imported = withContext(Dispatchers.IO) {
-                    val inputStream = cr.openInputStream(uri)!!
+                    val inputStream = cr.requireInputStream(uri)
                     TableManager.importFromZip(inputStream).getOrThrow()
                 }
                 ui.addItem(item = imported)
@@ -314,8 +315,8 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
             try {
                 updateFilesSelectionDialogButton(importing = true)
                 val imported = withContext(Dispatchers.IO) {
-                    val confStream = cr.openInputStream(confUri)!!
-                    val dictStream = cr.openInputStream(dictUri)!!
+                    val confStream = cr.requireInputStream(confUri)
+                    val dictStream = cr.requireInputStream(dictUri)
                     TableManager.importFromConfAndDict(confName, confStream, dictName, dictStream)
                         .getOrThrow()
                 }
@@ -353,7 +354,7 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
                 .build().let { nm.notify(importId, it) }
             try {
                 val imported = withContext(Dispatchers.IO) {
-                    val dictStream = cr.openInputStream(uri)!!
+                    val dictStream = cr.requireInputStream(uri)
                     TableManager.replaceTableDict(im, dictName, dictStream).getOrThrow()
                 }
                 im.table = imported

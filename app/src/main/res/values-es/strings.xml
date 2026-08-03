@@ -28,6 +28,7 @@
     <string name="prev">Anterior</string>
     <string name="done">Hecho</string>
     <string name="import_error">Error de importación</string>
+    <string name="exception_document_unavailable">No se puede abrir el documento seleccionado</string>
     <string name="dict_already_exists">El diccionario ya existe</string>
     <string name="invalid_dict">El tipo de diccionario no es válido</string>
     <string name="whether_import_dict">¿Quiere importar este diccionario?</string>

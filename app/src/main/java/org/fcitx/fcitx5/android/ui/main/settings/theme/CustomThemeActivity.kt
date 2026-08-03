@@ -45,6 +45,8 @@ import org.fcitx.fcitx5.android.ui.common.withLoadingDialog
 import org.fcitx.fcitx5.android.ui.main.CropImageActivity.CropContract
 import org.fcitx.fcitx5.android.ui.main.CropImageActivity.CropOption
 import org.fcitx.fcitx5.android.ui.main.CropImageActivity.CropResult
+import org.fcitx.fcitx5.android.utils.toast
+import org.fcitx.fcitx5.android.utils.requireInputStream
 import org.fcitx.fcitx5.android.utils.DarkenColorFilter
 import org.fcitx.fcitx5.android.utils.item
 import org.fcitx.fcitx5.android.utils.parcelable
@@ -321,9 +323,15 @@ class CustomThemeActivity : AppCompatActivity() {
                         if (newCreated) {
                             srcImageExtension = MimeTypeMap.getSingleton()
                                 .getExtensionFromMimeType(contentResolver.getType(it.srcUri))
-                            srcImageBuffer =
-                                contentResolver.openInputStream(it.srcUri)!!
-                                    .use { x -> x.readBytes() }
+                            srcImageBuffer = runCatching {
+                                contentResolver.requireInputStream(it.srcUri).use { input ->
+                                    input.readBytes()
+                                }
+                            }.getOrElse {
+                                toast(R.string.exception_document_unavailable)
+                                cancel()
+                                return@registerForActivityResult
+                            }
                         }
                         cropRect = it.rect
                         cropRotation = it.rotation

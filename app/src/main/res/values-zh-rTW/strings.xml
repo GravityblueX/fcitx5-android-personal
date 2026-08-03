@@ -37,6 +37,7 @@
     <string name="reloading">正在重新載入</string>
     <string name="importing">正在匯入</string>
     <string name="import_error">匯入錯誤</string>
+    <string name="exception_document_unavailable">無法開啟所選文件</string>
     <string name="dict_already_exists">词库已存在</string>
     <string name="invalid_dict">字典類型無效</string>
     <string name="whether_import_dict">您想要匯入此词库嗎？</string>

@@ -37,6 +37,7 @@
     <string name="reloading">Перезагрузка</string>
     <string name="importing">Импортирование</string>
     <string name="import_error">Ошибка импорта</string>
+    <string name="exception_document_unavailable">Не удалось открыть выбранный документ</string>
     <string name="dict_already_exists">Словарь уже существует</string>
     <string name="invalid_dict">Неверный тип словаря</string>
     <string name="whether_import_dict">Хотите импортировать этот словарь?</string>

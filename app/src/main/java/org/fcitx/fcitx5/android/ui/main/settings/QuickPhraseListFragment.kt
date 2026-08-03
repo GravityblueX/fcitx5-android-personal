@@ -36,6 +36,7 @@ import org.fcitx.fcitx5.android.ui.common.OnItemChangedListener
 import org.fcitx.fcitx5.android.ui.main.EditDeleteMenuProvider
 import org.fcitx.fcitx5.android.ui.main.MainViewModel
 import org.fcitx.fcitx5.android.ui.main.MainViewModel.ButtonMode
+import org.fcitx.fcitx5.android.utils.requireInputStream
 import org.fcitx.fcitx5.android.utils.NaiveDustman
 import org.fcitx.fcitx5.android.utils.importErrorDialog
 import org.fcitx.fcitx5.android.utils.item
@@ -253,7 +254,7 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
                 .build().let { nm.notify(id, it) }
             try {
                 val imported = withContext(Dispatchers.IO) {
-                    val inputStream = cr.openInputStream(uri)!!
+                    val inputStream = cr.requireInputStream(uri)
                     QuickPhraseManager.importFromInputStream(inputStream, fileName).getOrThrow()
                 }
                 ui.addItem(item = imported)

@@ -21,7 +21,7 @@ fun Context.toast(@StringRes resId: Int, duration: Int = Toast.LENGTH_SHORT) {
 }
 
 fun Context.toast(t: Throwable, duration: Int = Toast.LENGTH_SHORT) {
-    toast(t.localizedMessage ?: t.stackTraceToString(), duration)
+    toast(userFacingErrorMessage(t), duration)
 }
 
 suspend fun <T> Context.toast(result: Result<T>, duration: Int = Toast.LENGTH_SHORT) {

@@ -24,6 +24,7 @@ import org.fcitx.fcitx5.android.FcitxApplication
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.databinding.ActivityLogBinding
 import org.fcitx.fcitx5.android.ui.main.log.LogView
+import org.fcitx.fcitx5.android.utils.requireOutputStream
 import org.fcitx.fcitx5.android.utils.DeviceInfo
 import org.fcitx.fcitx5.android.utils.Logcat
 import org.fcitx.fcitx5.android.utils.iso8601UTCDateTime
@@ -44,7 +45,7 @@ class LogActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 runCatching {
                     withContext(Dispatchers.IO) {
-                        contentResolver.openOutputStream(uri)!!.use { stream ->
+                        contentResolver.requireOutputStream(uri).use { stream ->
                             stream.bufferedWriter().use { writer ->
                                 writer.write(DeviceInfo.get(this@LogActivity))
                                 writer.write(logView.currentLog)

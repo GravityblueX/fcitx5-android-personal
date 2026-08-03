@@ -36,6 +36,7 @@
     <string name="reloading">リロード中</string>
     <string name="importing">インポート中</string>
     <string name="import_error">インポートエラー</string>
+    <string name="exception_document_unavailable">選択したドキュメントを開けません</string>
     <string name="dict_already_exists">辞書はすでに存在します</string>
     <string name="invalid_dict">辞書の種類が無効です</string>
     <string name="whether_import_dict">この辞書をインポートしますか？</string>
