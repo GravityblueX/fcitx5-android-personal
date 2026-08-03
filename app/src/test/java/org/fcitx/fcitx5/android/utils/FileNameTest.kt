@@ -5,7 +5,9 @@
 package org.fcitx.fcitx5.android.utils
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Test
+import java.nio.file.Files
 
 class FileNameTest {
 
@@ -20,5 +22,21 @@ class FileNameTest {
         assertEquals("import", "".safeFileName())
         assertEquals("import", ".".safeFileName())
         assertEquals("import", "..".safeFileName())
+    }
+
+    @Test
+    fun resolvesOnlyDirectChildren() {
+        val directory = Files.createTempDirectory("file-name-").toFile()
+        try {
+            assertEquals(directory.resolve("theme.json").canonicalFile, directory.resolveDirectChild("theme.json"))
+            listOf("", ".", "..", "../theme.json", "nested/theme.json", "..\\theme.json")
+                .forEach { name ->
+                    assertThrows(IllegalArgumentException::class.java) {
+                        directory.resolveDirectChild(name)
+                    }
+                }
+        } finally {
+            directory.deleteRecursively()
+        }
     }
 }
