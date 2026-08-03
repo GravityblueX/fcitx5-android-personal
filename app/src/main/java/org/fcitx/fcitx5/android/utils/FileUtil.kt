@@ -13,13 +13,16 @@ object FileUtil {
 
     private fun File.isSymlink(): Boolean = OsConstants.S_ISLNK(Os.lstat(path).st_mode)
 
+    private fun File.existsOrIsSymlink(): Boolean =
+        exists() || runCatching { isSymlink() }.getOrDefault(false)
+
     /**
      * Delete a [File].
      * If it's a directory, delete its contents first.
      * If it's a symlink, don't follow.
      */
     fun removeFile(file: File) = runCatching {
-        if (!file.exists())
+        if (!file.existsOrIsSymlink())
             return@runCatching
         val result = if (file.isSymlink()) {
             file.delete()
@@ -35,7 +38,7 @@ object FileUtil {
                     }
                 }
                 .fold(true) { acc, it ->
-                    if (!it.exists()) acc else it.delete()
+                    if (!it.existsOrIsSymlink()) acc else it.delete()
                 }
         } else {
             file.delete()
