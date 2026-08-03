@@ -14,6 +14,7 @@ import android.provider.DocumentsContract.Document
 import android.provider.DocumentsContract.Root
 import android.provider.DocumentsProvider
 import android.webkit.MimeTypeMap
+import org.fcitx.fcitx5.android.utils.safeFileName
 import org.fcitx.fcitx5.android.R
 import java.io.File
 import java.io.FileNotFoundException
@@ -75,7 +76,14 @@ class FcitxDataProvider : DocumentsProvider() {
     private val File.docId
         get() = absolutePath.removePrefix(docIdPrefix)
 
-    private fun fileFromDocId(docId: String) = File(docIdPrefix, docId)
+    @Throws(FileNotFoundException::class)
+    private fun fileFromDocId(docId: String): File {
+        val file = File(docIdPrefix, docId).canonicalFile
+        if (file != baseDir && !file.path.startsWith("${baseDir.path}${File.separator}")) {
+            throw FileNotFoundException("documentId=$docId is outside the data directory")
+        }
+        return file
+    }
 
     override fun onCreate(): Boolean {
         baseDir = context!!.getExternalFilesDir(null) ?: return false
@@ -177,7 +185,9 @@ class FcitxDataProvider : DocumentsProvider() {
     }
 
     override fun isChildDocument(parentDocumentId: String, documentId: String): Boolean {
-        return documentId.startsWith(parentDocumentId)
+        val parent = fileFromDocId(parentDocumentId)
+        val child = fileFromDocId(documentId)
+        return child.path.startsWith("${parent.path}${File.separator}")
     }
 
     @Throws(FileNotFoundException::class)
@@ -204,7 +214,7 @@ class FcitxDataProvider : DocumentsProvider() {
     @Throws(FileNotFoundException::class)
     override fun renameDocument(documentId: String, displayName: String): String {
         val oldFile = fileFromDocId(documentId)
-        val newFile = oldFile.resolveSibling(displayName)
+        val newFile = oldFile.resolveSibling(displayName.safeFileName())
         if (newFile.exists()) {
             throw FileNotFoundException("renameDocument id=$documentId to $displayName failed: target exists")
         }
@@ -247,10 +257,11 @@ class FcitxDataProvider : DocumentsProvider() {
 
     private fun createAbstractFile(parentDocumentId: String, displayName: String): File {
         val parent = fileFromDocId(parentDocumentId)
-        var newFile = parent.resolve(displayName)
+        val safeName = displayName.safeFileName()
+        var newFile = parent.resolve(safeName)
         var noConflictId = 2
         while (newFile.exists()) {
-            newFile = parent.resolve("$displayName ($noConflictId)")
+            newFile = parent.resolve("$safeName ($noConflictId)")
             noConflictId += 1
         }
         return newFile
