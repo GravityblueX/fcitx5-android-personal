@@ -1,5 +1,6 @@
 package org.fcitx.fcitx5.android.data.theme
 
+import android.system.Os
 import kotlinx.serialization.json.Json
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.utils.appContext
@@ -51,14 +52,12 @@ object ThemeFilesManager {
 
     fun saveThemeFiles(theme: Theme.Custom) {
         val file = themeFile(theme)
-        val backup = backup(file, dir)
+        val staged = File.createTempFile("theme-", ".staged", dir)
         try {
-            file.writeText(Json.encodeToString(CustomThemeSerializer, theme))
-        } catch (e: Exception) {
-            restore(file, backup)
-            throw e
+            staged.writeText(Json.encodeToString(CustomThemeSerializer, theme))
+            Os.rename(staged.path, file.path)
         } finally {
-            backup?.delete()
+            staged.delete()
         }
     }
 
