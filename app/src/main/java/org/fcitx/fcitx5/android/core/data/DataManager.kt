@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import android.content.res.AssetManager
+import android.system.Os
 import android.os.Build
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -348,17 +349,7 @@ object DataManager {
             open(filename).use { input ->
                 staged.outputStream().use { output -> input.copyTo(output) }
             }
-            val backup = destination.takeIf(File::exists)?.let { existing ->
-                File.createTempFile("data-file-", ".backup", parent).also { existing.copyTo(it) }
-            }
-            try {
-                staged.copyTo(destination, overwrite = true)
-            } catch (e: Exception) {
-                if (backup == null) destination.delete() else backup.copyTo(destination, overwrite = true)
-                throw e
-            } finally {
-                backup?.delete()
-            }
+            Os.rename(staged.path, destination.path)
         } finally {
             staged.delete()
         }
