@@ -37,8 +37,9 @@ object FcitxPluginServices {
 
     class PluginServiceConnection(
         private val pluginId: String,
-        private val onDied: () -> Unit
+        private val onDied: (PluginServiceConnection) -> Unit
     ) : ServiceConnection {
+        @Volatile
         private var messenger: Messenger? = null
 
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
@@ -54,7 +55,7 @@ object FcitxPluginServices {
 
         // will never receive another connection
         override fun onBindingDied(name: ComponentName?) {
-            onDied.invoke()
+            onDied.invoke(this)
             Timber.d("Plugin binding died: $pluginId")
         }
 
@@ -68,12 +69,14 @@ object FcitxPluginServices {
         }
     }
 
+    private val connectionLock = Any()
     private val connections = mutableMapOf<String, PluginServiceConnection>()
 
-    private fun connectPlugin(descriptor: PluginDescriptor): Boolean {
+    private fun connectPlugin(descriptor: PluginDescriptor): Boolean = synchronized(connectionLock) {
+        if (connections.containsKey(descriptor.name)) return@synchronized true
         for (action in compatiblePluginServiceActions) {
-            val connection = PluginServiceConnection(descriptor.name) {
-                disconnectPlugin(descriptor.name)
+            val connection = PluginServiceConnection(descriptor.name) { deadConnection ->
+                disconnectPlugin(descriptor.name, deadConnection)
             }
             try {
                 val result = appContext.bindService(
@@ -84,7 +87,7 @@ object FcitxPluginServices {
                 if (result) {
                     connections[descriptor.name] = connection
                     Timber.d("Bound to plugin ${descriptor.name} with action $action")
-                    return true
+                    return@synchronized true
                 }
             } catch (e: Exception) {
                 // Official service plugins may require the official app's signature permission.
@@ -93,25 +96,30 @@ object FcitxPluginServices {
             }
         }
         Timber.w("No compatible service found for plugin: ${descriptor.name}")
-        return false
+        false
     }
 
     fun connectAll() {
         DataManager.getLoadedPlugins().forEach {
-            if (it.hasService &&
-                it.packageName !in builtInReplacementPackages &&
-                !connections.containsKey(it.name)
-            ) {
+            if (it.hasService && it.packageName !in builtInReplacementPackages) {
                 connectPlugin(it)
             }
         }
     }
 
-    private fun disconnectPlugin(name: String) {
-        connections.remove(name)?.also {
-            appContext.unbindService(it)
-            Timber.d("Unbound plugin: $name")
-        }
+    private fun disconnectPlugin(
+        name: String,
+        expectedConnection: PluginServiceConnection? = null,
+    ) {
+        val connection = synchronized(connectionLock) {
+            val currentConnection = connections[name] ?: return@synchronized null
+            if (expectedConnection != null && currentConnection !== expectedConnection) {
+                return@synchronized null
+            }
+            connections.remove(name)
+        } ?: return
+        appContext.unbindService(connection)
+        Timber.d("Unbound plugin: $name")
     }
 
     fun disconnectPackage(packageName: String) {
@@ -127,23 +135,21 @@ object FcitxPluginServices {
         val descriptor = DataManager.getLoadedPlugins()
             .firstOrNull { it.packageName == packageName && it.hasService }
             ?: return false
-        if (connections.containsKey(descriptor.name)) {
-            return true
-        }
         return connectPlugin(descriptor)
     }
 
     fun disconnectAll() {
-        connections.forEach { (name, connection) ->
+        val activeConnections = synchronized(connectionLock) {
+            connections.toList().also { connections.clear() }
+        }
+        activeConnections.forEach { (name, connection) ->
             appContext.unbindService(connection)
             Timber.d("Unbound plugin: $name")
         }
-        connections.clear()
     }
 
     fun sendMessage(message: Message) {
-        connections.forEach { (_, conn) ->
-            conn.sendMessage(message)
-        }
+        synchronized(connectionLock) { connections.values.toList() }
+            .forEach { it.sendMessage(message) }
     }
 }
