@@ -29,6 +29,7 @@ import org.fcitx.fcitx5.android.utils.Const
 import org.fcitx.fcitx5.android.utils.desc
 import org.fcitx.fcitx5.android.utils.descEquals
 import timber.log.Timber
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 class FcitxRemoteService : Service() {
@@ -38,6 +39,8 @@ class FcitxRemoteService : Service() {
     private val scope = MainScope() + CoroutineName("FcitxRemoteService")
 
     private val clipboardTransformers = CopyOnWriteArrayList<IClipboardEntryTransformer>()
+
+    private val clipboardTransformerDeathRecipients = ConcurrentHashMap<IBinder, IBinder.DeathRecipient>()
 
     private fun transformClipboard(source: String): String {
         var result = source
@@ -83,14 +86,15 @@ class FcitxRemoteService : Service() {
                 return
             }
             scope.launch {
-                runCatching {
-                    transformer.asBinder().linkToDeath({
-                        unregisterClipboardEntryTransformer(transformer)
-                    }, 0)
-                }.getOrElse {
+                val binder = transformer.asBinder()
+                val deathRecipient = IBinder.DeathRecipient {
+                    removeClipboardEntryTransformer(transformer, unlink = false)
+                }
+                runCatching { binder.linkToDeath(deathRecipient, 0) }.getOrElse {
                     Timber.w(it, "Clipboard transformer %s died during registration", transformer.desc)
                     return@launch
                 }
+                clipboardTransformerDeathRecipients[binder] = deathRecipient
                 clipboardTransformers.add(transformer)
                 clipboardTransformers.sortByDescending { it.priority }
                 updateClipboardManager()
@@ -99,12 +103,7 @@ class FcitxRemoteService : Service() {
 
         override fun unregisterClipboardEntryTransformer(transformer: IClipboardEntryTransformer) {
             Timber.d("unregisterClipboardEntryTransformer: ${transformer.desc}")
-            scope.launch {
-                clipboardTransformers.remove(transformer)
-                        || clipboardTransformers.removeAll { it.descEquals(transformer) }
-                        || return@launch
-                updateClipboardManager()
-            }
+            removeClipboardEntryTransformer(transformer, unlink = true)
         }
 
         override fun registerHandwritingRecognitionProvider(
@@ -128,6 +127,25 @@ class FcitxRemoteService : Service() {
         }
     }
 
+    private fun removeClipboardEntryTransformer(
+        transformer: IClipboardEntryTransformer,
+        unlink: Boolean,
+    ) {
+        scope.launch {
+            val registered = clipboardTransformers.firstOrNull {
+                it == transformer || it.descEquals(transformer)
+            } ?: return@launch
+            clipboardTransformers.remove(registered)
+            val binder = registered.asBinder()
+            clipboardTransformerDeathRecipients.remove(binder)?.let { deathRecipient ->
+                if (unlink) {
+                    runCatching { binder.unlinkToDeath(deathRecipient, 0) }
+                }
+            }
+            updateClipboardManager()
+        }
+    }
+
     override fun onCreate() {
         Timber.d("FcitxRemoteService onCreate")
         super.onCreate()
@@ -146,6 +164,10 @@ class FcitxRemoteService : Service() {
     override fun onDestroy() {
         Timber.d("FcitxRemoteService onDestroy")
         scope.cancel()
+        clipboardTransformerDeathRecipients.forEach { (binder, deathRecipient) ->
+            runCatching { binder.unlinkToDeath(deathRecipient, 0) }
+        }
+        clipboardTransformerDeathRecipients.clear()
         clipboardTransformers.clear()
         HandwritingProviderRegistry.clear()
         runBlocking { updateClipboardManager() }
