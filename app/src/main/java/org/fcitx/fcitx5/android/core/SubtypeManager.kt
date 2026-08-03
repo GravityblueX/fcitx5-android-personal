@@ -19,7 +19,8 @@ object SubtypeManager {
 
     private const val IM_KEYBOARD = "keyboard-us"
 
-    private val knownSubtypes: HashMap<String, InputMethodSubtype> = hashMapOf()
+    @Volatile
+    private var knownSubtypes: Map<String, InputMethodSubtype> = emptyMap()
 
     fun subtypeOf(inputMethod: String): InputMethodSubtype? {
         return knownSubtypes[inputMethod]
@@ -31,10 +32,10 @@ object SubtypeManager {
 
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     fun syncWith(inputMethods: Array<InputMethodEntry>) {
-        knownSubtypes.clear()
         val size = inputMethods.size
         val subtypes = arrayOfNulls<InputMethodSubtype>(size)
         val hashCodes = IntArray(size)
+        val newKnownSubtypes = HashMap<String, InputMethodSubtype>(size)
         inputMethods.forEachIndexed { i, im ->
             val subtype = InputMethodSubtypeBuilder()
                 .setSubtypeId(im.uniqueName.hashCode())
@@ -46,7 +47,7 @@ object SubtypeManager {
             val hashCode = subtype.hashCode()
             subtypes[i] = subtype
             hashCodes[i] = hashCode
-            knownSubtypes[im.uniqueName] = subtype
+            newKnownSubtypes[im.uniqueName] = subtype
         }
         val imm = appContext.inputMethodManager
         val imiId = InputMethodUtil.componentName
@@ -55,5 +56,6 @@ object SubtypeManager {
         @Suppress("DEPRECATION")
         imm.setAdditionalInputMethodSubtypes(imiId, subtypes)
         imm.setExplicitlyEnabledInputMethodSubtypes(imiId, hashCodes)
+        knownSubtypes = newKnownSubtypes
     }
 }
