@@ -69,10 +69,11 @@ class RecentlyUsed(val type: String, val limit: Int) {
         if (file.exists()) {
             try {
                 val lines = file.readLines()
-                // save to sharedPreferences before deleting old file
-                sharedPreferences.edit {
-                    putString(type, Json.encodeToString<List<String>>(lines))
-                }
+                check(
+                    sharedPreferences.edit()
+                        .putString(type, Json.encodeToString<List<String>>(lines))
+                        .commit()
+                ) { "Failed to save RecentlyUsed(type=$type)" }
                 file.delete()
                 if (dir.list()?.isEmpty() == true) {
                     dir.delete()
