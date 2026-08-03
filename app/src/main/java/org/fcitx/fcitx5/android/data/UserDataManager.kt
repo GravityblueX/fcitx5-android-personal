@@ -9,6 +9,7 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.encodeToStream
+import kotlinx.serialization.encodeToString
 import org.fcitx.fcitx5.android.BuildConfig
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.utils.Const
@@ -53,6 +54,20 @@ object UserDataManager {
         val exportTime: Long
     )
 
+
+    @Serializable
+    private data class ImportJournal(
+        val directories: List<ImportJournalDirectory>,
+    )
+
+    @Serializable
+    private data class ImportJournalDirectory(
+        val targetPath: String,
+        val stagedPath: String,
+        val backupPath: String?,
+    )
+
+    private val importJournalFile get() = appContext.filesDir.resolve(".user-data-import")
     private fun writeFileTree(
         srcDir: File,
         destPrefix: String,
@@ -112,12 +127,17 @@ object UserDataManager {
     private class StagedImportDirectory(
         val target: File,
         val staged: File,
+        var backup: File?,
     ) {
-        var backup: File? = null
         var originalMoved = false
         var stagedMoved = false
     }
 
+    private fun createImportBackupPath(parent: File): File {
+        val backup = createTempDir(parent)
+        check(backup.delete()) { "Cannot prepare import backup: ${backup.path}" }
+        return backup
+    }
     private fun stageImportDirectory(directory: ImportDirectory): StagedImportDirectory? {
         val source = directory.source
         val target = directory.target
@@ -141,7 +161,8 @@ object UserDataManager {
             check(source.copyRecursively(staged, overwrite = true)) {
                 "Failed to stage imported user data: ${source.path}"
             }
-            return StagedImportDirectory(target, staged)
+            val backup = target.takeIf(File::exists)?.let { createImportBackupPath(parent) }
+            return StagedImportDirectory(target, staged, backup)
         } catch (e: Exception) {
             staged.deleteRecursively()
             throw e
@@ -152,9 +173,9 @@ object UserDataManager {
         val target = directory.target
         val parent = target.parentFile ?: error("Cannot resolve import directory parent: ${target.path}")
         if (target.exists()) {
-            val backup = createTempDir(parent)
-            check(backup.delete()) { "Cannot prepare import backup: ${backup.path}" }
-            directory.backup = backup
+            val backup = requireNotNull(directory.backup) {
+                "Missing import backup for ${target.path}"
+            }
             Os.rename(target.path, backup.path)
             directory.originalMoved = true
         }
@@ -165,7 +186,8 @@ object UserDataManager {
     private fun restoreImportDirectories(
         directories: List<StagedImportDirectory>,
         originalFailure: Exception,
-    ) {
+    ): Boolean {
+        var restored = true
         directories.asReversed().forEach { directory ->
             try {
                 if (directory.stagedMoved && directory.target.exists()) {
@@ -175,9 +197,11 @@ object UserDataManager {
                     Os.rename(requireNotNull(directory.backup).path, directory.target.path)
                 }
             } catch (rollbackFailure: Exception) {
+                restored = false
                 originalFailure.addSuppressed(rollbackFailure)
             }
         }
+        return restored
     }
 
     private fun cleanupStagedImportDirectories(directories: List<StagedImportDirectory>) {
@@ -190,18 +214,115 @@ object UserDataManager {
         }
     }
 
+    private fun writeImportJournal(directories: List<StagedImportDirectory>) {
+        val journal = importJournalFile
+        val parent = journal.parentFile ?: error("Cannot resolve import journal parent")
+        check(parent.mkdirs() || parent.isDirectory) {
+            "Cannot create import journal parent: $parent"
+        }
+        val staged = File.createTempFile("user-data-import-", ".journal", parent)
+        try {
+            staged.writeText(
+                json.encodeToString(
+                    ImportJournal(
+                        directories.map { directory ->
+                            ImportJournalDirectory(
+                                directory.target.path,
+                                directory.staged.path,
+                                directory.backup?.path,
+                            )
+                        }
+                    )
+                )
+            )
+            Os.rename(staged.path, journal.path)
+        } finally {
+            staged.delete()
+        }
+    }
+
+    private fun deleteImportJournal() {
+        val journal = importJournalFile
+        if (journal.exists() && !journal.delete()) {
+            Timber.w("Failed to remove user data import journal: ${journal.path}")
+        }
+    }
+
+    private fun recoverInterruptedImport(
+        directories: List<ImportJournalDirectory>,
+    ): Boolean {
+        var recovered = true
+        directories.asReversed().forEach { directory ->
+            try {
+                val target = File(directory.targetPath)
+                val staged = File(directory.stagedPath)
+                val backup = directory.backupPath?.let(::File)
+                val stagedMoved = !staged.exists() && target.exists()
+                if (backup?.exists() == true) {
+                    if (stagedMoved) {
+                        FileUtil.removeFile(target).getOrThrow()
+                    }
+                    if (!target.exists()) {
+                        Os.rename(backup.path, target.path)
+                    }
+                } else if (stagedMoved) {
+                    FileUtil.removeFile(target).getOrThrow()
+                }
+            } catch (e: Exception) {
+                recovered = false
+                Timber.e(e, "Failed to recover interrupted user data import")
+            }
+        }
+        return recovered
+    }
+
+    fun recoverPendingImport() {
+        val journal = importJournalFile
+        if (!journal.isFile) return
+        val importJournal = runCatching {
+            json.decodeFromString<ImportJournal>(journal.readText())
+        }.getOrElse {
+            Timber.e(it, "Failed to read user data import journal")
+            return
+        }
+        val completed = importJournal.directories.all { directory ->
+            File(directory.targetPath).exists() && !File(directory.stagedPath).exists()
+        }
+        val recovered = completed || recoverInterruptedImport(importJournal.directories)
+        if (!recovered) return
+        importJournal.directories.forEach { directory ->
+            listOfNotNull(directory.backupPath, directory.stagedPath).forEach { path ->
+                val file = File(path)
+                if (file.exists() && !file.deleteRecursively()) {
+                    Timber.w("Failed to clean recovered user data import directory: ${file.path}")
+                }
+            }
+        }
+        deleteImportJournal()
+    }
+
     private fun importDirectories(directories: List<ImportDirectory>) {
         val stagedDirectories = mutableListOf<StagedImportDirectory>()
+        var journalWritten = false
+        var completed = false
+        var rolledBack = false
         try {
             directories.mapNotNullTo(stagedDirectories, ::stageImportDirectory)
+            if (stagedDirectories.isEmpty()) return
+            writeImportJournal(stagedDirectories)
+            journalWritten = true
             try {
                 stagedDirectories.forEach(::replaceImportDirectory)
+                completed = true
             } catch (e: Exception) {
-                restoreImportDirectories(stagedDirectories, e)
+                rolledBack = restoreImportDirectories(stagedDirectories, e)
                 throw e
             }
         } finally {
-            cleanupStagedImportDirectories(stagedDirectories)
+            if (!journalWritten || completed || rolledBack) {
+                cleanupStagedImportDirectories(stagedDirectories)
+                if (journalWritten) deleteImportJournal()
+            }
         }
     }
 

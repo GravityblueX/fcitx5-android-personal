@@ -20,6 +20,7 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.plus
 import org.fcitx.fcitx5.android.daemon.FcitxDaemon
+import org.fcitx.fcitx5.android.data.UserDataManager
 import org.fcitx.fcitx5.android.data.clipboard.ClipboardManager
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
@@ -126,6 +127,7 @@ class FcitxApplication : Application() {
         }
 
         instance = this
+        UserDataManager.recoverPendingImport()
         // we don't have AppPrefs available yet
         val sharedPrefs = PreferenceManager.getDefaultSharedPreferences(ctx)
         Timber.setupForest(verbose = sharedPrefs.getBoolean("verbose_log", false))
