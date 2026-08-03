@@ -301,8 +301,19 @@ object DataManager {
             }
         }
         // save the new hierarchy as the data descriptor to be used in the next run
-        destDescriptorFile.bufferedWriter().use {
-            it.write(serializeDataDescriptor(newHierarchy.downToDataDescriptor()))
+        val descriptorBackup = destDescriptorFile.takeIf(File::exists)?.let { source ->
+            File.createTempFile("data-descriptor-", ".backup", dataDir).also { source.copyTo(it) }
+        }
+        try {
+            destDescriptorFile.bufferedWriter().use {
+                it.write(serializeDataDescriptor(newHierarchy.downToDataDescriptor()))
+            }
+        } catch (e: Exception) {
+            if (descriptorBackup == null) destDescriptorFile.delete()
+            else descriptorBackup.copyTo(destDescriptorFile, overwrite = true)
+            throw e
+        } finally {
+            descriptorBackup?.delete()
         }
         callbacks.forEach { it() }
         callbacks.clear()
