@@ -69,17 +69,19 @@ object ThemeManager {
     private var isDarkMode = false
 
     private val onChangeListeners = WeakHashSet<OnThemeChangeListener>()
+    private val onChangeListenersLock = Any()
 
     fun addOnChangedListener(listener: OnThemeChangeListener) {
-        onChangeListeners.add(listener)
+        synchronized(onChangeListenersLock) { onChangeListeners.add(listener) }
     }
 
     fun removeOnChangedListener(listener: OnThemeChangeListener) {
-        onChangeListeners.remove(listener)
+        synchronized(onChangeListenersLock) { onChangeListeners.remove(listener) }
     }
 
     private fun fireChange() {
-        onChangeListeners.forEach { it.onThemeChange(_activeTheme) }
+        synchronized(onChangeListenersLock) { onChangeListeners.toList() }
+            .forEach { it.onThemeChange(_activeTheme) }
     }
 
     val prefs = AppPrefs.getInstance().registerProvider(::ThemePrefs)

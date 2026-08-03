@@ -29,18 +29,20 @@ abstract class ManagedPreferenceProvider {
     }
 
     private val onChangeListeners = WeakHashSet<OnChangeListener>()
+    private val onChangeListenersLock = Any()
 
     fun registerOnChangeListener(listener: OnChangeListener) {
-        onChangeListeners.add(listener)
+        synchronized(onChangeListenersLock) { onChangeListeners.add(listener) }
     }
 
     fun unregisterOnChangeListener(listener: OnChangeListener) {
-        onChangeListeners.remove(listener)
+        synchronized(onChangeListenersLock) { onChangeListeners.remove(listener) }
     }
 
     fun fireChange(key: String) {
         val preference = _managedPreferences[key] ?: return
-        onChangeListeners.forEach { it.onChange(key) }
+        synchronized(onChangeListenersLock) { onChangeListeners.toList() }
+            .forEach { it.onChange(key) }
         preference.fireChange()
     }
 

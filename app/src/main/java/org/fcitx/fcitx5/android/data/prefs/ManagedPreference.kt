@@ -35,6 +35,7 @@ abstract class ManagedPreference<T : Any>(
 
     override fun setValue(thisRef: Any?, property: KProperty<*>, value: T) = setValue(value)
 
+    private val listenersLock = Any()
     private lateinit var listeners: MutableSet<OnChangeListener<T>>
 
     /**
@@ -45,21 +46,28 @@ abstract class ManagedPreference<T : Any>(
      * or simply mark the listener with [@Keep][androidx.annotation.Keep] .
      */
     fun registerOnChangeListener(listener: OnChangeListener<T>) {
-        if (!::listeners.isInitialized) {
-            listeners = WeakHashSet()
+        synchronized(listenersLock) {
+            if (!::listeners.isInitialized) {
+                listeners = WeakHashSet()
+            }
+            listeners.add(listener)
         }
-        listeners.add(listener)
     }
 
     fun unregisterOnChangeListener(listener: OnChangeListener<T>) {
-        if (!::listeners.isInitialized || listeners.isEmpty()) return
-        listeners.remove(listener)
+        synchronized(listenersLock) {
+            if (!::listeners.isInitialized || listeners.isEmpty()) return
+            listeners.remove(listener)
+        }
     }
 
     fun fireChange() {
-        if (!::listeners.isInitialized || listeners.isEmpty()) return
+        val listenersSnapshot = synchronized(listenersLock) {
+            if (!::listeners.isInitialized || listeners.isEmpty()) emptyList() else listeners.toList()
+        }
+        if (listenersSnapshot.isEmpty()) return
         val newValue = getValue()
-        listeners.forEach { it.onChange(key, newValue) }
+        listenersSnapshot.forEach { it.onChange(key, newValue) }
     }
 
     class PBool(sharedPreferences: SharedPreferences, key: String, defaultValue: Boolean) :
