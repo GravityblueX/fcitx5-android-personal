@@ -224,8 +224,6 @@ class CustomThemeActivity : AppCompatActivity() {
 
     private class BackgroundStates {
         lateinit var launcher: ActivityResultLauncher<CropOption>
-        var srcImageExtension: String? = null
-        var srcImageBuffer: ByteArray? = null
         var cropRect: Rect? = null
         var cropRotation: Int = 0
         lateinit var croppedBitmap: Bitmap
@@ -321,11 +319,19 @@ class CustomThemeActivity : AppCompatActivity() {
                     }
                     is CropResult.Success -> {
                         if (newCreated) {
-                            srcImageExtension = MimeTypeMap.getSingleton()
+                            MimeTypeMap.getSingleton()
                                 .getExtensionFromMimeType(contentResolver.getType(it.srcUri))
-                            srcImageBuffer = runCatching {
+                                ?.let { extension ->
+                                    srcImageFile = File("${srcImageFile.absolutePath}.$extension")
+                                    theme = theme.copy(
+                                        backgroundImage = theme.backgroundImage?.copy(
+                                            srcFilePath = srcImageFile.absolutePath
+                                        )
+                                    )
+                                }
+                            runCatching {
                                 contentResolver.requireInputStream(it.srcUri).use { input ->
-                                    input.readBytes()
+                                    srcImageFile.outputStream().use(input::copyTo)
                                 }
                             }.getOrElse {
                                 toast(R.string.exception_document_unavailable)
@@ -399,6 +405,12 @@ class CustomThemeActivity : AppCompatActivity() {
     }
 
     private fun cancel() {
+        if (newCreated) {
+            backgroundStates.run {
+                croppedImageFile.delete()
+                srcImageFile.delete()
+            }
+        }
         setResult(
             RESULT_CANCELED,
             Intent().apply { putExtra(RESULT, null as BackgroundResult?) }
@@ -413,17 +425,6 @@ class CustomThemeActivity : AppCompatActivity() {
                     croppedImageFile.delete()
                     croppedImageFile.outputStream().use {
                         croppedBitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
-                    }
-                    if (newCreated) {
-                        if (srcImageExtension != null) {
-                            srcImageFile = File("${srcImageFile.absolutePath}.$srcImageExtension")
-                            theme = theme.copy(
-                                backgroundImage = it.copy(
-                                    srcFilePath = srcImageFile.absolutePath
-                                )
-                            )
-                        }
-                        srcImageFile.writeBytes(srcImageBuffer!!)
                     }
                 }
             }
