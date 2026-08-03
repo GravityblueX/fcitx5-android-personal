@@ -43,6 +43,7 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
 
     private val mutex = Mutex()
 
+    @Volatile
     var itemCount: Int = 0
         private set
 
@@ -51,15 +52,16 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
     }
 
     private val onUpdateListeners = WeakHashSet<OnClipboardUpdateListener>()
+    private val onUpdateListenersLock = Any()
 
     var transformer: ((String) -> String)? = null
 
     fun addOnUpdateListener(listener: OnClipboardUpdateListener) {
-        onUpdateListeners.add(listener)
+        synchronized(onUpdateListenersLock) { onUpdateListeners.add(listener) }
     }
 
     fun removeOnUpdateListener(listener: OnClipboardUpdateListener) {
-        onUpdateListeners.remove(listener)
+        synchronized(onUpdateListenersLock) { onUpdateListeners.remove(listener) }
     }
 
     private val enabledPref = AppPrefs.getInstance().clipboard.clipboardListening
@@ -113,11 +115,13 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
             }
         }
 
+    @Volatile
     var lastEntry: ClipboardEntry? = null
 
     private fun updateLastEntry(entry: ClipboardEntry) {
         lastEntry = entry
-        onUpdateListeners.forEach { it.onUpdate(entry) }
+        synchronized(onUpdateListenersLock) { onUpdateListeners.toList() }
+            .forEach { it.onUpdate(entry) }
     }
 
     fun init(context: Context) {
