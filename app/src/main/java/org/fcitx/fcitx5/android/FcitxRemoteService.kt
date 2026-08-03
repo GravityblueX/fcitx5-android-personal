@@ -83,9 +83,14 @@ class FcitxRemoteService : Service() {
                 return
             }
             scope.launch {
-                transformer.asBinder().linkToDeath({
-                    unregisterClipboardEntryTransformer(transformer)
-                }, 0)
+                runCatching {
+                    transformer.asBinder().linkToDeath({
+                        unregisterClipboardEntryTransformer(transformer)
+                    }, 0)
+                }.getOrElse {
+                    Timber.w(it, "Clipboard transformer %s died during registration", transformer.desc)
+                    return@launch
+                }
                 clipboardTransformers.add(transformer)
                 clipboardTransformers.sortByDescending { it.priority }
                 updateClipboardManager()
@@ -144,5 +149,6 @@ class FcitxRemoteService : Service() {
         clipboardTransformers.clear()
         HandwritingProviderRegistry.clear()
         runBlocking { updateClipboardManager() }
+        super.onDestroy()
     }
 }
