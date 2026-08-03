@@ -18,6 +18,7 @@ class RecentlyUsed(val type: String, val limit: Int) {
         // for backwords compatibility only
         const val DIR_NAME = "recently_used"
         const val PREFERENCE_NAME = "picker_recently_used"
+        private const val MIGRATION_KEY_PREFIX = "migrated_"
     }
 
     private val sharedPreferences = FcitxApplication.getInstance().directBootAwareContext
@@ -26,6 +27,8 @@ class RecentlyUsed(val type: String, val limit: Int) {
     private val map = LinkedHashMap<String, Boolean>(limit).apply {
         (migrate() ?: load()).forEach { put(it, true) }
     }
+
+    private val migrationKey get() = "$MIGRATION_KEY_PREFIX$type"
 
     val items: List<String> get() = map.keys.reversed()
 
@@ -64,6 +67,8 @@ class RecentlyUsed(val type: String, val limit: Int) {
     }
 
     fun migrate(): List<String>? {
+        if (sharedPreferences.getBoolean(migrationKey, false)) return null
+
         val dir = FcitxApplication.getInstance().directBootAwareContext.filesDir.resolve(DIR_NAME)
         val file = dir.resolve(type)
         if (file.exists()) {
@@ -72,9 +77,12 @@ class RecentlyUsed(val type: String, val limit: Int) {
                 check(
                     sharedPreferences.edit()
                         .putString(type, Json.encodeToString<List<String>>(lines))
+                        .putBoolean(migrationKey, true)
                         .commit()
                 ) { "Failed to save RecentlyUsed(type=$type)" }
-                file.delete()
+                if (!file.delete()) {
+                    Timber.w("Failed to remove migrated RecentlyUsed file: ${file.path}")
+                }
                 if (dir.list()?.isEmpty() == true) {
                     dir.delete()
                 }
