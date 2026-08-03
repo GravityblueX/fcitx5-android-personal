@@ -64,8 +64,19 @@ class CustomQuickPhrase(
         return true
     }
 
-    override fun saveData(data: QuickPhraseData) =
-        file.writeText(data.serialize())
+    override fun saveData(data: QuickPhraseData) {
+        val backup = file.takeIf(File::exists)?.let { source ->
+            File.createTempFile("quickphrase-", ".backup", source.parentFile).also { source.copyTo(it) }
+        }
+        try {
+            file.writeText(data.serialize())
+        } catch (e: Exception) {
+            if (backup == null) file.delete() else backup.copyTo(file, overwrite = true)
+            throw e
+        } finally {
+            backup?.delete()
+        }
+    }
 
     override fun toString(): String {
         return "CustomQuickPhrase(isEnabled=$isEnabled, file=$file, name='$name')"
