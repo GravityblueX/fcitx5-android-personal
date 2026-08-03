@@ -18,6 +18,9 @@ import org.fcitx.fcitx5.android.data.prefs.ManagedPreferenceFragment
 import org.fcitx.fcitx5.android.utils.queryFileName
 import org.fcitx.fcitx5.android.utils.setup
 
+internal fun previousCustomSoundUriToRelease(previousUri: String, nextUri: String): String? =
+    previousUri.takeIf { it.isNotBlank() && it != nextUri }
+
 class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance().keyboard) {
 
     private val keyboardPrefs = AppPrefs.getInstance().keyboard
@@ -38,7 +41,12 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
                     )
                 }.isSuccess
                 if (!granted) return@registerForActivityResult
-                keyboardPrefs.customKeySoundUri.setValue(uri.toString())
+                val nextUri = uri.toString()
+                val previousUri = keyboardPrefs.customKeySoundUri.getValue()
+                keyboardPrefs.customKeySoundUri.setValue(nextUri)
+                releaseCustomSoundUriPermission(
+                    previousCustomSoundUriToRelease(previousUri, nextUri)
+                )
                 updateCustomSoundPreference()
             }
     }
@@ -63,11 +71,25 @@ class KeyboardSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
                 if (selected == 0) {
                     customSoundLauncher.launch(arrayOf("audio/*"))
                 } else {
+                    val previousUri = keyboardPrefs.customKeySoundUri.getValue()
                     keyboardPrefs.customKeySoundUri.setValue("")
+                    releaseCustomSoundUriPermission(
+                        previousCustomSoundUriToRelease(previousUri, "")
+                    )
                     updateCustomSoundPreference()
                 }
             }
             .show()
+    }
+
+    private fun releaseCustomSoundUriPermission(uri: String?) {
+        if (uri == null) return
+        runCatching {
+            requireContext().contentResolver.releasePersistableUriPermission(
+                Uri.parse(uri),
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        }
     }
 
     private fun updateCustomSoundPreference() {
