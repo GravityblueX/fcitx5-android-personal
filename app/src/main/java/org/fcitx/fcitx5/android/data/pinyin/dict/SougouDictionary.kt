@@ -29,9 +29,11 @@ class SougouDictionary(file: File) : PinyinDictionary() {
 
     override fun toLibIMEDictionary(dest: File): LibIMEDictionary {
         val txtDict = toTextDictionary()
-        val libimeDict = txtDict.toLibIMEDictionary(dest)
-        txtDict.file.delete()
-        return libimeDict
+        try {
+            return txtDict.toLibIMEDictionary(dest)
+        } finally {
+            txtDict.file.delete()
+        }
     }
 
 }
