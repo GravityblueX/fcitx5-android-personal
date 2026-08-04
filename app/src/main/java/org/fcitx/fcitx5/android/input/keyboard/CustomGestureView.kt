@@ -117,8 +117,24 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
     override fun setEnabled(enabled: Boolean) {
         super.setEnabled(enabled)
         if (!enabled) {
+            cancelGestureJobs()
             isPressed = false
         }
+    }
+
+    override fun onDetachedFromWindow() {
+        cancelGestureJobs()
+        isPressed = false
+        super.onDetachedFromWindow()
+    }
+
+    private fun cancelGestureJobs() {
+        longPressJob?.cancel()
+        longPressJob = null
+        longPressTriggered = false
+        repeatJob?.cancel()
+        repeatJob = null
+        repeatStarted = false
     }
 
     private fun pointInView(x: Float, y: Float): Boolean {
