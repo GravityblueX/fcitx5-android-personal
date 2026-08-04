@@ -83,7 +83,10 @@ object TableManager {
             importedConfFile.delete()
             throw it
         }
-        val table = Dictionary.new(dictFile)!!
+        val table = Dictionary.new(dictFile) ?: run {
+            importedConfFile.delete()
+            errorRuntime(R.string.invalid_table_dict, "Unsupported dictionary file: ${dictFile.name}")
+        }
         val tableFile = reserveTableFile(
             tableDicDir,
             TableBasedInputMethod.fixedTableFileName(table.name)
@@ -121,7 +124,8 @@ object TableManager {
             val dictFile = File(tempDir, dictName.safeFileName()).also {
                 it.outputStream().use { o -> dictStream.use { i -> i.copyTo(o) } }
             }
-            val dict = Dictionary.new(dictFile)!!
+            val dict = Dictionary.new(dictFile)
+                ?: errorRuntime(R.string.invalid_table_dict, "Unsupported dictionary file: ${dictFile.name}")
             val destination = File(tableDicDir, im.tableFileName)
             runCatching {
                 dict.toLibIMEDictionary(File(tempDir, im.tableFileName))
