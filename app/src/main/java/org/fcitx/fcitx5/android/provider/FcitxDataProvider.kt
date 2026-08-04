@@ -77,17 +77,23 @@ class FcitxDataProvider : DocumentsProvider() {
     private val File.docId
         get() = absolutePath.removePrefix(docIdPrefix)
 
+    private fun isWithinBaseDir(file: File): Boolean = runCatching {
+        val canonicalFile = file.canonicalFile
+        canonicalFile == baseDir ||
+                canonicalFile.path.startsWith("${baseDir.path}${File.separator}")
+    }.getOrDefault(false)
+
     @Throws(FileNotFoundException::class)
     private fun fileFromDocId(docId: String): File {
         val file = File(docIdPrefix, docId).canonicalFile
-        if (file != baseDir && !file.path.startsWith("${baseDir.path}${File.separator}")) {
+        if (!isWithinBaseDir(file)) {
             throw FileNotFoundException("documentId=$docId is outside the data directory")
         }
         return file
     }
 
     override fun onCreate(): Boolean {
-        baseDir = context!!.getExternalFilesDir(null) ?: return false
+        baseDir = (context!!.getExternalFilesDir(null) ?: return false).canonicalFile
         docIdPrefix = "${baseDir.parent}${File.separator}"
         textFilePaths = Array(TEXT_FILES.size) { baseDir.resolve(TEXT_FILES[it]).absolutePath }
         return true
@@ -118,9 +124,9 @@ class FcitxDataProvider : DocumentsProvider() {
         projection: Array<String>?,
         sortOrder: String?
     ) = MatrixCursor(projection ?: DEFAULT_DOCUMENT_PROJECTION).apply {
-        fileFromDocId(parentDocumentId).listFiles()?.forEach {
-            newRowFromFile(it)
-        }
+        fileFromDocId(parentDocumentId).listFiles()
+            ?.filter(::isWithinBaseDir)
+            ?.forEach { newRowFromFile(it) }
     }
 
     override fun openDocument(
@@ -250,8 +256,9 @@ class FcitxDataProvider : DocumentsProvider() {
         projection: Array<String>?
     ) = MatrixCursor(projection ?: DEFAULT_DOCUMENT_PROJECTION).apply {
         val q = query.lowercase()
-        fileFromDocId(rootId).walk()
-            .filter { it.name.lowercase().contains(q) }
+        fileFromDocId(rootId).walkTopDown()
+            .onEnter(::isWithinBaseDir)
+            .filter { isWithinBaseDir(it) && it.name.lowercase().contains(q) }
             .take(SEARCH_RESULTS_LIMIT)
             .forEach { newRowFromFile(it) }
     }
