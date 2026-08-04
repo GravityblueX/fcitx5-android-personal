@@ -195,16 +195,22 @@ class FcitxDataProvider : DocumentsProvider() {
         return child.path.startsWith("${parent.path}${File.separator}")
     }
 
+    private fun copyWithinBaseDir(source: File, destination: File): Boolean {
+        if (!isWithinBaseDir(source)) return false
+        if (!source.isDirectory) return source.copyTo(destination).exists()
+        if (!destination.mkdir()) return false
+        val children = source.listFiles() ?: return false
+        return children
+            .filter(::isWithinBaseDir)
+            .all { child -> copyWithinBaseDir(child, destination.resolve(child.name)) }
+    }
+
     @Throws(FileNotFoundException::class)
     override fun copyDocument(sourceDocumentId: String, targetParentDocumentId: String): String {
         val oldFile = fileFromDocId(sourceDocumentId)
         val newFile = createAbstractFile(targetParentDocumentId, oldFile.name)
         try {
-            val copied = if (oldFile.isDirectory) {
-                oldFile.copyRecursively(newFile)
-            } else {
-                oldFile.copyTo(newFile).exists()
-            }
+            val copied = copyWithinBaseDir(oldFile, newFile)
             if (!copied) {
                 throw IOException("copyDocument id=${sourceDocumentId} to ${newFile.docId} failed")
             }
