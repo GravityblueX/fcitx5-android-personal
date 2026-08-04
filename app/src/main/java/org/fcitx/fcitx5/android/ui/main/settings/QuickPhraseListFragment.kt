@@ -268,8 +268,9 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
                 ui.addItem(item = imported)
             } catch (e: Exception) {
                 ctx.importErrorDialog(e)
+            } finally {
+                nm.cancel(id)
             }
-            nm.cancel(id)
         }
     }
 

@@ -179,8 +179,9 @@ class PinyinDictionaryFragment : Fragment(), OnItemChangedListener<PinyinDiction
                 ui.addItem(item = imported)
             } catch (e: Exception) {
                 ctx.importErrorDialog(e)
+            } finally {
+                nm.cancel(id)
             }
-            nm.cancel(id)
         }
     }
 
