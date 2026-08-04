@@ -17,6 +17,7 @@ import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -43,7 +44,7 @@ class LogActivity : AppCompatActivity() {
         launcher = registerForActivityResult(CreateDocument("text/plain")) { uri ->
             if (uri == null) return@registerForActivityResult
             lifecycleScope.launch {
-                runCatching {
+                try {
                     withContext(Dispatchers.IO) {
                         contentResolver.requireOutputStream(uri).use { stream ->
                             stream.bufferedWriter().use { writer ->
@@ -52,7 +53,11 @@ class LogActivity : AppCompatActivity() {
                             }
                         }
                     }
-                }.let { toast(it) }
+                    toast(R.string.done)
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    toast(e)
+                }
             }
         }
     }
