@@ -80,16 +80,21 @@ abstract class BaseInputView(
 
     private var candidateActionMenu: PopupMenu? = null
     private var candidatePreviewPopup: PopupWindow? = null
+    private var candidateActionRequest = 0L
+    private var candidateActionJob: Job? = null
 
     val themedContext = context.withTheme(R.style.Theme_InputViewTheme)
 
     fun showCandidateActionMenu(idx: Int, text: String, view: View) {
+        candidateActionJob?.cancel()
+        val request = ++candidateActionRequest
         candidateActionMenu?.dismiss()
         candidateActionMenu = null
         candidatePreviewPopup?.dismiss()
         candidatePreviewPopup = null
-        service.lifecycleScope.launch {
+        candidateActionJob = service.lifecycleScope.launch {
             val actions = fcitx.runOnReady { getCandidateActions(idx) }
+            if (request != candidateActionRequest || !view.isAttachedToWindow) return@launch
             InputFeedbacks.hapticFeedback(view, longPress = true)
             if (actions.isEmpty()) {
                 showCandidatePreview(text, view)
@@ -199,6 +204,13 @@ abstract class BaseInputView(
 
     override fun onDetachedFromWindow() {
         handleEvents = false
+        candidateActionJob?.cancel()
+        candidateActionJob = null
+        candidateActionRequest++
+        candidateActionMenu?.dismiss()
+        candidateActionMenu = null
+        candidatePreviewPopup?.dismiss()
+        candidatePreviewPopup = null
         super.onDetachedFromWindow()
     }
 }
