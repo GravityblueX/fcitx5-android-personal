@@ -37,16 +37,20 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
     override val isReady
         get() = lifecycle.currentState == FcitxLifecycle.State.READY
 
+    @Volatile
     override var inputMethodEntryCached =
         InputMethodEntry(context.getString(R.string._not_available_))
         private set
 
+    @Volatile
     override var statusAreaActionsCached: Array<Action> = emptyArray()
         private set
 
+    @Volatile
     override var clientPreeditCached = FormattedText.Empty
         private set
 
+    @Volatile
     override var inputPanelCached = FcitxEvent.InputPanelEvent.Data()
         private set
 
