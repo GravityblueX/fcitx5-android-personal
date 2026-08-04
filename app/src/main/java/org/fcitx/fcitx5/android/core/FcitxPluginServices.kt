@@ -89,6 +89,7 @@ object FcitxPluginServices {
                     Timber.d("Bound to plugin ${descriptor.name} with action $action")
                     return@synchronized true
                 }
+                appContext.unbindService(connection)
             } catch (e: Exception) {
                 // Official service plugins may require the official app's signature permission.
                 Timber.w("Cannot bind to plugin ${descriptor.name} with action $action")
