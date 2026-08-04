@@ -180,7 +180,7 @@ class MainService : FcitxPluginService() {
             connection.remoteService?.unregisterHandwritingRecognitionProvider(provider)
         }
         if (::connection.isInitialized) {
-            unbindService(connection)
+            connection.unbind(this)
         }
         backend.close()
         log("Unbound from Fcitx17 remote service")

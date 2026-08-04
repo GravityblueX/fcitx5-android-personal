@@ -35,10 +35,12 @@ class MainService : FcitxPluginService() {
     }
 
     override fun stop() {
-        runCatching {
-            connection.remoteService?.unregisterClipboardEntryTransformer(transformer)
+        if (::connection.isInitialized) {
+            runCatching {
+                connection.remoteService?.unregisterClipboardEntryTransformer(transformer)
+            }
+            connection.unbind(this)
         }
-        unbindService(connection)
         log("Unbind from fcitx remote")
     }
 
