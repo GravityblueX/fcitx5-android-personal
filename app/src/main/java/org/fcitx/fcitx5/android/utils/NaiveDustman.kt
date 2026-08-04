@@ -53,6 +53,7 @@ class NaiveDustman<T> {
     fun reset(initial: Map<String, T>) {
         dirty = false
         dirtyStatus.clear()
+        initialValues.clear()
         initialValues.putAll(initial)
     }
 
