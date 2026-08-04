@@ -22,6 +22,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.color.MaterialColors
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -267,6 +268,7 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
                 }
                 ui.addItem(item = imported)
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 ctx.importErrorDialog(e)
             } finally {
                 nm.cancel(id)

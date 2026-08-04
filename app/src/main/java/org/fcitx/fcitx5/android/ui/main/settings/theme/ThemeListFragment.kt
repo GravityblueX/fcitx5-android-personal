@@ -14,6 +14,7 @@ import androidx.annotation.Keep
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -105,6 +106,7 @@ class ThemeListFragment : Fragment() {
                             ctx.toast(R.string.theme_migrated)
                         }
                     } catch (e: Exception) {
+                        if (e is CancellationException) throw e
                         ctx.importErrorDialog(e)
                     }
                 }
@@ -122,6 +124,7 @@ class ThemeListFragment : Fragment() {
                             ThemeFilesManager.exportTheme(exported, outputStream).getOrThrow()
                         }
                     } catch (e: Exception) {
+                        if (e is CancellationException) throw e
                         ctx.toast(e)
                     }
                 }

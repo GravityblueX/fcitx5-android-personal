@@ -12,6 +12,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceScreen
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -76,6 +77,7 @@ class AdvancedSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
                     } catch (e: Exception) {
                         // restart fcitx in case importing failed
                         FcitxDaemon.startFcitx()
+                        if (e is CancellationException) throw e
                         ctx.importErrorDialog(e)
                     }
                 }
@@ -91,6 +93,7 @@ class AdvancedSettingsFragment : ManagedPreferenceFragment(AppPrefs.getInstance(
                             UserDataManager.export(outputStream, exportTimestamp).getOrThrow()
                         }
                     } catch (e: Exception) {
+                        if (e is CancellationException) throw e
                         e.printStackTrace()
                         ctx.toast(e)
                     }

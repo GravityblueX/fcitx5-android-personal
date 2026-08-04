@@ -21,6 +21,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -254,6 +255,7 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
                 }
                 ui.addItem(item = imported)
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 ctx.importErrorDialog(e)
             } finally {
                 nm.cancel(importId)
@@ -324,6 +326,7 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
                 dismissFilesSelectionDialog()
                 ui.addItem(item = imported)
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 ctx.importErrorDialog(e)
             } finally {
                 updateFilesSelectionDialogButton(importing = false)
@@ -362,6 +365,7 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
                 ui.updateItem(ui.indexItem(im), im)
                 dustman.forceDirty()
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 ctx.importErrorDialog(e)
             } finally {
                 nm.cancel(importId)
