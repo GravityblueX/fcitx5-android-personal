@@ -4,6 +4,7 @@ import android.system.Os
 import kotlinx.serialization.json.Json
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.utils.appContext
+import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
 import org.fcitx.fcitx5.android.utils.errorRuntime
 import org.fcitx.fcitx5.android.utils.extract
 import org.fcitx.fcitx5.android.utils.resolveDirectChild
@@ -20,7 +21,7 @@ import java.util.zip.ZipOutputStream
 
 object ThemeFilesManager {
 
-    private val dir = File(appContext.getExternalFilesDir(null), "theme").also { it.mkdirs() }
+    private val dir = File(appContext.externalFilesDirOrFilesDir, "theme").also { it.mkdirs() }
 
     private fun themeFile(name: String) = dir.resolveDirectChild("$name.json")
 

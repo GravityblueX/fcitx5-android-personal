@@ -15,6 +15,7 @@ import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.utils.Const
 import org.fcitx.fcitx5.android.utils.FileUtil
 import org.fcitx.fcitx5.android.utils.appContext
+import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
 import org.fcitx.fcitx5.android.utils.createTempDir
 import org.fcitx.fcitx5.android.utils.errorRuntime
 import org.fcitx.fcitx5.android.utils.extract
@@ -90,7 +91,7 @@ object UserDataManager {
 
     private val sharedPrefsDir = File(appContext.applicationInfo.dataDir, "shared_prefs")
     private val dataBasesDir = File(appContext.applicationInfo.dataDir, "databases")
-    private val externalDir = appContext.getExternalFilesDir(null)!!
+    private val externalDir = appContext.externalFilesDirOrFilesDir
     private val recentlyUsedDir = appContext.filesDir.resolve(RecentlyUsed.DIR_NAME)
 
     @OptIn(ExperimentalSerializationApi::class)

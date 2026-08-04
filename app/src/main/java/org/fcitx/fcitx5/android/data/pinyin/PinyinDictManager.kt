@@ -13,6 +13,7 @@ import org.fcitx.fcitx5.android.data.pinyin.dict.PinyinDictionary
 import org.fcitx.fcitx5.android.utils.safeFileName
 import org.fcitx.fcitx5.android.utils.withTempDir
 import org.fcitx.fcitx5.android.utils.appContext
+import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
 import org.fcitx.fcitx5.android.utils.errorArg
 import timber.log.Timber
 import java.io.File
@@ -25,7 +26,7 @@ object PinyinDictManager {
     private const val IMPORT_STAGING_SUFFIX = ".staged"
 
     private val pinyinDicDir = File(
-        appContext.getExternalFilesDir(null)!!, "data/pinyin/dictionaries"
+        appContext.externalFilesDirOrFilesDir, "data/pinyin/dictionaries"
     ).also { directory ->
         directory.mkdirs()
         cleanupStagedImports(directory)

@@ -10,3 +10,6 @@ import org.fcitx.fcitx5.android.FcitxApplication
 
 val appContext: Context
     get() = FcitxApplication.getInstance().applicationContext
+
+val Context.externalFilesDirOrFilesDir
+    get() = getExternalFilesDir(null) ?: filesDir

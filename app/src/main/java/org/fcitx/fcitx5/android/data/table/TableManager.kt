@@ -10,6 +10,7 @@ import org.fcitx.fcitx5.android.data.table.dict.Dictionary
 import org.fcitx.fcitx5.android.data.table.dict.LibIMEDictionary
 import org.fcitx.fcitx5.android.utils.safeFileName
 import org.fcitx.fcitx5.android.utils.appContext
+import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
 import org.fcitx.fcitx5.android.utils.errorRuntime
 import org.fcitx.fcitx5.android.utils.extract
 import org.fcitx.fcitx5.android.utils.withTempDir
@@ -20,11 +21,11 @@ import java.util.zip.ZipInputStream
 object TableManager {
 
     private val inputMethodDir = File(
-        appContext.getExternalFilesDir(null)!!, "data/inputmethod"
+        appContext.externalFilesDirOrFilesDir, "data/inputmethod"
     ).also { it.mkdirs() }
 
     private val tableDicDir = File(
-        appContext.getExternalFilesDir(null)!!, "data/table"
+        appContext.externalFilesDirOrFilesDir, "data/table"
     ).also { it.mkdirs() }
 
     fun inputMethods(): List<TableBasedInputMethod> =
