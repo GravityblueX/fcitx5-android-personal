@@ -179,7 +179,7 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
         scheduleExpirationLocked()
     }
 
-    suspend fun updateText(id: Int, text: String) {
+    suspend fun updateText(id: Int, text: String) = mutex.withLock {
         lastEntry?.let {
             if (id == it.id) updateLastEntry(it.copy(text = text))
         }
@@ -217,7 +217,7 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
         }
     }
 
-    suspend fun realDelete() {
+    suspend fun realDelete() = mutex.withLock {
         clbDao.realDelete()
     }
 
