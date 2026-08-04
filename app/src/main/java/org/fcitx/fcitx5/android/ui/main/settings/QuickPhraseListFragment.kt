@@ -37,6 +37,7 @@ import org.fcitx.fcitx5.android.ui.main.EditDeleteMenuProvider
 import org.fcitx.fcitx5.android.ui.main.MainViewModel
 import org.fcitx.fcitx5.android.ui.main.MainViewModel.ButtonMode
 import org.fcitx.fcitx5.android.utils.requireInputStream
+import org.fcitx.fcitx5.android.utils.safeFileName
 import org.fcitx.fcitx5.android.utils.NaiveDustman
 import org.fcitx.fcitx5.android.utils.importErrorDialog
 import org.fcitx.fcitx5.android.utils.item
@@ -193,9 +194,13 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
                                 getString(R.string._cannot_be_empty, getString(R.string.name))
                             editText.requestFocus()
                             return@onClick false
-                        } else {
-                            editText.error = null
                         }
+                        if (name != name.safeFileName()) {
+                            editText.error = getString(R.string.invalid_value)
+                            editText.requestFocus()
+                            return@onClick false
+                        }
+                        editText.error = null
                         ui.addItem(item = QuickPhraseManager.newEmpty(name))
                         return@onClick true
                     }

@@ -9,6 +9,7 @@ import org.fcitx.fcitx5.android.core.data.DataManager
 import org.fcitx.fcitx5.android.utils.safeFileName
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.errorRuntime
+import org.fcitx.fcitx5.android.utils.resolveDirectChild
 import org.fcitx.fcitx5.android.utils.withTempDir
 import java.io.File
 import java.io.InputStream
@@ -34,7 +35,7 @@ object QuickPhraseManager {
     }
 
     fun newEmpty(name: String): CustomQuickPhrase {
-        val file = File(customQuickPhraseDir, "$name.${QuickPhrase.EXT}")
+        val file = customQuickPhraseDir.resolveDirectChild("$name.${QuickPhrase.EXT}")
         file.createNewFile()
         return CustomQuickPhrase(file)
     }
