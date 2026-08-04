@@ -62,8 +62,9 @@ class BuiltinQuickPhrase(
     }
 
     fun deleteOverride() {
-        overrideFile.delete()
-        override = null
+        if (overrideFile.delete()) {
+            override = null
+        }
     }
 
     /**
