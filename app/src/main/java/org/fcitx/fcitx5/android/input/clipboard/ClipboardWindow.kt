@@ -17,6 +17,7 @@ import androidx.core.text.color
 import androidx.core.view.children
 import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.lifecycleScope
+import androidx.paging.CombinedLoadStates
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.recyclerview.widget.ItemTouchHelper
@@ -89,6 +90,7 @@ class ClipboardWindow : InputWindow.ExtendedInputWindow<ClipboardWindow>(), Scal
         Pager(PagingConfig(pageSize = 16)) { ClipboardManager.allEntries() }
     }
     private var adapterSubmitJob: Job? = null
+    private var loadStateListener: ((CombinedLoadStates) -> Unit)? = null
 
     private val adapter: ClipboardAdapter by lazy {
         object : ClipboardAdapter(
@@ -282,10 +284,12 @@ class ClipboardWindow : InputWindow.ExtendedInputWindow<ClipboardWindow>(), Scal
         }
         // manually switch to initial ui
         ui.switchUiByState(initialState)
-        adapter.addLoadStateListener {
+        val listener: (CombinedLoadStates) -> Unit = {
             val empty = it.append.endOfPaginationReached && adapter.itemCount < 1
             stateMachine.push(ClipboardDbUpdated, ClipboardDbEmpty to empty)
         }
+        loadStateListener = listener
+        adapter.addLoadStateListener(listener)
         adapterSubmitJob = service.lifecycleScope.launch {
             clipboardEntriesPager.flow.collect {
                 adapter.submitData(it)
@@ -296,6 +300,8 @@ class ClipboardWindow : InputWindow.ExtendedInputWindow<ClipboardWindow>(), Scal
 
     override fun onDetached() {
         clipboardEnabledPref.unregisterOnChangeListener(clipboardEnabledListener)
+        loadStateListener?.let(adapter::removeLoadStateListener)
+        loadStateListener = null
         adapter.onDetached()
         adapterSubmitJob?.cancel()
         promptMenu?.dismiss()
