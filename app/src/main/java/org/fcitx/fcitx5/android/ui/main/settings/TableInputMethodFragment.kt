@@ -239,15 +239,15 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
                 ctx.importErrorDialog(R.string.exception_table_im_filename, fileName)
                 return@launch
             }
-            NotificationCompat.Builder(ctx, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_baseline_library_books_24)
-                .setContentTitle(getString(R.string.table_im))
-                .setContentText("${getString(R.string.importing)} $fileName")
-                .setOngoing(true)
-                .setProgress(100, 0, true)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .build().let { nm.notify(importId, it) }
             try {
+                NotificationCompat.Builder(ctx, CHANNEL_ID)
+                    .setSmallIcon(R.drawable.ic_baseline_library_books_24)
+                    .setContentTitle(getString(R.string.table_im))
+                    .setContentText("${getString(R.string.importing)} $fileName")
+                    .setOngoing(true)
+                    .setProgress(100, 0, true)
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .build().let { nm.notify(importId, it) }
                 val imported = withContext(Dispatchers.IO) {
                     val inputStream = cr.requireInputStream(uri)
                     TableManager.importFromZip(inputStream).getOrThrow()
@@ -255,8 +255,9 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
                 ui.addItem(item = imported)
             } catch (e: Exception) {
                 ctx.importErrorDialog(e)
+            } finally {
+                nm.cancel(importId)
             }
-            nm.cancel(importId)
         }
     }
 
@@ -304,15 +305,15 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
             val importId = IMPORT_ID++
             val confName = cr.queryFileName(confUri) ?: return@launch
             val dictName = cr.queryFileName(dictUri) ?: return@launch
-            NotificationCompat.Builder(ctx, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_baseline_library_books_24)
-                .setContentTitle(getString(R.string.table_im))
-                .setContentText("${getString(R.string.importing)} $confName")
-                .setOngoing(true)
-                .setProgress(100, 0, true)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .build().let { nm.notify(importId, it) }
             try {
+                NotificationCompat.Builder(ctx, CHANNEL_ID)
+                    .setSmallIcon(R.drawable.ic_baseline_library_books_24)
+                    .setContentTitle(getString(R.string.table_im))
+                    .setContentText("${getString(R.string.importing)} $confName")
+                    .setOngoing(true)
+                    .setProgress(100, 0, true)
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .build().let { nm.notify(importId, it) }
                 updateFilesSelectionDialogButton(importing = true)
                 val imported = withContext(Dispatchers.IO) {
                     val confStream = cr.requireInputStream(confUri)
@@ -326,8 +327,8 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
                 ctx.importErrorDialog(e)
             } finally {
                 updateFilesSelectionDialogButton(importing = false)
+                nm.cancel(importId)
             }
-            nm.cancel(importId)
         }
     }
 
@@ -344,15 +345,15 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
                 ctx.importErrorDialog(R.string.exception_table_dict_filename, dictName)
                 return@launch
             }
-            NotificationCompat.Builder(ctx, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_baseline_library_books_24)
-                .setContentTitle(getString(R.string.table_im))
-                .setContentText("${getString(R.string.importing)} $dictName")
-                .setOngoing(true)
-                .setProgress(100, 0, true)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .build().let { nm.notify(importId, it) }
             try {
+                NotificationCompat.Builder(ctx, CHANNEL_ID)
+                    .setSmallIcon(R.drawable.ic_baseline_library_books_24)
+                    .setContentTitle(getString(R.string.table_im))
+                    .setContentText("${getString(R.string.importing)} $dictName")
+                    .setOngoing(true)
+                    .setProgress(100, 0, true)
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .build().let { nm.notify(importId, it) }
                 val imported = withContext(Dispatchers.IO) {
                     val dictStream = cr.requireInputStream(uri)
                     TableManager.replaceTableDict(im, dictName, dictStream).getOrThrow()
@@ -362,8 +363,9 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
                 dustman.forceDirty()
             } catch (e: Exception) {
                 ctx.importErrorDialog(e)
+            } finally {
+                nm.cancel(importId)
             }
-            nm.cancel(importId)
         }
     }
 
