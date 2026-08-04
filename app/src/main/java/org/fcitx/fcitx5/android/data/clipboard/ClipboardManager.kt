@@ -218,7 +218,11 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
     }
 
     suspend fun realDelete() = mutex.withLock {
-        clbDao.realDelete()
+        clbDao.realDeleteAll()
+    }
+
+    suspend fun realDelete(vararg ids: Int) = mutex.withLock {
+        if (ids.isNotEmpty()) clbDao.realDelete(*ids)
     }
 
     suspend fun nukeTable() {

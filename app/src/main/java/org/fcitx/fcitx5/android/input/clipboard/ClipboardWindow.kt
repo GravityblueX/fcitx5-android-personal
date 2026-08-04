@@ -207,7 +207,7 @@ class ClipboardWindow : InputWindow.ExtendedInputWindow<ClipboardWindow>(), Scal
         }
     }
 
-    private val pendingDeleteIds = arrayListOf<Int>()
+    private val pendingDeleteIds = linkedSetOf<Int>()
 
     private fun Snackbar.scaleContent(resetLetterSpacing: Boolean = false) {
         listOfNotNull(
@@ -230,23 +230,24 @@ class ClipboardWindow : InputWindow.ExtendedInputWindow<ClipboardWindow>(), Scal
             .setTextColor(theme.popupTextColor)
             .setActionTextColor(theme.genericActiveBackgroundColor)
             .setAction(R.string.undo) {
+                val ids = pendingDeleteIds.toIntArray()
                 service.lifecycleScope.launch {
-                    ClipboardManager.undoDelete(*pendingDeleteIds.toIntArray())
-                    pendingDeleteIds.clear()
+                    ClipboardManager.undoDelete(*ids)
+                    pendingDeleteIds.removeAll(ids.toSet())
                 }
             }
             .addCallback(object : Snackbar.Callback() {
                 override fun onDismissed(transientBottomBar: Snackbar, event: Int) {
-                    if (snackbarInstance === transientBottomBar) {
-                        snackbarInstance = null
-                    }
+                    if (snackbarInstance !== transientBottomBar) return
+                    snackbarInstance = null
                     when (event) {
                         BaseCallback.DISMISS_EVENT_SWIPE,
                         BaseCallback.DISMISS_EVENT_MANUAL,
                         BaseCallback.DISMISS_EVENT_TIMEOUT -> {
+                            val ids = pendingDeleteIds.toIntArray()
                             service.lifecycleScope.launch {
-                                ClipboardManager.realDelete()
-                                pendingDeleteIds.clear()
+                                ClipboardManager.realDelete(*ids)
+                                pendingDeleteIds.removeAll(ids.toSet())
                             }
                         }
                         BaseCallback.DISMISS_EVENT_ACTION,

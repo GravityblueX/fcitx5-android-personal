@@ -66,5 +66,8 @@ interface ClipboardDao {
     suspend fun undoDelete(vararg ids: Int)
 
     @Query("DELETE FROM ${ClipboardEntry.TABLE_NAME} WHERE deleted=1")
-    suspend fun realDelete()
+    suspend fun realDeleteAll()
+
+    @Query("DELETE FROM ${ClipboardEntry.TABLE_NAME} WHERE id in (:ids) AND deleted=1")
+    suspend fun realDelete(vararg ids: Int)
 }
