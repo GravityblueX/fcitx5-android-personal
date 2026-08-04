@@ -84,11 +84,13 @@ class PopupComponent :
         }
     }
 
+    private fun cancelDismissJob(viewId: Int) {
+        dismissJobs.remove(viewId)?.cancel()
+    }
+
     private fun showPopup(viewId: Int, content: String, bounds: Rect) {
+        cancelDismissJob(viewId)
         showingEntryUi[viewId]?.apply {
-            dismissJobs[viewId]?.also {
-                dismissJobs.remove(viewId)?.cancel()
-            }
             setTextScale(keyTextScaleForPercent(keyTextScale))
             lastShowTime = System.currentTimeMillis()
             setText(content)
@@ -129,6 +131,7 @@ class PopupComponent :
     }
 
     private fun showKeyboard(viewId: Int, keyboard: KeyDef.Popup.Keyboard, bounds: Rect) {
+        cancelDismissJob(viewId)
         val actions: Array<KeyAction>
         val labels: Array<String>
         when (keyboard) {
@@ -170,6 +173,7 @@ class PopupComponent :
     }
 
     private fun showMenu(viewId: Int, menu: KeyDef.Popup.Menu, bounds: Rect) {
+        cancelDismissJob(viewId)
         showingEntryUi[viewId]?.let {
             dismissPopupEntry(viewId, it)
         }
@@ -204,6 +208,7 @@ class PopupComponent :
     }
 
     private fun dismissPopup(viewId: Int) {
+        cancelDismissJob(viewId)
         dismissPopupContainer(viewId)
         showingEntryUi[viewId]?.also {
             val timeLeft = it.lastShowTime + hideThreshold - System.currentTimeMillis()
@@ -227,6 +232,7 @@ class PopupComponent :
     }
 
     private fun dismissPopupEntry(viewId: Int, popup: PopupEntryUi) {
+        if (showingEntryUi[viewId] !== popup) return
         showingEntryUi.remove(viewId)
         root.removeView(popup.root)
         freeEntryUi.add(popup)
