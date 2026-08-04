@@ -30,6 +30,8 @@ class PluginFragment : PaddingPreferenceFragment() {
 
     private lateinit var synced: DataManager.PluginSet
     private lateinit var detected: DataManager.PluginSet
+    private var pendingNextSyncCallback: (() -> Unit)? = null
+    private var nextSyncGeneration = 0L
 
     private val packageChangeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -43,6 +45,23 @@ class PluginFragment : PaddingPreferenceFragment() {
                 lifecycleScope.launch { block() }
             }
         }
+    }
+
+    private fun refreshAfterNextSync() {
+        pendingNextSyncCallback?.let(DataManager::removeOnNextSyncedCallback)
+        val generation = ++nextSyncGeneration
+        val owner = viewLifecycleOwner
+        val callback: () -> Unit = callback@{
+            owner.lifecycleScope.launch {
+                if (generation != nextSyncGeneration || !isAdded) return@launch
+                pendingNextSyncCallback = null
+                synced = DataManager.getSyncedPluginSet()
+                detected = DataManager.detectPlugins()
+                preferenceScreen = createPreferenceScreen()
+            }
+        }
+        pendingNextSyncCallback = callback
+        DataManager.addOnNextSyncedCallback(callback)
     }
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
@@ -88,15 +107,18 @@ class PluginFragment : PaddingPreferenceFragment() {
         requireContext().unregisterReceiver(packageChangeReceiver)
     }
 
+    override fun onDestroyView() {
+        nextSyncGeneration++
+        pendingNextSyncCallback?.let(DataManager::removeOnNextSyncedCallback)
+        pendingNextSyncCallback = null
+        super.onDestroyView()
+    }
+
     private fun createPreferenceScreen(): PreferenceScreen =
         preferenceManager.createPreferenceScreen(requireContext()).apply {
             if (synced != detected) {
                 addPreference(R.string.plugin_needs_reload, icon = R.drawable.ic_baseline_info_24) {
-                    DataManager.addOnNextSyncedCallback {
-                        synced = DataManager.getSyncedPluginSet()
-                        detected = DataManager.detectPlugins()
-                        preferenceScreen = createPreferenceScreen()
-                    }
+                    refreshAfterNextSync()
                     // DataManager.sync and and restart fcitx
                     FcitxDaemon.restartFcitx()
                 }
