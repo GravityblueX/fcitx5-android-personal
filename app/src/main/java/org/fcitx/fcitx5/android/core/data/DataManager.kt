@@ -101,6 +101,10 @@ object DataManager {
         callbacks.add(block)
     }
 
+    fun removeOnNextSyncedCallback(block: () -> Unit) = lock.withLock {
+        callbacks.remove(block)
+    }
+
     fun whenSynced(block: () -> Unit) {
         val runImmediately = lock.withLock {
             if (synced) true else {

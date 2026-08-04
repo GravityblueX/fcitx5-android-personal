@@ -32,6 +32,14 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
 
     private val lifecycleRegistry = FcitxLifecycleRegistry()
 
+    private val connectPluginServicesAfterSync = {
+        when (lifecycle.currentState) {
+            FcitxLifecycle.State.STARTING,
+            FcitxLifecycle.State.READY -> FcitxPluginServices.connectAll()
+            else -> Unit
+        }
+    }
+
     override val eventFlow = eventFlow_.asSharedFlow()
 
     override val isReady
@@ -468,6 +476,7 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
         }
 
         override fun nativeStartupFailed(cause: Throwable) {
+            DataManager.removeOnNextSyncedCallback(connectPluginServicesAfterSync)
             ClipboardManager.removeOnUpdateListener(onClipboardUpdate)
             unregisterFcitxEventHandler(::handleFcitxEvent)
             lifecycleRegistry.postEvent(FcitxLifecycle.Event.ON_START_FAILED)
@@ -550,9 +559,7 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
         registerFcitxEventHandler(::handleFcitxEvent)
         lifecycleRegistry.postEvent(FcitxLifecycle.Event.ON_START)
         ClipboardManager.addOnUpdateListener(onClipboardUpdate)
-        DataManager.addOnNextSyncedCallback {
-            FcitxPluginServices.connectAll()
-        }
+        DataManager.addOnNextSyncedCallback(connectPluginServicesAfterSync)
         setupLogStream(AppPrefs.getInstance().internal.verboseLog.getValue())
         dispatcher.start()
     }
@@ -564,6 +571,7 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
         }
         lifecycleRegistry.postEvent(FcitxLifecycle.Event.ON_STOP)
         Timber.i("Fcitx stop()")
+        DataManager.removeOnNextSyncedCallback(connectPluginServicesAfterSync)
         ClipboardManager.removeOnUpdateListener(onClipboardUpdate)
         FcitxPluginServices.disconnectAll()
         dispatcher.stop().let {
