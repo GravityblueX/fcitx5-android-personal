@@ -38,7 +38,7 @@ object FileUtil {
                     }
                 }
                 .fold(true) { acc, it ->
-                    if (!it.existsOrIsSymlink()) acc else it.delete()
+                    acc && (!it.existsOrIsSymlink() || it.delete())
                 }
         } else {
             file.delete()
