@@ -44,6 +44,7 @@ class PopupComponent :
 
     private val showingEntryUi = HashMap<Int, PopupEntryUi>()
     private val dismissJobs = HashMap<Int, Job>()
+    private val dismissGenerations = HashMap<Int, Long>()
     private val freeEntryUi = LinkedList<PopupEntryUi>()
 
     private val showingContainerUi = HashMap<Int, PopupContainerUi>()
@@ -86,6 +87,7 @@ class PopupComponent :
 
     private fun cancelDismissJob(viewId: Int) {
         dismissJobs.remove(viewId)?.cancel()
+        dismissGenerations[viewId] = (dismissGenerations[viewId] ?: 0L) + 1
     }
 
     private fun showPopup(viewId: Int, content: String, bounds: Rect) {
@@ -215,8 +217,10 @@ class PopupComponent :
             if (timeLeft <= 0L) {
                 dismissPopupEntry(viewId, it)
             } else {
+                val generation = dismissGenerations.getValue(viewId)
                 dismissJobs[viewId] = service.lifecycleScope.launch {
                     delay(timeLeft)
+                    if (dismissGenerations[viewId] != generation) return@launch
                     dismissPopupEntry(viewId, it)
                     dismissJobs.remove(viewId)
                 }
@@ -244,6 +248,7 @@ class PopupComponent :
             job.cancel()
         }
         dismissJobs.clear()
+        dismissGenerations.clear()
         // too
         showingContainerUi.forEach { (_, container) ->
             root.removeView(container.root)
