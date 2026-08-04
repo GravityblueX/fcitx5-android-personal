@@ -109,10 +109,14 @@ class DeveloperFragment : PaddingPreferenceFragment() {
                     .setMessage(R.string.delete_and_sync_data_message)
                     .setPositiveButton(android.R.string.ok) { _, _ ->
                         lifecycleScope.launch {
-                            withContext(Dispatchers.IO) {
-                                DataManager.deleteAndSync()
+                            try {
+                                withContext(Dispatchers.IO) {
+                                    DataManager.deleteAndSync()
+                                }
+                                context.toast(R.string.synced)
+                            } catch (e: Exception) {
+                                context.toast(e)
                             }
-                            context.toast(R.string.synced)
                         }
                     }
                     .setNegativeButton(android.R.string.cancel, null)

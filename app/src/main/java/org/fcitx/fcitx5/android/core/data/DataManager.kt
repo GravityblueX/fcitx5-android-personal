@@ -365,9 +365,11 @@ object DataManager {
 
     fun deleteAndSync() {
         lock.withLock {
-            dataDir.resolve(BuildConfig.DATA_DESCRIPTOR_NAME).delete()
-            dataDir.resolve("README.md").delete()
-            dataDir.resolve("usr").deleteRecursively()
+            listOf(
+                dataDir.resolve(BuildConfig.DATA_DESCRIPTOR_NAME),
+                dataDir.resolve("README.md"),
+                dataDir.resolve("usr"),
+            ).forEach { FileUtil.removeFile(it).getOrThrow() }
         }
         sync()
     }
