@@ -46,6 +46,7 @@ class FcitxDispatcher(private val controller: FcitxController) : CoroutineDispat
 
     interface FcitxController {
         fun nativeStartup()
+        fun nativeStartupFailed(cause: Throwable)
         fun nativeLoopOnce()
         fun nativeScheduleEmpty()
         fun nativeExit()
@@ -66,19 +67,32 @@ class FcitxDispatcher(private val controller: FcitxController) : CoroutineDispat
         internalScope.launch {
             runningLock.withLock {
                 if (isRunning.compareAndSet(false, true)) {
-                    Timber.d("nativeStartup()")
-                    controller.nativeStartup()
-                    while (isActive && isRunning.get()) {
-                        // blocking...
-                        controller.nativeLoopOnce()
-                        // do scheduled jobs
-                        while (true) {
-                            val block = queue.poll() ?: break
-                            block.run()
+                    try {
+                        val started = try {
+                            Timber.d("nativeStartup()")
+                            controller.nativeStartup()
+                            true
+                        } catch (cause: Throwable) {
+                            Timber.e(cause, "Fcitx dispatcher stopped after startup failure")
+                            controller.nativeStartupFailed(cause)
+                            false
                         }
+                        if (started) {
+                            while (isActive && isRunning.get()) {
+                                // blocking...
+                                controller.nativeLoopOnce()
+                                // do scheduled jobs
+                                while (true) {
+                                    val block = queue.poll() ?: break
+                                    block.run()
+                                }
+                            }
+                        }
+                    } finally {
+                        isRunning.set(false)
+                        Timber.i("nativeExit()")
+                        controller.nativeExit()
                     }
-                    Timber.i("nativeExit()")
-                    controller.nativeExit()
                 }
             }
         }

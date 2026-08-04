@@ -467,6 +467,12 @@ class Fcitx(private val context: Context) : FcitxAPI, FcitxLifecycleOwner {
             }
         }
 
+        override fun nativeStartupFailed(cause: Throwable) {
+            ClipboardManager.removeOnUpdateListener(onClipboardUpdate)
+            unregisterFcitxEventHandler(::handleFcitxEvent)
+            lifecycleRegistry.postEvent(FcitxLifecycle.Event.ON_START_FAILED)
+        }
+
         override fun nativeLoopOnce() {
             loopOnce()
         }

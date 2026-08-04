@@ -39,6 +39,10 @@ class FcitxLifecycleRegistry : FcitxLifecycle {
                     ensureAt(it, FcitxLifecycle.State.STARTING)
                     FcitxLifecycle.State.READY
                 }
+                FcitxLifecycle.Event.ON_START_FAILED -> {
+                    ensureAt(it, FcitxLifecycle.State.STARTING)
+                    FcitxLifecycle.State.STOPPED
+                }
                 FcitxLifecycle.Event.ON_STOP -> {
                     ensureAt(it, FcitxLifecycle.State.READY)
                     FcitxLifecycle.State.STOPPING
@@ -76,6 +80,7 @@ interface FcitxLifecycle {
     enum class Event {
         ON_START,
         ON_READY,
+        ON_START_FAILED,
         ON_STOP,
         ON_STOPPED
     }
