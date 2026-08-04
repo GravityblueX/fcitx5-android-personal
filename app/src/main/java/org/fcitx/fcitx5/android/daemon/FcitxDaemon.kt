@@ -47,35 +47,38 @@ object FcitxDaemon {
     // don't leak fcitx instance
     private val fcitxImpl by lazy { object : FcitxAPI by realFcitx {} }
 
-    private fun mkConnection(name: String) = object : FcitxConnection {
+    private fun mkConnection(name: String): FcitxConnection {
+        lateinit var connection: FcitxConnection
+        connection = object : FcitxConnection {
 
-        private inline fun <T> ensureConnected(block: () -> T) =
-            if (clients.containsKey(name))
-                block()
-            else throw IllegalStateException("$name is disconnected")
+            private inline fun <T> ensureConnected(block: () -> T) =
+                if (clients[name] === connection)
+                    block()
+                else throw IllegalStateException("$name is disconnected")
 
-        override fun <T> runImmediately(block: suspend FcitxAPI.() -> T): T = ensureConnected {
-            runBlocking(realFcitx.lifeCycleScope.coroutineContext) {
-                block(fcitxImpl)
+            override fun <T> runImmediately(block: suspend FcitxAPI.() -> T): T = ensureConnected {
+                runBlocking(realFcitx.lifeCycleScope.coroutineContext) {
+                    block(fcitxImpl)
+                }
             }
-        }
 
-        override suspend fun <T> runOnReady(block: suspend FcitxAPI.() -> T): T = ensureConnected {
-            realFcitx.lifecycle.whenReady { block(fcitxImpl) }
-        }
-
-        override fun runIfReady(block: suspend FcitxAPI.() -> Unit) {
-            ensureConnected {
-                if (realFcitx.isReady)
-                    realFcitx.lifeCycleScope.launch {
-                        block(fcitxImpl)
-                    }
+            override suspend fun <T> runOnReady(block: suspend FcitxAPI.() -> T): T = ensureConnected {
+                realFcitx.lifecycle.whenReady { block(fcitxImpl) }
             }
+
+            override fun runIfReady(block: suspend FcitxAPI.() -> Unit) {
+                ensureConnected {
+                    if (realFcitx.isReady)
+                        realFcitx.lifeCycleScope.launch {
+                            block(fcitxImpl)
+                        }
+                }
+            }
+
+            override val lifecycleScope: CoroutineScope
+                get() = realFcitx.lifecycle.lifecycleScope
         }
-
-        override val lifecycleScope: CoroutineScope
-            get() = realFcitx.lifecycle.lifecycleScope
-
+        return connection
     }
 
     private val lock = ReentrantLock()
