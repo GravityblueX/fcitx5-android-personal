@@ -16,15 +16,14 @@ fun Context.bindFcitxRemoteService(
     onConnected: (IFcitxRemoteService) -> Unit
 ): FcitxRemoteConnection {
     val connection = FcitxRemoteConnection(onConnected, onDisconnect)
-    connection.setBound(
-        bindService(
-            Intent("$mainApplicationId.IPC").apply {
-                setPackage(mainApplicationId)
-            },
-            connection,
-            Context.BIND_AUTO_CREATE
-        )
+    bindService(
+        Intent("$mainApplicationId.IPC").apply {
+            setPackage(mainApplicationId)
+        },
+        connection,
+        Context.BIND_AUTO_CREATE
     )
+    connection.markBound()
     return connection
 }
 
@@ -39,8 +38,8 @@ open class FcitxRemoteConnection(
     var remoteService: IFcitxRemoteService? = null
         private set
 
-    internal fun setBound(bound: Boolean) = synchronized(bindingLock) {
-        isBound = bound
+    internal fun markBound() = synchronized(bindingLock) {
+        isBound = true
     }
 
     fun unbind(context: Context) {
@@ -62,6 +61,7 @@ open class FcitxRemoteConnection(
     }
 
     override fun onServiceDisconnected(name: ComponentName) {
+        remoteService = null
         onDisconnected()
     }
 
