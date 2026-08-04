@@ -10,6 +10,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts.CreateDocument
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
@@ -51,6 +52,7 @@ class DeveloperFragment : PaddingPreferenceFragment() {
                         }
                     }
                 } catch (e: Exception) {
+                    if (e is CancellationException) throw e
                     ctx.toast(e)
                 } finally {
                     withContext(NonCancellable) {
@@ -115,6 +117,7 @@ class DeveloperFragment : PaddingPreferenceFragment() {
                                 }
                                 context.toast(R.string.synced)
                             } catch (e: Exception) {
+                                if (e is CancellationException) throw e
                                 context.toast(e)
                             }
                         }
