@@ -9,6 +9,7 @@ import android.app.NotificationManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.fcitx.fcitx5.android.FcitxApplication
@@ -146,10 +147,10 @@ object FcitxDaemon {
         realFcitx.stop()
         realFcitx.start()
         FcitxApplication.getInstance().coroutineScope.launch {
-            // cancel notification on ready
-            realFcitx.lifecycle.whenReady {
-                appContext.notificationManager.cancel(id)
+            realFcitx.lifecycle.stateFlow.first {
+                it == FcitxLifecycle.State.READY || it == FcitxLifecycle.State.STOPPED
             }
+            appContext.notificationManager.cancel(id)
         }
     }
 
