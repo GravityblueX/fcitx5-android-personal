@@ -38,7 +38,8 @@ object FileUtil {
                     }
                 }
                 .fold(true) { acc, it ->
-                    acc && (!it.existsOrIsSymlink() || it.delete())
+                    val deleted = !it.existsOrIsSymlink() || it.delete()
+                    acc && deleted
                 }
         } else {
             file.delete()
