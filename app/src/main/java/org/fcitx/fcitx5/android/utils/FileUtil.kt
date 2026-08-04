@@ -27,11 +27,13 @@ object FileUtil {
         val result = if (file.isSymlink()) {
             file.delete()
         } else if (file.isDirectory) {
-            file.walkBottomUp()
+            var symlinkDeleteFailed = false
+            val contentsDeleted = file.walkBottomUp()
                 .onEnter {
                     // delete symlink (to directory) instead of entering it
                     if (it.isSymlink()) {
-                        it.delete()
+                        val deleted = it.delete()
+                        symlinkDeleteFailed = symlinkDeleteFailed || !deleted
                         false
                     } else {
                         true
@@ -41,6 +43,7 @@ object FileUtil {
                     val deleted = !it.existsOrIsSymlink() || it.delete()
                     acc && deleted
                 }
+            !symlinkDeleteFailed && contentsDeleted
         } else {
             file.delete()
         }
