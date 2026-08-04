@@ -282,19 +282,22 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
         lifecycleScope.launch {
             if (busy.compareAndSet(false, true)) {
                 val id = RELOAD_ID++
-                NotificationCompat.Builder(requireContext(), CHANNEL_ID)
-                    .setSmallIcon(R.drawable.ic_baseline_library_books_24)
-                    .setContentTitle(getString(R.string.quickphrase_editor))
-                    .setContentText(getString(R.string.reloading))
-                    .setOngoing(true)
-                    .setProgress(100, 0, true)
-                    .setPriority(NotificationCompat.PRIORITY_HIGH)
-                    .build().let { nm.notify(id, it) }
-                viewModel.fcitx.runOnReady {
-                    reloadQuickPhrase()
+                try {
+                    NotificationCompat.Builder(requireContext(), CHANNEL_ID)
+                        .setSmallIcon(R.drawable.ic_baseline_library_books_24)
+                        .setContentTitle(getString(R.string.quickphrase_editor))
+                        .setContentText(getString(R.string.reloading))
+                        .setOngoing(true)
+                        .setProgress(100, 0, true)
+                        .setPriority(NotificationCompat.PRIORITY_HIGH)
+                        .build().let { nm.notify(id, it) }
+                    viewModel.fcitx.runOnReady {
+                        reloadQuickPhrase()
+                    }
+                } finally {
+                    nm.cancel(id)
+                    busy.set(false)
                 }
-                nm.cancel(id)
-                busy.set(false)
             }
         }
     }
