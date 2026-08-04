@@ -122,6 +122,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     private val preferredVoiceInput by prefs.keyboard.preferredVoiceInput
 
     private var clipboardTimeoutJob: Job? = null
+    private var clipboardTimeoutGeneration = 0L
 
     private var isClipboardFresh: Boolean = false
     private var isInputActive: Boolean = false
@@ -185,6 +186,11 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
 
     private fun clearClipboardSuggestion() {
         isClipboardFresh = false
+        cancelClipboardTimeoutJob()
+    }
+
+    private fun cancelClipboardTimeoutJob() {
+        clipboardTimeoutGeneration++
         clipboardTimeoutJob?.cancel()
         clipboardTimeoutJob = null
     }
@@ -225,12 +231,14 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         }
 
     private fun launchClipboardTimeoutJob() {
-        clipboardTimeoutJob?.cancel()
+        cancelClipboardTimeoutJob()
         val timeout = clipboardItemTimeout.getValue() * 1000L
         // never transition to ClipboardTimedOut state when timeout < 0
         if (timeout < 0L) return
+        val generation = clipboardTimeoutGeneration
         clipboardTimeoutJob = service.lifecycleScope.launch {
             delay(timeout)
+            if (generation != clipboardTimeoutGeneration) return@launch
             isClipboardFresh = false
             clipboardTimeoutJob = null
         }
@@ -385,9 +393,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                     ClipboardManager.lastEntry?.let {
                         service.commitText(it.text)
                     }
-                    clipboardTimeoutJob?.cancel()
-                    clipboardTimeoutJob = null
-                    isClipboardFresh = false
+                    clearClipboardSuggestion()
                     evalIdleUiState()
                 }
                 setOnLongClickListener {
