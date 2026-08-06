@@ -21,6 +21,9 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 
+internal fun isSameOrDescendant(file: File, directory: File): Boolean =
+    file == directory || file.path.startsWith("${directory.path}${File.separator}")
+
 class FcitxDataProvider : DocumentsProvider() {
 
     companion object {
@@ -78,10 +81,15 @@ class FcitxDataProvider : DocumentsProvider() {
         get() = absolutePath.removePrefix(docIdPrefix)
 
     private fun isWithinBaseDir(file: File): Boolean = runCatching {
-        val canonicalFile = file.canonicalFile
-        canonicalFile == baseDir ||
-                canonicalFile.path.startsWith("${baseDir.path}${File.separator}")
+        isSameOrDescendant(file.canonicalFile, baseDir)
     }.getOrDefault(false)
+
+    @Throws(FileNotFoundException::class)
+    private fun requireNonRootDocument(file: File, documentId: String) {
+        if (file == baseDir) {
+            throw FileNotFoundException("documentId=$documentId is the data directory root")
+        }
+    }
 
     @Throws(FileNotFoundException::class)
     private fun fileFromDocId(docId: String): File {
@@ -176,6 +184,7 @@ class FcitxDataProvider : DocumentsProvider() {
     @Throws(FileNotFoundException::class)
     override fun deleteDocument(documentId: String) {
         val file = fileFromDocId(documentId)
+        requireNonRootDocument(file, documentId)
         if (!file.exists()) {
             throw FileNotFoundException("deleteDocument id=$documentId failed: file not found")
         }
@@ -208,7 +217,12 @@ class FcitxDataProvider : DocumentsProvider() {
     @Throws(FileNotFoundException::class)
     override fun copyDocument(sourceDocumentId: String, targetParentDocumentId: String): String {
         val oldFile = fileFromDocId(sourceDocumentId)
-        val newFile = createAbstractFile(targetParentDocumentId, oldFile.name)
+        requireNonRootDocument(oldFile, sourceDocumentId)
+        val targetParent = fileFromDocId(targetParentDocumentId)
+        if (oldFile.isDirectory && isSameOrDescendant(targetParent, oldFile)) {
+            throw FileNotFoundException("copyDocument id=$sourceDocumentId into itself is not allowed")
+        }
+        val newFile = createAbstractFile(targetParent, oldFile.name)
         try {
             val copied = copyWithinBaseDir(oldFile, newFile)
             if (!copied) {
@@ -231,6 +245,7 @@ class FcitxDataProvider : DocumentsProvider() {
     @Throws(FileNotFoundException::class)
     override fun renameDocument(documentId: String, displayName: String): String {
         val oldFile = fileFromDocId(documentId)
+        requireNonRootDocument(oldFile, documentId)
         val newFile = oldFile.resolveSibling(displayName.safeFileName())
         if (newFile.exists()) {
             throw FileNotFoundException("renameDocument id=$documentId to $displayName failed: target exists")
@@ -248,7 +263,12 @@ class FcitxDataProvider : DocumentsProvider() {
         targetParentDocumentId: String
     ): String {
         val oldFile = fileFromDocId(sourceDocumentId)
-        val newFile = createAbstractFile(targetParentDocumentId, oldFile.name)
+        requireNonRootDocument(oldFile, sourceDocumentId)
+        val targetParent = fileFromDocId(targetParentDocumentId)
+        if (oldFile.isDirectory && isSameOrDescendant(targetParent, oldFile)) {
+            throw FileNotFoundException("moveDocument id=$sourceDocumentId into itself is not allowed")
+        }
+        val newFile = createAbstractFile(targetParent, oldFile.name)
         if (!oldFile.renameTo(newFile)) {
             throw FileNotFoundException("moveDocument id=$sourceDocumentId to ${newFile.docId} failed")
         }
@@ -278,7 +298,10 @@ class FcitxDataProvider : DocumentsProvider() {
         }
 
     private fun createAbstractFile(parentDocumentId: String, displayName: String): File {
-        val parent = fileFromDocId(parentDocumentId)
+        return createAbstractFile(fileFromDocId(parentDocumentId), displayName)
+    }
+
+    private fun createAbstractFile(parent: File, displayName: String): File {
         val safeName = displayName.safeFileName()
         var newFile = parent.resolve(safeName)
         var noConflictId = 2
@@ -297,7 +320,11 @@ class FcitxDataProvider : DocumentsProvider() {
 
         val mimeType = file.mimeType
         var flags =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) Document.FLAG_SUPPORTS_COPY else 0
+            if (file != baseDir && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                Document.FLAG_SUPPORTS_COPY
+            } else {
+                0
+            }
         if (file.canWrite()) {
             flags = flags or if (file.isDirectory) {
                 Document.FLAG_DIR_SUPPORTS_CREATE
@@ -305,7 +332,7 @@ class FcitxDataProvider : DocumentsProvider() {
                 Document.FLAG_SUPPORTS_WRITE
             }
         }
-        if (file.parentFile?.canWrite() == true) {
+        if (file != baseDir && file.parentFile?.canWrite() == true) {
             flags = flags or
                     Document.FLAG_SUPPORTS_DELETE or
                     Document.FLAG_SUPPORTS_RENAME
