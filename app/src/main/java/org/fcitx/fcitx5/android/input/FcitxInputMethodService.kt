@@ -649,7 +649,6 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     private lateinit var lastKnownConfig: Configuration
 
     override fun onConfigurationChanged(newConfig: Configuration) {
-        postFcitxJob { reset() }
         /**
          * skip keyboard|keyboardHidden changes, because we have [inputDeviceMgr]
          * skip uiMode (system light/dark mode) changes, because we have [onThemeChangeListener]
@@ -662,6 +661,9 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 ActivityInfo.CONFIG_KEYBOARD_HIDDEN or
                 ActivityInfo.CONFIG_UI_MODE
         val diff = lastKnownConfig.diff(newConfig)
+        if (FcitxConfigurationChangePolicy.requiresReset(diff)) {
+            postFcitxJob { reset() }
+        }
         val inputViewConfigChanges = ActivityInfo.CONFIG_ORIENTATION or
                 ActivityInfo.CONFIG_SCREEN_SIZE or
                 ActivityInfo.CONFIG_SMALLEST_SCREEN_SIZE
