@@ -925,6 +925,7 @@ class InputView internal constructor(
 
     override fun onDetachedFromWindow() {
         service.unregisterReceiver(clipboardPrivacyReceiver)
+        kawaiiBar.cancelInlineSuggestionInflation()
         floatingController?.destroy()
         floatingController = null
         keyboardPrefs.unregisterOnChangeListener(onKeyboardSizeChangeListener)

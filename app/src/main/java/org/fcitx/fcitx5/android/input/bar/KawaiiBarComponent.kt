@@ -123,6 +123,8 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
 
     private var clipboardTimeoutJob: Job? = null
     private var clipboardTimeoutGeneration = 0L
+    private var inlineSuggestionJob: Job? = null
+    private var inlineSuggestionGeneration = 0L
 
     private var isClipboardFresh: Boolean = false
     private var isInputActive: Boolean = false
@@ -568,6 +570,11 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
     override fun onFinishInput() {
         isInputActive = false
         isSensitiveField = false
+        cancelInlineSuggestionInflation()
+        isInlineSuggestionPresent = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            idleUi.inlineSuggestionsBar.clear()
+        }
         updateClipboardButtonVisibility()
         clearClipboardSuggestion()
         evalIdleUiState()
@@ -640,6 +647,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
 
     @RequiresApi(Build.VERSION_CODES.R)
     fun handleInlineSuggestions(response: InlineSuggestionsResponse): Boolean {
+        cancelInlineSuggestionInflation()
         val suggestions = response.inlineSuggestions
         if (suggestions.isEmpty()) {
             isInlineSuggestionPresent = false
@@ -661,22 +669,32 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                 scrollable.add(it)
             }
         }
-        service.lifecycleScope.launch {
-            idleUi.inlineSuggestionsBar.setPinnedView(
+        val generation = inlineSuggestionGeneration
+        idleUi.inlineSuggestionsBar.clear()
+        inlineSuggestionJob = service.lifecycleScope.launch {
+            val pinnedView = async {
                 pinned?.let { inflateInlineContentView(it) }
-            )
-        }
-        service.lifecycleScope.launch {
-            val views = scrollable.map { s ->
-                service.lifecycleScope.async {
-                    inflateInlineContentView(s)
+            }
+            val scrollableViews = scrollable.map { suggestion ->
+                async {
+                    inflateInlineContentView(suggestion)
                 }
             }.awaitAll()
-            idleUi.inlineSuggestionsBar.setScrollableViews(views)
+            val pinnedContentView = pinnedView.await()
+            if (generation != inlineSuggestionGeneration) return@launch
+            idleUi.inlineSuggestionsBar.setPinnedView(pinnedContentView)
+            idleUi.inlineSuggestionsBar.setScrollableViews(scrollableViews)
+            inlineSuggestionJob = null
         }
         isInlineSuggestionPresent = true
         evalIdleUiState()
         return true
+    }
+
+    fun cancelInlineSuggestionInflation() {
+        inlineSuggestionGeneration++
+        inlineSuggestionJob?.cancel()
+        inlineSuggestionJob = null
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
