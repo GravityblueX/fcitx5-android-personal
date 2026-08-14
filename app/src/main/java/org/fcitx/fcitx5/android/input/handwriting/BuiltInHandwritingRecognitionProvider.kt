@@ -148,16 +148,15 @@ class BuiltInHandwritingRecognitionProvider(context: Context) {
                     backend.also { backend = replacement }
                 }
             }
-            if (previous == null) {
-                replacement.close()
-                return@warmUpModelStates
+            HandwritingBackendHandover.complete(replacement, previous) { accepted ->
+                if (accepted) {
+                    log(
+                        "Recognition engine reloaded in " +
+                                "${SystemClock.elapsedRealtime() - startedAt} ms"
+                    )
+                }
+                onComplete(accepted)
             }
-            previous.close()
-            log(
-                "Recognition engine reloaded in " +
-                        "${SystemClock.elapsedRealtime() - startedAt} ms"
-            )
-            onComplete(true)
         }
     }
 
