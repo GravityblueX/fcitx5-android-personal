@@ -12,6 +12,7 @@ import androidx.core.view.children
 import androidx.core.text.buildSpannedString
 import androidx.core.text.color
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.Action
@@ -122,6 +123,8 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
     }
 
     private var lastActions: Array<Action> = emptyArray()
+    private var statusAreaQueryJob: Job? = null
+    private var statusAreaQueryGeneration = 0L
 
     var popupMenu: PopupMenu? = null
 
@@ -251,8 +254,19 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
     }
 
     override fun onStatusAreaUpdate(actions: Array<Action>) {
+        cancelStatusAreaQuery()
+        applyStatusAreaUpdate(actions)
+    }
+
+    private fun applyStatusAreaUpdate(actions: Array<Action>) {
         lastActions = actions
         updateEntries(actions)
+    }
+
+    private fun cancelStatusAreaQuery() {
+        statusAreaQueryGeneration++
+        statusAreaQueryJob?.cancel()
+        statusAreaQueryJob = null
     }
 
     private fun updateEntries(actions: Array<Action>) {
@@ -313,15 +327,18 @@ class StatusAreaWindow : InputWindow.ExtendedInputWindow<StatusAreaWindow>(),
     }
 
     override fun onAttached() {
-        fcitx.launchOnReady {
-            val data = it.statusArea()
-            service.lifecycleScope.launch {
-                onStatusAreaUpdate(data)
-            }
+        cancelStatusAreaQuery()
+        val generation = statusAreaQueryGeneration
+        statusAreaQueryJob = service.lifecycleScope.launch {
+            val data = fcitx.runOnReady { statusArea() }
+            if (generation != statusAreaQueryGeneration) return@launch
+            applyStatusAreaUpdate(data)
+            statusAreaQueryJob = null
         }
     }
 
     override fun onDetached() {
+        cancelStatusAreaQuery()
         popupMenu?.dismiss()
         popupMenu = null
     }
