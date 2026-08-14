@@ -34,7 +34,6 @@ import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.CapabilityFlags
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.daemon.FcitxConnection
-import org.fcitx.fcitx5.android.daemon.launchOnReady
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreferenceProvider
 import org.fcitx.fcitx5.android.data.theme.Theme
@@ -366,9 +365,7 @@ class InputView internal constructor(
         )
 
         // restore punctuation mapping in case of InputView recreation
-        fcitx.launchOnReady {
-            punctuation.updatePunctuationMapping(it.statusAreaActionsCached)
-        }
+        punctuation.restorePunctuationMapping()
 
         // make sure KeyboardWindow's view has been created before it receives any broadcast
         windowManager.addEssentialWindow(keyboardWindow, createView = true)
@@ -907,7 +904,7 @@ class InputView internal constructor(
                 broadcaster.onImeUpdate(it.data)
             }
             is FcitxEvent.StatusAreaEvent -> {
-                punctuation.updatePunctuationMapping(it.data.actions)
+                punctuation.updatePunctuationMapping(it.data.actions, it.data.im.languageCode)
                 broadcaster.onStatusAreaUpdate(it.data.actions)
             }
             else -> {}
@@ -926,6 +923,7 @@ class InputView internal constructor(
     override fun onDetachedFromWindow() {
         service.unregisterReceiver(clipboardPrivacyReceiver)
         kawaiiBar.cancelInlineSuggestionInflation()
+        punctuation.cancelPendingUpdate()
         floatingController?.destroy()
         floatingController = null
         keyboardPrefs.unregisterOnChangeListener(onKeyboardSizeChangeListener)
