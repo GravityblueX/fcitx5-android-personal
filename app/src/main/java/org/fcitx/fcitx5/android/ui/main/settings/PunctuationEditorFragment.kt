@@ -7,10 +7,13 @@ package org.fcitx.fcitx5.android.ui.main.settings
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.view.View
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.RawConfig
 import org.fcitx.fcitx5.android.core.getPunctuationConfig
-import org.fcitx.fcitx5.android.daemon.launchOnReady
 import org.fcitx.fcitx5.android.data.punctuation.PunctuationManager
 import org.fcitx.fcitx5.android.data.punctuation.PunctuationMapEntry
 import org.fcitx.fcitx5.android.ui.common.BaseDynamicListUi
@@ -58,9 +61,16 @@ class PunctuationEditorFragment : ProgressFragment(), OnItemChangedListener<Punc
 
     private fun saveConfig() {
         if (!dustman.dirty) return
+        val entries = ui.entries.toList()
+        val targetLang = lang
+        val connection = fcitx
         resetDustman()
-        fcitx.launchOnReady {
-            PunctuationManager.save(it, lang, ui.entries)
+        viewModel.viewModelScope.launch {
+            saveMutex.withLock {
+                connection.runOnReady {
+                    PunctuationManager.save(this, targetLang, entries)
+                }
+            }
         }
     }
 
@@ -203,6 +213,7 @@ class PunctuationEditorFragment : ProgressFragment(), OnItemChangedListener<Punc
     }
 
     companion object {
+        private val saveMutex = Mutex()
         const val DEFAULT_LANG = "zh_CN"
     }
 }

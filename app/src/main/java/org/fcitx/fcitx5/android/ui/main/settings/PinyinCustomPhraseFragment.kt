@@ -17,8 +17,11 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.reloadPinyinCustomPhrase
@@ -220,13 +223,17 @@ class PinyinCustomPhraseFragment : Fragment(), OnItemChangedListener<PinyinCusto
 
     private fun saveConfig() {
         if (!dustman.dirty) return
+        val entries = ui.entries.toTypedArray()
+        val fcitx = viewModel.fcitx
         resetDustman()
-        lifecycleScope.launch {
-            withContext(Dispatchers.IO) {
-                CustomPhraseManager.save(ui.entries.toTypedArray())
-            }
-            viewModel.fcitx.runOnReady {
-                reloadPinyinCustomPhrase()
+        viewModel.viewModelScope.launch {
+            saveMutex.withLock {
+                withContext(Dispatchers.IO) {
+                    CustomPhraseManager.save(entries)
+                }
+                fcitx.runOnReady {
+                    reloadPinyinCustomPhrase()
+                }
             }
         }
     }
@@ -257,6 +264,7 @@ class PinyinCustomPhraseFragment : Fragment(), OnItemChangedListener<PinyinCusto
     }
 
     companion object {
+        private val saveMutex = Mutex()
         const val CHINESE_ADDONS_DOMAIN = "fcitx5-chinese-addons"
         const val KEY = "Key"
         const val ORDER = "Order"

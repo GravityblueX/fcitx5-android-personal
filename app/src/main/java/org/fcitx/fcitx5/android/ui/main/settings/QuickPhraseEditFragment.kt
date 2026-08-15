@@ -9,9 +9,11 @@ import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.quickphrase.QuickPhrase
@@ -158,16 +160,23 @@ class QuickPhraseEditFragment : ProgressFragment(), OnItemChangedListener<QuickP
 
     private fun saveConfig() {
         if (!dustman.dirty) return
+        val data = QuickPhraseData(ui.entries.toList())
+        val target = quickPhrase
+        val resultManager = parentFragmentManager
         resetDustman()
-        lifecycleScope.launch {
-            withContext(Dispatchers.IO) {
-                quickPhrase.saveData(QuickPhraseData(ui.entries))
+        viewModel.viewModelScope.launch {
+            saveMutex.withLock {
+                withContext(Dispatchers.IO) {
+                    target.saveData(data)
+                }
+                // tell parent that we need to reload
+                if (!resultManager.isDestroyed) {
+                    resultManager.setFragmentResult(
+                        RESULT,
+                        Bundle().apply { putParcelable(RESULT, target) }
+                    )
+                }
             }
-            // tell parent that we need to reload
-            parentFragmentManager.setFragmentResult(
-                RESULT,
-                Bundle().apply { putParcelable(RESULT, quickPhrase) }
-            )
         }
     }
 
@@ -196,6 +205,7 @@ class QuickPhraseEditFragment : ProgressFragment(), OnItemChangedListener<QuickP
     }
 
     companion object {
+        private val saveMutex = Mutex()
         const val RESULT = "dirty"
     }
 
