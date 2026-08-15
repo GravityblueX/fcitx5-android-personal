@@ -10,12 +10,22 @@ import android.net.Uri
 import android.provider.OpenableColumns
 
 /**
- * Query file display name for uri
+ * Query file display name for uri, returning null when the provider is unavailable or denies
+ * access.
  *
  * ref: [androidx.documentfile](https://github.com/androidx/androidx/blob/8e30346c2bb3b53a3bd45e9a56f3344d98f2356f/documentfile/documentfile/src/main/java/androidx/documentfile/provider/DocumentsContractApi19.java#L150)
  * @see android.provider.DocumentsContract.Document#COLUMN_DISPLAY_NAME
  */
 fun ContentResolver.queryFileName(uri: Uri): String? =
-    query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
-        if (it.moveToFirst() && !it.isNull(0)) it.getString(0) else null
+    queryFileNameSafely {
+        query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+            if (it.moveToFirst() && !it.isNull(0)) it.getString(0) else null
+        }
+    }
+
+internal fun queryFileNameSafely(query: () -> String?): String? =
+    try {
+        query()
+    } catch (_: Exception) {
+        null
     }
