@@ -54,6 +54,8 @@ class FcitxDispatcher(private val controller: FcitxController) : CoroutineDispat
 
     private val runningLock = Mutex()
 
+    private val stateLock = Any()
+
     private val queue = ConcurrentLinkedQueue<WrappedRunnable>()
 
     private val isRunning = AtomicBoolean(false)
@@ -66,7 +68,10 @@ class FcitxDispatcher(private val controller: FcitxController) : CoroutineDispat
         Timber.d("FcitxDispatcher start()")
         internalScope.launch {
             runningLock.withLock {
-                if (isRunning.compareAndSet(false, true)) {
+                val shouldStart = synchronized(stateLock) {
+                    isRunning.compareAndSet(false, true)
+                }
+                if (shouldStart) {
                     try {
                         val started = try {
                             Timber.d("nativeStartup()")
@@ -89,7 +94,9 @@ class FcitxDispatcher(private val controller: FcitxController) : CoroutineDispat
                             }
                         }
                     } finally {
-                        isRunning.set(false)
+                        synchronized(stateLock) {
+                            isRunning.set(false)
+                        }
                         Timber.i("nativeExit()")
                         controller.nativeExit()
                     }
@@ -104,7 +111,10 @@ class FcitxDispatcher(private val controller: FcitxController) : CoroutineDispat
      */
     fun stop(): List<Runnable> {
         Timber.i("FcitxDispatcher stop()")
-        return if (isRunning.compareAndSet(true, false)) {
+        val shouldStop = synchronized(stateLock) {
+            isRunning.compareAndSet(true, false)
+        }
+        return if (shouldStop) {
             runBlocking {
                 controller.nativeScheduleEmpty()
                 runningLock.withLock {
@@ -117,13 +127,15 @@ class FcitxDispatcher(private val controller: FcitxController) : CoroutineDispat
     }
 
     override fun dispatch(context: CoroutineContext, block: Runnable) {
-        if (!isRunning.get()) {
-            throw IllegalStateException("Dispatcher is not in running state!")
+        synchronized(stateLock) {
+            if (!isRunning.get()) {
+                throw IllegalStateException("Dispatcher is not in running state!")
+            }
+            queue.offer(WrappedRunnable(block))
+            // always call `nativeScheduleEmpty()` to prevent `nativeLoopOnce()` from blocking
+            // the thread when we have something to run
+            controller.nativeScheduleEmpty()
         }
-        queue.offer(WrappedRunnable(block))
-        // always call `nativeScheduleEmpty()` to prevent `nativeLoopOnce()` from blocking
-        // the thread when we have something to run
-        controller.nativeScheduleEmpty()
     }
 
     companion object {
