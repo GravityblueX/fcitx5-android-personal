@@ -118,7 +118,7 @@ class PinyinCustomPhraseFragment : Fragment(), OnItemChangedListener<PinyinCusto
                 orderField.apply {
                     isSingleLine = true
                     inputType =
-                        InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_NORMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
+                        InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_NORMAL
                     imeOptions = EditorInfo.IME_ACTION_NEXT
                 }
                 val (phraseLayout, phraseField) = materialTextInput {
@@ -130,7 +130,7 @@ class PinyinCustomPhraseFragment : Fragment(), OnItemChangedListener<PinyinCusto
                 }
                 entry?.apply {
                     keyField.setText(key)
-                    orderField.setText(order.absoluteValue.toString(10))
+                    orderField.setText(pinyinCustomPhraseOrderMagnitude(order).toString(10))
                     phraseField.setText(value)
                 }
                 val layout = verticalLayout {
@@ -167,7 +167,7 @@ class PinyinCustomPhraseFragment : Fragment(), OnItemChangedListener<PinyinCusto
                         } else {
                             phraseField.error = null
                         }
-                        block(PinyinCustomPhrase(key, order, phrase))
+                        block(editedPinyinCustomPhrase(entry, key, order, phrase))
                         return@onClick true
                     }
                     .setCanceledOnTouchOutside(false)
@@ -276,3 +276,19 @@ class PinyinCustomPhraseFragment : Fragment(), OnItemChangedListener<PinyinCusto
 
 internal fun isValidCustomPhraseKey(key: String) =
     key.isNotEmpty() && key.all { it in 'a'..'z' || it in 'A'..'Z' }
+
+internal fun editedPinyinCustomPhrase(
+    original: PinyinCustomPhrase?,
+    key: String,
+    order: Int,
+    value: String,
+): PinyinCustomPhrase {
+    val magnitude = pinyinCustomPhraseOrderMagnitude(order)
+    val signedOrder = if (original?.enabled == false) -magnitude else magnitude
+    return PinyinCustomPhrase(key, signedOrder, value)
+}
+
+internal fun pinyinCustomPhraseOrderMagnitude(order: Int): Int =
+    order.toLong().absoluteValue
+        .coerceIn(1L, Int.MAX_VALUE.toLong())
+        .toInt()
