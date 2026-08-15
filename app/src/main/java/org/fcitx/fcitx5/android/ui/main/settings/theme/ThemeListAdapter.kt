@@ -8,7 +8,24 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import org.fcitx.fcitx5.android.data.theme.Theme
 import splitties.views.dsl.core.Ui
-import kotlin.math.sign
+
+internal fun adjustPositionAfterRemoval(position: Int, removedPosition: Int): Int = when {
+    position < 0 -> position
+    position == removedPosition -> -1
+    position > removedPosition -> position - 1
+    else -> position
+}
+
+internal fun adjustPositionAfterMoveToFront(
+    position: Int,
+    movedPosition: Int,
+    firstPosition: Int,
+): Int = when {
+    position < 0 -> position
+    position == movedPosition -> firstPosition
+    position in firstPosition until movedPosition -> position + 1
+    else -> position
+}
 
 abstract class ThemeListAdapter : RecyclerView.Adapter<ThemeListAdapter.ViewHolder>() {
     class ViewHolder(val ui: Ui) : RecyclerView.ViewHolder(ui.root)
@@ -23,7 +40,8 @@ abstract class ThemeListAdapter : RecyclerView.Adapter<ThemeListAdapter.ViewHold
 
     private fun positionOf(theme: Theme? = null): Int {
         if (theme == null) return -1
-        return entries.indexOfFirst { it.name == theme.name } + OFFSET
+        val index = entries.indexOfFirst { it.name == theme.name }
+        return if (index == -1) -1 else index + OFFSET
     }
 
     fun setThemes(themes: List<Theme>) {
@@ -35,9 +53,13 @@ abstract class ThemeListAdapter : RecyclerView.Adapter<ThemeListAdapter.ViewHold
     fun setSelectedThemes(active: Theme, light: Theme? = null, dark: Theme? = null) {
         val oldActive = entryAt(activeIndex)
         if (oldActive != active) {
-            notifyItemChanged(activeIndex)
+            if (activeIndex >= OFFSET) {
+                notifyItemChanged(activeIndex)
+            }
             activeIndex = positionOf(active)
-            notifyItemChanged(activeIndex)
+            if (activeIndex >= OFFSET) {
+                notifyItemChanged(activeIndex)
+            }
         }
         val oldLight = entryAt(lightIndex)
         if (oldLight != light) {
@@ -69,31 +91,35 @@ abstract class ThemeListAdapter : RecyclerView.Adapter<ThemeListAdapter.ViewHold
         notifyItemInserted(OFFSET)
     }
 
-    private fun removedOffset(removedIndex: Int, index: Int): Int {
-        return if (index == -1) 0 else (removedIndex - OFFSET - index).sign
-    }
-
     fun removeTheme(name: String) {
         val index = entries.indexOfFirst { it.name == name }
+        if (index == -1) return
+        val removedPosition = index + OFFSET
         entries.removeAt(index)
-        notifyItemRemoved(index + OFFSET)
-        activeIndex += removedOffset(index, activeIndex)
-        lightIndex += removedOffset(index, lightIndex)
-        darkIndex += removedOffset(index, darkIndex)
-    }
-
-    private fun replaceIndex(replacedIndex: Int, index: Int): Int {
-        return if (replacedIndex + OFFSET == index) OFFSET else index
+        activeIndex = adjustPositionAfterRemoval(activeIndex, removedPosition)
+        lightIndex = adjustPositionAfterRemoval(lightIndex, removedPosition)
+        darkIndex = adjustPositionAfterRemoval(darkIndex, removedPosition)
+        notifyItemRemoved(removedPosition)
     }
 
     fun replaceTheme(theme: Theme) {
         val index = entries.indexOfFirst { it.name == theme.name }
+        if (index == -1) {
+            prependTheme(theme)
+            return
+        }
+        if (index == 0) {
+            entries[index] = theme
+            notifyItemChanged(OFFSET)
+            return
+        }
+        val movedPosition = index + OFFSET
         entries.removeAt(index)
         entries.add(0, theme)
-        activeIndex = replaceIndex(index, activeIndex)
-        lightIndex = replaceIndex(index, lightIndex)
-        darkIndex = replaceIndex(index, darkIndex)
-        notifyItemMoved(index + OFFSET, OFFSET)
+        activeIndex = adjustPositionAfterMoveToFront(activeIndex, movedPosition, OFFSET)
+        lightIndex = adjustPositionAfterMoveToFront(lightIndex, movedPosition, OFFSET)
+        darkIndex = adjustPositionAfterMoveToFront(darkIndex, movedPosition, OFFSET)
+        notifyItemMoved(movedPosition, OFFSET)
         notifyItemChanged(OFFSET)
     }
 
