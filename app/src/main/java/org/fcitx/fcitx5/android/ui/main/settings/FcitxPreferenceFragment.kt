@@ -12,9 +12,12 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.preference.isEmpty
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.FcitxAPI
 import org.fcitx.fcitx5.android.core.RawConfig
@@ -33,7 +36,7 @@ abstract class FcitxPreferenceFragment : PaddingPreferenceFragment() {
     private var configLoaded = false
 
     private val supervisorJob = SupervisorJob()
-    private val scope = CoroutineScope(supervisorJob)
+    private val scope = CoroutineScope(supervisorJob + Dispatchers.Main.immediate)
 
     private val viewModel: MainViewModel by activityViewModels()
 
@@ -42,10 +45,14 @@ abstract class FcitxPreferenceFragment : PaddingPreferenceFragment() {
 
     private fun save() {
         if (!configLoaded) return
+        val newConfig = raw["cfg"].deepCopy()
+        val connection = fcitx
         // launch "saveConfig" job under supervisorJob scope
         scope.launch {
-            fcitx.runOnReady {
-                saveConfig(this, raw["cfg"])
+            saveMutex.withLock {
+                connection.runOnReady {
+                    saveConfig(this, newConfig)
+                }
             }
         }
     }
@@ -114,5 +121,9 @@ abstract class FcitxPreferenceFragment : PaddingPreferenceFragment() {
     override fun onStart() {
         super.onStart()
         viewModel.setToolbarTitle(getPageTitle())
+    }
+
+    companion object {
+        private val saveMutex = Mutex()
     }
 }
