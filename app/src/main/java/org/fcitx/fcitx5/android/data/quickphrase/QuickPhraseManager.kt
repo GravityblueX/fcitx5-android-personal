@@ -4,6 +4,7 @@
  */
 package org.fcitx.fcitx5.android.data.quickphrase
 
+import android.system.Os
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.data.DataManager
 import org.fcitx.fcitx5.android.utils.safeFileName
@@ -51,8 +52,15 @@ object QuickPhraseManager {
                     errorRuntime(R.string.exception_quickphrase_parse, "\n(${idx + 1}) $line")
                 }
             }
-            val dest = File(customQuickPhraseDir, target.fileName)
-            file.copyTo(dest)
+            val dest = file.inputStream().use { input ->
+                installQuickPhraseFile(
+                    input,
+                    customQuickPhraseDir,
+                    target.fileName,
+                ) { staged, destination ->
+                    Os.rename(staged.path, destination.path)
+                }
+            }
             CustomQuickPhrase(dest)
         }
     }
@@ -89,6 +97,27 @@ internal fun reserveQuickPhraseFile(directory: File, fileName: String): File {
     val file = directory.resolveDirectChild(fileName)
     if (!file.createNewFile()) throw FileAlreadyExistsException(file)
     return file
+}
+
+internal fun installQuickPhraseFile(
+    stream: InputStream,
+    directory: File,
+    fileName: String,
+    publish: (File, File) -> Unit,
+): File {
+    val staged = File.createTempFile("quickphrase-import-", ".staged", directory)
+    var destination: File? = null
+    var published = false
+    try {
+        staged.outputStream().use { output -> stream.copyTo(output) }
+        destination = reserveQuickPhraseFile(directory, fileName)
+        publish(staged, destination)
+        published = true
+        return destination
+    } finally {
+        if (!published) destination?.delete()
+        staged.delete()
+    }
 }
 
 internal data class QuickPhraseImportTarget(

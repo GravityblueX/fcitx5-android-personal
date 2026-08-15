@@ -289,7 +289,11 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
                 ui.addItem(item = imported)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                ctx.importErrorDialog(e)
+                if (e is FileAlreadyExistsException) {
+                    ctx.importErrorDialog(R.string.quickphrase_already_exists)
+                } else {
+                    ctx.importErrorDialog(e)
+                }
             } finally {
                 nm.cancel(id)
             }
