@@ -454,7 +454,10 @@ abstract class BaseKeyboard(
     }
 
     private fun releaseAllTouchTargets() {
-        touchTargets.values.forEach { it.view.cancelGestures() }
+        touchTargets.values.forEach {
+            onPopupAction(PopupAction.DismissAction(it.view.id))
+            it.view.cancelGestures()
+        }
         touchTargets.clear()
     }
 
