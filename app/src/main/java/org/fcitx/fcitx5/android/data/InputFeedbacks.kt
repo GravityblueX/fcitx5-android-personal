@@ -14,6 +14,7 @@ import android.os.VibrationEffect
 import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import android.view.View
+import androidx.annotation.Keep
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.data.prefs.ManagedPreference
@@ -142,15 +143,17 @@ object InputFeedbacks {
 
     private var loadedCustomSoundUri = ""
 
+    @Keep
+    private val customKeySoundUriChangeListener =
+        ManagedPreference.OnChangeListener<String> { _, uri -> reloadCustomSound(uri) }
+
     init {
         customSoundPool.setOnLoadCompleteListener { _, sampleId, status ->
             if (sampleId == customSoundId) {
                 customSoundLoaded = status == 0
             }
         }
-        customKeySoundUri.registerOnChangeListener(
-            ManagedPreference.OnChangeListener<String> { _, uri -> reloadCustomSound(uri) }
-        )
+        customKeySoundUri.registerOnChangeListener(customKeySoundUriChangeListener)
         reloadCustomSound(customKeySoundUri.getValue())
     }
 

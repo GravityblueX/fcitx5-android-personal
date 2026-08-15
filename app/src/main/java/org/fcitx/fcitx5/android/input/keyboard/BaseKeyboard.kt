@@ -9,6 +9,7 @@ import android.graphics.Rect
 import android.view.MotionEvent
 import androidx.annotation.CallSuper
 import androidx.annotation.DrawableRes
+import androidx.annotation.Keep
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.children
 import androidx.core.view.updateLayoutParams
@@ -63,21 +64,29 @@ abstract class BaseKeyboard(
     private val selectionSwipeSensitivity = prefs.keyboard.selectionSwipeSensitivity
     private val spaceKeys = mutableListOf<KeyView>()
     private val selectionSwipeKeys = mutableListOf<KeyView>()
+
+    @Keep
     private val spaceSwipeChangeListener = ManagedPreference.OnChangeListener<Boolean> { _, v ->
         spaceKeys.forEach {
             it.swipeEnabled = v
         }
     }
+
+    @Keep
     private val selectionSwipeSensitivityChangeListener =
         ManagedPreference.OnChangeListener<SelectionSwipeSensitivity> { _, _ ->
             selectionSwipeKeys.forEach {
                 it.swipeThresholdX = selectionSwipeThreshold
             }
         }
+
+    @Keep
     private val spaceKeyLongPressBehaviorChangeListener =
         ManagedPreference.OnChangeListener<SpaceLongPressBehavior> { _, behavior ->
             updateSpaceKeyRepeat(shouldRepeatSpacesOnLongPress(behavior))
         }
+
+    @Keep
     private val commitKeyWhenReleasedOutsideChangeListener =
         ManagedPreference.OnChangeListener<Boolean> { _, enabled ->
             keyRows.forEach { row ->
@@ -86,6 +95,8 @@ abstract class BaseKeyboard(
                 }
             }
         }
+
+    @Keep
     private val keyTextScaleChangeListener =
         ManagedPreference.OnChangeListener<Int> { _, percent ->
             updateKeyTextScale(keyTextScaleForPercent(percent))
