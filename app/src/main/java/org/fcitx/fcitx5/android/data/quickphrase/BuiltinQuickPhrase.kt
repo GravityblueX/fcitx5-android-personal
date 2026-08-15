@@ -62,10 +62,8 @@ class BuiltinQuickPhrase(
     }
 
     fun deleteOverride() {
-        val currentOverride = override ?: return
-        if (currentOverride.file.delete()) {
-            override = null
-        }
+        listOf(overrideFile, File(overrideFile.path + ".$DISABLE")).forEach(File::delete)
+        evaluateOverride()
     }
 
     /**
