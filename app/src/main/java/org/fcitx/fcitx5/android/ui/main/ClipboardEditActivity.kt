@@ -5,7 +5,6 @@
 package org.fcitx.fcitx5.android.ui.main
 
 import android.app.Activity
-import android.content.ClipData
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
@@ -18,7 +17,6 @@ import kotlinx.coroutines.launch
 import org.fcitx.fcitx5.android.data.clipboard.ClipboardManager
 import org.fcitx.fcitx5.android.data.clipboard.db.ClipboardEntry
 import org.fcitx.fcitx5.android.databinding.ActivityClipboardEditBinding
-import org.fcitx.fcitx5.android.utils.clipboardManager
 import org.fcitx.fcitx5.android.utils.inputMethodManager
 import org.fcitx.fcitx5.android.utils.str
 
@@ -46,12 +44,7 @@ class ClipboardEditActivity : Activity() {
 
     private fun finishEditing(copy: Boolean = false) {
         val str = editText.str
-        scope.launch {
-            ClipboardManager.updateText(entryId, str)
-            if (copy) {
-                clipboardManager.setPrimaryClip(ClipData.newPlainText("", str))
-            }
-        }
+        ClipboardManager.updateTextAsync(entryId, str, copy)
         finish()
     }
 

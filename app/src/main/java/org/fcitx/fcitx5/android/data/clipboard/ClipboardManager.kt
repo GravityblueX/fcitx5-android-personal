@@ -4,6 +4,7 @@
  */
 package org.fcitx.fcitx5.android.data.clipboard
 
+import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
@@ -184,6 +185,15 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
             if (id == it.id) updateLastEntry(it.copy(text = text))
         }
         clbDao.updateText(id, text)
+    }
+
+    fun updateTextAsync(id: Int, text: String, copyToClipboard: Boolean = false) = launch {
+        updateText(id, text)
+        if (copyToClipboard) {
+            withContext(Dispatchers.Main.immediate) {
+                clipboardManager.setPrimaryClip(ClipData.newPlainText("", text))
+            }
+        }
     }
 
     suspend fun delete(id: Int) {
