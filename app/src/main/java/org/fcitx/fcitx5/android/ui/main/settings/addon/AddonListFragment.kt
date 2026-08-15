@@ -6,11 +6,14 @@ package org.fcitx.fcitx5.android.ui.main.settings.addon
 
 import android.view.View
 import androidx.annotation.StringRes
+import androidx.lifecycle.viewModelScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.AddonInfo
 import org.fcitx.fcitx5.android.core.FcitxAPI
-import org.fcitx.fcitx5.android.daemon.launchOnReady
 import org.fcitx.fcitx5.android.ui.common.BaseDynamicListUi
 import org.fcitx.fcitx5.android.ui.common.CheckBoxListUi
 import org.fcitx.fcitx5.android.ui.common.OnItemChangedListener
@@ -28,8 +31,13 @@ class AddonListFragment : ProgressFragment(), OnItemChangedListener<AddonInfo> {
         if (!isInitialized) return
         val ids = ui.entries.map { it.uniqueName }.toTypedArray()
         val state = ui.entries.map { it.enabled }.toBooleanArray()
-        fcitx.launchOnReady {
-            it.setAddonState(ids, state)
+        val connection = fcitx
+        viewModel.viewModelScope.launch {
+            updateMutex.withLock {
+                connection.runOnReady {
+                    setAddonState(ids, state)
+                }
+            }
         }
     }
 
@@ -138,6 +146,10 @@ class AddonListFragment : ProgressFragment(), OnItemChangedListener<AddonInfo> {
             ui.removeItemChangedListener()
         }
         super.onDestroy()
+    }
+
+    companion object {
+        private val updateMutex = Mutex()
     }
 
 }
