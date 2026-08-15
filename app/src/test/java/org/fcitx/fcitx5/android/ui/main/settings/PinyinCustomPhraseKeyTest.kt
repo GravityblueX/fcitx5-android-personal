@@ -53,4 +53,43 @@ class PinyinCustomPhraseKeyTest {
             editedPinyinCustomPhrase(null, "key", Int.MIN_VALUE, "phrase").order
         )
     }
+
+    @Test
+    fun enablingNormalizesInvalidOrderMagnitudes() {
+        val zeroOrder = PinyinCustomPhrase("zero", 0, "phrase").copyEnabled(true)
+        val minimumOrder =
+            PinyinCustomPhrase("minimum", Int.MIN_VALUE, "phrase").copyEnabled(true)
+
+        assertTrue(zeroOrder.enabled)
+        assertEquals(1, zeroOrder.order)
+        assertTrue(minimumOrder.enabled)
+        assertEquals(Int.MAX_VALUE, minimumOrder.order)
+    }
+
+    @Test
+    fun disablingNormalizesInvalidOrderMagnitudes() {
+        val zeroOrder = PinyinCustomPhrase("zero", 0, "phrase").copyEnabled(false)
+        val minimumOrder =
+            PinyinCustomPhrase("minimum", Int.MIN_VALUE, "phrase").copyEnabled(false)
+
+        assertFalse(zeroOrder.enabled)
+        assertEquals(-1, zeroOrder.order)
+        assertFalse(minimumOrder.enabled)
+        assertEquals(-Int.MAX_VALUE, minimumOrder.order)
+    }
+
+    @Test
+    fun togglingPreservesValidOrderMagnitude() {
+        assertEquals(-7, PinyinCustomPhrase("key", 7, "phrase").copyEnabled(false).order)
+        assertEquals(7, PinyinCustomPhrase("key", -7, "phrase").copyEnabled(true).order)
+    }
+
+    @Test
+    fun serializingNormalizesInvalidOrderMagnitudes() {
+        assertEquals("zero,1=phrase", PinyinCustomPhrase("zero", 0, "phrase").serialize())
+        assertEquals(
+            "minimum,${Int.MAX_VALUE}=phrase",
+            PinyinCustomPhrase("minimum", Int.MIN_VALUE, "phrase").serialize()
+        )
+    }
 }

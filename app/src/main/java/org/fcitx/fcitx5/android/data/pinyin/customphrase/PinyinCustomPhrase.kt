@@ -14,9 +14,14 @@ data class PinyinCustomPhrase(
 ) {
     val enabled: Boolean get() = order > 0
 
-    fun copyEnabled(e: Boolean): PinyinCustomPhrase {
-        return copy(order = (if (e) 1 else -1) * order.absoluteValue)
+    private val orderMagnitude: Int
+        get() = order.toLong().absoluteValue
+            .coerceIn(1L, Int.MAX_VALUE.toLong())
+            .toInt()
+
+    fun copyEnabled(enabled: Boolean): PinyinCustomPhrase {
+        return copy(order = if (enabled) orderMagnitude else -orderMagnitude)
     }
 
-    fun serialize() = "$key,${order.absoluteValue}=${FcitxUtils.escapeForValue(value)}"
+    fun serialize() = "$key,$orderMagnitude=${FcitxUtils.escapeForValue(value)}"
 }
