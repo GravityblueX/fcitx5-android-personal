@@ -13,6 +13,7 @@ import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
 import org.fcitx.fcitx5.android.utils.errorRuntime
 import org.fcitx.fcitx5.android.utils.extract
+import org.fcitx.fcitx5.android.utils.installNewFileAtomically
 import org.fcitx.fcitx5.android.utils.withTempDir
 import java.io.File
 import java.io.InputStream
@@ -73,10 +74,13 @@ object TableManager {
     }
 
     private fun importFiles(confFile: File, dictFile: File): TableBasedInputMethod {
-        val importedConfFile = File(inputMethodDir, confFile.name.removeSuffix(".in")).also {
-            if (it.exists())
-                errorRuntime(R.string.table_already_exists, it.name)
-            confFile.copyTo(it)
+        val importedConfName = confFile.name.removeSuffix(".in")
+        val importedConfFile = try {
+            confFile.inputStream().use { input ->
+                installNewFileAtomically(input, inputMethodDir, importedConfName)
+            }
+        } catch (_: FileAlreadyExistsException) {
+            errorRuntime(R.string.table_already_exists, importedConfName)
         }
         val im = runCatching {
             TableBasedInputMethod.new(importedConfFile)
