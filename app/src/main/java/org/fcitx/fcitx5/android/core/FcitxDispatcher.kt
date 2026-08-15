@@ -22,12 +22,12 @@ import kotlin.coroutines.CoroutineContext
 class FcitxDispatcher(private val controller: FcitxController) : CoroutineDispatcher() {
 
     class WrappedRunnable(private val runnable: Runnable) : Runnable by runnable {
-        private val time = System.currentTimeMillis()
+        private val createdAtNanos = System.nanoTime()
 
         override fun run() {
-            val delta = System.currentTimeMillis() - time
-            if (delta > JOB_WAITING_LIMIT) {
-                Timber.w("$this has waited $delta ms to get run since created!")
+            val waitedMillis = (System.nanoTime() - createdAtNanos) / 1_000_000L
+            if (waitedMillis > JOB_WAITING_LIMIT) {
+                Timber.w("$this has waited $waitedMillis ms to get run since created!")
             }
             runnable.run()
         }

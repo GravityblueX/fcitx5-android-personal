@@ -8,6 +8,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
+import android.os.SystemClock
 import androidx.annotation.Keep
 import androidx.room.Room
 import androidx.room.withTransaction
@@ -259,7 +260,7 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
             if (timestamp == lastClipTimestamp) return
             lastClipTimestamp = timestamp
         } else {
-            val timestamp = System.currentTimeMillis()
+            val timestamp = SystemClock.elapsedRealtime()
             val hash = clip.hashCode()
             if (timestamp - lastClipTimestamp < 100L && hash == lastClipHash) return
             lastClipTimestamp = timestamp
