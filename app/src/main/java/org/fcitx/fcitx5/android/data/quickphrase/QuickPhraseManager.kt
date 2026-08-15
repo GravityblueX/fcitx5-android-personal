@@ -37,8 +37,7 @@ object QuickPhraseManager {
     }
 
     fun newEmpty(name: String): CustomQuickPhrase {
-        val file = customQuickPhraseDir.resolveDirectChild("$name.${QuickPhrase.EXT}")
-        file.createNewFile()
+        val file = reserveQuickPhraseFile(customQuickPhraseDir, "$name.${QuickPhrase.EXT}")
         return CustomQuickPhrase(file)
     }
 
@@ -84,6 +83,12 @@ object QuickPhraseManager {
             } ?: listOf()
 
 
+}
+
+internal fun reserveQuickPhraseFile(directory: File, fileName: String): File {
+    val file = directory.resolveDirectChild(fileName)
+    if (!file.createNewFile()) throw FileAlreadyExistsException(file)
+    return file
 }
 
 internal data class QuickPhraseImportTarget(

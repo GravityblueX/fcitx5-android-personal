@@ -202,8 +202,20 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
                             editText.requestFocus()
                             return@onClick false
                         }
+                        if (ui.entries.any { it.name == name }) {
+                            editText.error = getString(R.string.quickphrase_already_exists)
+                            editText.requestFocus()
+                            return@onClick false
+                        }
                         editText.error = null
-                        ui.addItem(item = QuickPhraseManager.newEmpty(name))
+                        val item = try {
+                            QuickPhraseManager.newEmpty(name)
+                        } catch (_: FileAlreadyExistsException) {
+                            editText.error = getString(R.string.quickphrase_already_exists)
+                            editText.requestFocus()
+                            return@onClick false
+                        }
+                        ui.addItem(item = item)
                         return@onClick true
                     }
             }

@@ -6,7 +6,10 @@ package org.fcitx.fcitx5.android.data.quickphrase
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.nio.file.Files
 
 class QuickPhraseManagerTest {
 
@@ -22,5 +25,24 @@ class QuickPhraseManagerTest {
     fun rejectsInvalidImportedQuickPhraseNames() {
         listOf("quickphrase", ".mb", "   .mb", "..mb", "custom.mb.disable")
             .forEach { assertNull(quickPhraseImportTarget(it)) }
+    }
+
+    @Test
+    fun rejectsDuplicateCreatedQuickPhrasesWithoutChangingExistingFile() {
+        val directory = Files.createTempDirectory("quickphrase-").toFile()
+        try {
+            val file = reserveQuickPhraseFile(directory, "custom.mb")
+            file.writeText("existing content")
+
+            assertThrows(FileAlreadyExistsException::class.java) {
+                reserveQuickPhraseFile(directory, "custom.mb")
+            }
+
+            assertTrue(file.isFile)
+            assertEquals("existing content", file.readText())
+            assertEquals(listOf("custom.mb"), directory.list()?.sorted())
+        } finally {
+            directory.deleteRecursively()
+        }
     }
 }
