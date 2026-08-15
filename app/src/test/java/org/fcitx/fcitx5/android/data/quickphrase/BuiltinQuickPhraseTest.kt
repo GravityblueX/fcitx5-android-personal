@@ -51,6 +51,40 @@ class BuiltinQuickPhraseTest {
         }
     }
 
+    @Test
+    fun preservesEnabledOverrideCreatedAfterConstruction() {
+        assertPreservesOverrideCreatedAfterConstruction(disabled = false)
+    }
+
+    @Test
+    fun preservesDisabledOverrideCreatedAfterConstruction() {
+        assertPreservesOverrideCreatedAfterConstruction(disabled = true)
+    }
+
+    private fun assertPreservesOverrideCreatedAfterConstruction(disabled: Boolean) {
+        val root = Files.createTempDirectory("builtin-quickphrase-").toFile()
+        try {
+            val builtinFile = root.resolve("builtin.mb").also { it.writeText("builtin") }
+            val overrideFile = root.resolve("custom.mb")
+            val quickPhrase = BuiltinQuickPhrase(builtinFile, overrideFile)
+            (if (disabled) {
+                root.resolve("custom.mb.disable")
+            } else {
+                overrideFile
+            }).writeText("external override")
+
+            assertTrue(quickPhrase.disable())
+
+            val disabledOverride = root.resolve("custom.mb.disable")
+            assertFalse(overrideFile.exists())
+            assertEquals("external override", disabledOverride.readText())
+            assertEquals(disabledOverride, quickPhrase.override?.file)
+            assertFalse(quickPhrase.isEnabled)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
     private fun assertDeletesOverride(disabled: Boolean) {
         val root = Files.createTempDirectory("builtin-quickphrase-").toFile()
         try {
