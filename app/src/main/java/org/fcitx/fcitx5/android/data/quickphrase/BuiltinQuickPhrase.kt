@@ -62,7 +62,8 @@ class BuiltinQuickPhrase(
     }
 
     fun deleteOverride() {
-        if (overrideFile.delete()) {
+        val currentOverride = override ?: return
+        if (currentOverride.file.delete()) {
             override = null
         }
     }
