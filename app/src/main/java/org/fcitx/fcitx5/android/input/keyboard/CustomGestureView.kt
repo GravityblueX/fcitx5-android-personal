@@ -35,6 +35,13 @@ internal fun shouldPerformKeyClick(
         !swipeRepeatTriggered &&
         !gestureConsumed
 
+internal fun shouldPerformDoubleTap(
+    pending: Boolean,
+    lastClickUptimeMillis: Long,
+    clickUptimeMillis: Long,
+    timeoutMillis: Long
+): Boolean = pending && clickUptimeMillis - lastClickUptimeMillis in 0..timeoutMillis
+
 open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
 
     enum class SwipeAxis { X, Y }
@@ -113,7 +120,7 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
     var commitWhenReleasedOutside = false
 
     var doubleTapEnabled = false
-    private var lastClickTime = 0L
+    private var lastClickUptimeMillis = 0L
     private var maybeDoubleTap = false
 
     var onDoubleTapListener: ((View) -> Unit)? = null
@@ -171,7 +178,7 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
         resetState()
         if (doubleTapEnabled) {
             maybeDoubleTap = false
-            lastClickTime = 0
+            lastClickUptimeMillis = 0
         }
     }
 
@@ -231,15 +238,21 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
                 resetState()
                 if (shouldPerformClick) {
                     if (doubleTapEnabled) {
-                        val now = System.currentTimeMillis()
-                        if (maybeDoubleTap && now - lastClickTime <= longPressDelay) {
+                        val clickUptimeMillis = event.eventTime
+                        val isDoubleTap = shouldPerformDoubleTap(
+                            maybeDoubleTap,
+                            lastClickUptimeMillis,
+                            clickUptimeMillis,
+                            longPressDelay.toLong()
+                        )
+                        if (isDoubleTap) {
                             maybeDoubleTap = false
                             onDoubleTapListener?.invoke(this)
                         } else {
                             maybeDoubleTap = true
                             performClick()
                         }
-                        lastClickTime = now
+                        lastClickUptimeMillis = clickUptimeMillis
                     } else {
                         performClick()
                     }

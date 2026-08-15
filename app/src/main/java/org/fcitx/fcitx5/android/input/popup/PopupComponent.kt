@@ -5,6 +5,7 @@
 package org.fcitx.fcitx5.android.input.popup
 
 import android.graphics.Rect
+import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -94,7 +95,7 @@ class PopupComponent :
         cancelDismissJob(viewId)
         showingEntryUi[viewId]?.apply {
             setTextScale(keyTextScaleForPercent(keyTextScale))
-            lastShowTime = System.currentTimeMillis()
+            lastShowUptimeMillis = SystemClock.uptimeMillis()
             setText(content)
             return
         }
@@ -108,7 +109,7 @@ class PopupComponent :
                 keyTextScaleForPercent(keyTextScale)
             )).apply {
             setTextScale(keyTextScaleForPercent(keyTextScale))
-            lastShowTime = System.currentTimeMillis()
+            lastShowUptimeMillis = SystemClock.uptimeMillis()
             setText(content)
         }
         popup.root.layoutParams = FrameLayout.LayoutParams(popupWidth, popupHeight).apply {
@@ -213,7 +214,8 @@ class PopupComponent :
         cancelDismissJob(viewId)
         dismissPopupContainer(viewId)
         showingEntryUi[viewId]?.also {
-            val timeLeft = it.lastShowTime + hideThreshold - System.currentTimeMillis()
+            val timeLeft =
+                it.lastShowUptimeMillis + hideThreshold - SystemClock.uptimeMillis()
             if (timeLeft <= 0L) {
                 dismissPopupEntry(viewId, it)
             } else {

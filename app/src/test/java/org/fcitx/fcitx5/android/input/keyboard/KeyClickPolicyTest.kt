@@ -11,6 +11,30 @@ import org.junit.Test
 class KeyClickPolicyTest {
 
     @Test
+    fun secondTapWithinTimeoutIsAccepted() {
+        assertTrue(
+            shouldPerformDoubleTap(
+                pending = true,
+                lastClickUptimeMillis = 1_000L,
+                clickUptimeMillis = 1_250L,
+                timeoutMillis = 300L
+            )
+        )
+    }
+
+    @Test
+    fun reversedTapTimeIsRejected() {
+        assertFalse(
+            shouldPerformDoubleTap(
+                pending = true,
+                lastClickUptimeMillis = 1_000L,
+                clickUptimeMillis = 900L,
+                timeoutMillis = 300L
+            )
+        )
+    }
+
+    @Test
     fun releaseOutsideCanBeAcceptedWhenConfigured() {
         assertTrue(
             shouldPerformKeyClick(

@@ -30,7 +30,7 @@ class PopupEntryUi(
     textScale: Float
 ) : Ui {
 
-    var lastShowTime = -1L
+    var lastShowUptimeMillis = -1L
     private var textScale = textScale
 
     val textView = view(::AutoScaleTextView) {
