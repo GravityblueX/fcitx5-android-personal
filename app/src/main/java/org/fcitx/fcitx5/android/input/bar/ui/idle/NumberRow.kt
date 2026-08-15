@@ -6,52 +6,69 @@ package org.fcitx.fcitx5.android.input.bar.ui.idle
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.view.MotionEvent
 import org.fcitx.fcitx5.android.core.KeySym
 import org.fcitx.fcitx5.android.data.theme.Theme
-import android.view.MotionEvent
 import org.fcitx.fcitx5.android.input.bar.KawaiiBarComponent
 import org.fcitx.fcitx5.android.input.keyboard.BaseKeyboard
 import org.fcitx.fcitx5.android.input.keyboard.KeyAction
 import org.fcitx.fcitx5.android.input.keyboard.KeyDef
 import splitties.dimensions.dp
 import timber.log.Timber
-import kotlin.math.abs
+
+internal fun shouldCollapseNumberRow(
+    startX: Float,
+    currentX: Float,
+    threshold: Float,
+    leftToRight: Boolean,
+): Boolean {
+    val distance = if (leftToRight) currentX - startX else startX - currentX
+    return distance > threshold
+}
 
 @SuppressLint("ViewConstructor")
 class NumberRow(ctx: Context, theme: Theme) : BaseKeyboard(ctx, theme, Layout) {
 
-    private var gestureStartEvent: MotionEvent? = null
+    private var gesturePointerId = MotionEvent.INVALID_POINTER_ID
+    private var gestureStartX = 0f
     private var collapseGestureTriggered: Boolean = false
 
     var onCollapseListener: (() -> Unit)? = null
 
+    private fun startGesture(event: MotionEvent) {
+        val pointerIndex = event.actionIndex
+        gesturePointerId = event.getPointerId(pointerIndex)
+        gestureStartX = event.getX(pointerIndex)
+        collapseGestureTriggered = false
+    }
+
     private fun checkGesture(ev: MotionEvent): Boolean {
-        val startEvent = gestureStartEvent ?: return false
-        val firstPointerId = startEvent.getPointerId(startEvent.actionIndex)
-        if (ev.getPointerId(ev.actionIndex) == firstPointerId) {
-            val dir = if (context.resources.configuration.layoutDirection == LAYOUT_DIRECTION_LTR) 1 else -1
-            val sx = startEvent.x * dir
-            val cx = ev.getX(ev.actionIndex) * dir
-            val shouldCollapse = cx > sx && abs(cx - sx) > dp(KawaiiBarComponent.HEIGHT)
-            if (shouldCollapse) {
-                Timber.d("NumberRow: intercepted gesture from child keyboard to handle swipe")
-                resetState()
-                collapseGestureTriggered = true
-                return true
-            }
+        val pointerIndex = ev.findPointerIndex(gesturePointerId)
+        if (pointerIndex < 0) return false
+        val shouldCollapse = shouldCollapseNumberRow(
+            startX = gestureStartX,
+            currentX = ev.getX(pointerIndex),
+            threshold = dp(KawaiiBarComponent.HEIGHT).toFloat(),
+            leftToRight = context.resources.configuration.layoutDirection == LAYOUT_DIRECTION_LTR,
+        )
+        if (shouldCollapse) {
+            Timber.d("NumberRow: intercepted gesture from child keyboard to handle swipe")
+            resetState()
+            collapseGestureTriggered = true
+            return true
         }
         return false
     }
 
     private fun resetState() {
-        gestureStartEvent?.recycle()
-        gestureStartEvent = null
+        gesturePointerId = MotionEvent.INVALID_POINTER_ID
+        gestureStartX = 0f
         collapseGestureTriggered = false
     }
 
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN -> gestureStartEvent = MotionEvent.obtain(ev)
+            MotionEvent.ACTION_DOWN -> startGesture(ev)
             MotionEvent.ACTION_MOVE -> {
                 if (checkGesture(ev)) return true
             }
@@ -64,11 +81,12 @@ class NumberRow(ctx: Context, theme: Theme) : BaseKeyboard(ctx, theme, Layout) {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         var handled = false
         when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> gestureStartEvent = MotionEvent.obtain(event)
+            MotionEvent.ACTION_DOWN -> startGesture(event)
             MotionEvent.ACTION_MOVE -> checkGesture(event)
             MotionEvent.ACTION_UP -> {
-                if (collapseGestureTriggered) {
-                    resetState()
+                val shouldCollapse = collapseGestureTriggered
+                resetState()
+                if (shouldCollapse) {
                     onCollapseListener?.invoke()
                     handled = true
                 }
@@ -76,6 +94,11 @@ class NumberRow(ctx: Context, theme: Theme) : BaseKeyboard(ctx, theme, Layout) {
             MotionEvent.ACTION_CANCEL -> resetState()
         }
         return super.onTouchEvent(event) || handled
+    }
+
+    override fun onDetachedFromWindow() {
+        resetState()
+        super.onDetachedFromWindow()
     }
 
     companion object {
