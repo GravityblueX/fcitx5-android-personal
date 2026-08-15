@@ -29,16 +29,17 @@ import org.fcitx.fcitx5.android.utils.setupForest
 import org.fcitx.fcitx5.android.utils.startActivity
 import org.fcitx.fcitx5.android.utils.toast
 import timber.log.Timber
-import java.io.File
 
 class DeveloperFragment : PaddingPreferenceFragment() {
 
-    private lateinit var hprofFile: File
+    private lateinit var pendingHeapDump: PendingHeapDump
     private lateinit var launcher: ActivityResultLauncher<String>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingHeapDump = PendingHeapDump(savedInstanceState?.getString(PENDING_HEAP_DUMP_PATH))
         launcher = registerForActivityResult(CreateDocument("application/octet-stream")) { uri ->
+            val hprofFile = pendingHeapDump.consume() ?: return@registerForActivityResult
             if (uri == null) {
                 hprofFile.delete()
                 return@registerForActivityResult
@@ -63,6 +64,11 @@ class DeveloperFragment : PaddingPreferenceFragment() {
                 }
             }
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(PENDING_HEAP_DUMP_PATH, pendingHeapDump.path)
+        super.onSaveInstanceState(outState)
     }
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
@@ -142,12 +148,17 @@ class DeveloperFragment : PaddingPreferenceFragment() {
             }
             addPreference(R.string.capture_heap_dump) {
                 val fileName = "${context.packageName}_${iso8601UTCDateTime()}.hprof"
-                hprofFile = context.cacheDir.resolve(fileName)
+                val hprofFile = context.cacheDir.resolve(fileName)
                 System.gc()
                 Debug.dumpHprofData(hprofFile.absolutePath)
+                pendingHeapDump.begin(hprofFile)
                 launcher.launch(fileName)
             }
         }
+    }
+
+    companion object {
+        private const val PENDING_HEAP_DUMP_PATH = "pending_heap_dump_path"
     }
 
 }
