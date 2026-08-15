@@ -73,12 +73,15 @@ class MainActivity : AppCompatActivity() {
                 viewModel.enableToolbarShadow()
             }
         }
-        processIntent(intent)
+        if (savedInstanceState == null) {
+            processIntent(intent)
+        }
         checkNotificationPermission()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         processIntent(intent)
     }
 
