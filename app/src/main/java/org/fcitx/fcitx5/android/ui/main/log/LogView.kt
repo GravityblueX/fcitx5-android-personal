@@ -7,6 +7,7 @@ package org.fcitx.fcitx5.android.ui.main.log
 import android.content.Context
 import android.util.AttributeSet
 import android.widget.HorizontalScrollView
+import androidx.annotation.AttrRes
 import androidx.core.text.buildSpannedString
 import androidx.core.text.color
 import androidx.lifecycle.findViewTreeLifecycleOwner
@@ -23,6 +24,17 @@ import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.wrapContent
 import splitties.views.dsl.recyclerview.recyclerView
 import splitties.views.recyclerview.verticalLayoutManager
+
+@AttrRes
+internal fun logLineColorAttribute(line: String): Int = when (line.firstOrNull()) {
+    'V' -> R.attr.colorLogVerbose
+    'D' -> R.attr.colorLogDebug
+    'I' -> R.attr.colorLogInfo
+    'W' -> R.attr.colorLogWarning
+    'E' -> R.attr.colorLogError
+    'F' -> R.attr.colorLogFatal
+    else -> android.R.attr.colorForeground
+}
 
 class LogView @JvmOverloads constructor(context: Context, attributeSet: AttributeSet? = null) :
     HorizontalScrollView(context, attributeSet) {
@@ -55,17 +67,7 @@ class LogView @JvmOverloads constructor(context: Context, attributeSet: Attribut
         this.logcat = logcat
         logcat.initLogFlow()
         logcat.logFlow.onEach {
-            val color = styledColor(
-                when (it.first()) {
-                    'V' -> R.attr.colorLogVerbose
-                    'D' -> R.attr.colorLogDebug
-                    'I' -> R.attr.colorLogInfo
-                    'W' -> R.attr.colorLogWarning
-                    'E' -> R.attr.colorLogError
-                    'F' -> R.attr.colorLogFatal
-                    else -> android.R.attr.colorForeground
-                }
-            )
+            val color = styledColor(logLineColorAttribute(it))
             logAdapter.append(buildSpannedString {
                 color(color) { append(it) }
             })
