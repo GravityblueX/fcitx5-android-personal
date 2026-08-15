@@ -35,6 +35,7 @@ import org.fcitx.fcitx5.android.data.quickphrase.BuiltinQuickPhrase
 import org.fcitx.fcitx5.android.data.quickphrase.CustomQuickPhrase
 import org.fcitx.fcitx5.android.data.quickphrase.QuickPhrase
 import org.fcitx.fcitx5.android.data.quickphrase.QuickPhraseManager
+import org.fcitx.fcitx5.android.data.quickphrase.quickPhraseImportTarget
 import org.fcitx.fcitx5.android.ui.common.BaseDynamicListUi
 import org.fcitx.fcitx5.android.ui.common.OnItemChangedListener
 import org.fcitx.fcitx5.android.ui.main.EditDeleteMenuProvider
@@ -249,12 +250,12 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
         lifecycleScope.launch {
             val id = IMPORT_ID++
             val fileName = cr.queryFileName(uri) ?: return@launch
-            val extName = fileName.substringAfterLast('.')
-            if (extName != QuickPhrase.EXT) {
+            val importTarget = quickPhraseImportTarget(fileName)
+            if (importTarget == null) {
                 ctx.importErrorDialog(R.string.exception_quickphrase_filename, fileName)
                 return@launch
             }
-            val entryName = fileName.substringBeforeLast('.')
+            val entryName = importTarget.entryName
             if (ui.entries.any { it.name == entryName }) {
                 ctx.importErrorDialog(R.string.quickphrase_already_exists)
                 return@launch
@@ -270,7 +271,8 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
             try {
                 val imported = withContext(Dispatchers.IO) {
                     val inputStream = cr.requireInputStream(uri)
-                    QuickPhraseManager.importFromInputStream(inputStream, fileName).getOrThrow()
+                    QuickPhraseManager.importFromInputStream(inputStream, importTarget.fileName)
+                        .getOrThrow()
                 }
                 ui.addItem(item = imported)
             } catch (e: Exception) {

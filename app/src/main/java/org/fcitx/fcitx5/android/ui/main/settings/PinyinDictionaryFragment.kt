@@ -29,6 +29,7 @@ import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.reloadPinyinDict
 import org.fcitx.fcitx5.android.data.pinyin.PinyinDictManager
+import org.fcitx.fcitx5.android.data.pinyin.pinyinDictionaryImportTarget
 import org.fcitx.fcitx5.android.data.pinyin.dict.BuiltinDictionary
 import org.fcitx.fcitx5.android.data.pinyin.dict.LibIMEDictionary
 import org.fcitx.fcitx5.android.data.pinyin.dict.PinyinDictionary
@@ -159,11 +160,12 @@ class PinyinDictionaryFragment : Fragment(), OnItemChangedListener<PinyinDiction
         lifecycleScope.launch {
             val id = IMPORT_ID++
             val fileName = cr.queryFileName(uri) ?: return@launch
-            if (PinyinDictionary.Type.fromFileName(fileName) == null) {
+            val importTarget = pinyinDictionaryImportTarget(fileName)
+            if (importTarget == null) {
                 ctx.importErrorDialog(R.string.invalid_dict)
                 return@launch
             }
-            val entryName = fileName.substringBeforeLast('.')
+            val entryName = importTarget.entryName
             if (ui.entries.any { it.name == entryName }) {
                 ctx.importErrorDialog(R.string.dict_already_exists)
                 return@launch
@@ -179,7 +181,8 @@ class PinyinDictionaryFragment : Fragment(), OnItemChangedListener<PinyinDiction
             try {
                 val imported = withContext(Dispatchers.IO) {
                     val inputStream = cr.requireInputStream(uri)
-                    PinyinDictManager.importFromInputStream(inputStream, fileName).getOrThrow()
+                    PinyinDictManager.importFromInputStream(inputStream, importTarget.sourceFileName)
+                        .getOrThrow()
                 }
                 ui.addItem(item = imported)
             } catch (e: Exception) {

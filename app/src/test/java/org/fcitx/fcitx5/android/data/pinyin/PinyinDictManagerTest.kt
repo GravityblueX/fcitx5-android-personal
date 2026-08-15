@@ -6,6 +6,7 @@ package org.fcitx.fcitx5.android.data.pinyin
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -17,6 +18,24 @@ class PinyinDictManagerTest {
         assertTrue(isPinyinImportStagingFile(".pinyin-import-123.staged"))
         assertFalse(isPinyinImportStagingFile("pinyin-import-123.staged"))
         assertFalse(isPinyinImportStagingFile(".pinyin-import-123.dict"))
+    }
+
+    @Test
+    fun normalizesImportedDictionaryNames() {
+        val regular = pinyinDictionaryImportTarget("../../custom.name.txt")!!
+        assertEquals("custom.name.txt", regular.sourceFileName)
+        assertEquals("custom.name", regular.entryName)
+        assertEquals("custom.name.dict", regular.destinationFileName)
+
+        val disabled = pinyinDictionaryImportTarget("custom.dict.disable")!!
+        assertEquals("custom", disabled.entryName)
+        assertEquals("custom.dict", disabled.destinationFileName)
+    }
+
+    @Test
+    fun rejectsInvalidImportedDictionaryNames() {
+        listOf("dictionary", ".dict", ".dict.disable", "   .txt", "...dict")
+            .forEach { assertNull(pinyinDictionaryImportTarget(it)) }
     }
 
     @Test

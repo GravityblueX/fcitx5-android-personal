@@ -63,10 +63,9 @@ object PinyinDictManager {
     fun importFromFile(file: File, destinationName: String = file.name): Result<LibIMEDictionary> = runCatching {
         val raw =
             PinyinDictionary.new(file) ?: errorArg(R.string.exception_dict_filename, file.path)
-        val destination = File(
-            pinyinDicDir,
-            destinationName.substringBeforeLast('.') + ".${PinyinDictionary.Type.LibIME.ext}"
-        )
+        val target = pinyinDictionaryImportTarget(destinationName)
+            ?: errorArg(R.string.exception_dict_filename, destinationName)
+        val destination = File(pinyinDicDir, target.destinationFileName)
         withTempDir { tempDir ->
             val converted = raw.toLibIMEDictionary(File(tempDir, destination.name))
             val staged = File.createTempFile(
@@ -84,25 +83,27 @@ object PinyinDictManager {
         LibIMEDictionary(destination).also { Timber.d("Converted $raw to $it") }
     }
 
-    fun importFromInputStream(stream: InputStream, name: String): Result<LibIMEDictionary> {
-        val safeName = name.safeFileName()
-        val suffix = safeName.substringAfter('.', missingDelimiterValue = "")
-        val tempFile = File.createTempFile(
-            "pinyin-import-",
-            suffix.takeIf { it.isNotEmpty() }?.let { ".$it" },
-            appContext.cacheDir
-        )
-        try {
-            stream.use { input ->
-                tempFile.outputStream().use { output ->
-                    input.copyTo(output)
+    fun importFromInputStream(stream: InputStream, name: String): Result<LibIMEDictionary> =
+        runCatching {
+            val target = pinyinDictionaryImportTarget(name)
+                ?: errorArg(R.string.exception_dict_filename, name)
+            val suffix = target.sourceFileName.substringAfter('.', missingDelimiterValue = "")
+            val tempFile = File.createTempFile(
+                "pinyin-import-",
+                suffix.takeIf { it.isNotEmpty() }?.let { ".$it" },
+                appContext.cacheDir
+            )
+            try {
+                stream.use { input ->
+                    tempFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
                 }
+                importFromFile(tempFile, target.sourceFileName).getOrThrow()
+            } finally {
+                tempFile.delete()
             }
-            return importFromFile(tempFile, safeName)
-        } finally {
-            tempFile.delete()
         }
-    }
 
     fun sougouDictConv(src: String, dest: String) {
         val process = ProcessBuilder(scel2org5.absolutePath, "-o", dest, src)
@@ -135,6 +136,24 @@ object PinyinDictManager {
 
 internal fun isPinyinImportStagingFile(fileName: String): Boolean =
     fileName.startsWith(".pinyin-import-") && fileName.endsWith(".staged")
+
+internal data class PinyinDictionaryImportTarget(
+    val sourceFileName: String,
+    val entryName: String,
+) {
+    val destinationFileName = "$entryName.${PinyinDictionary.Type.LibIME.ext}"
+}
+
+internal fun pinyinDictionaryImportTarget(fileName: String): PinyinDictionaryImportTarget? {
+    val safeFileName = fileName.safeFileName()
+    val type = PinyinDictionary.Type.fromFileName(safeFileName) ?: return null
+    val disabledSuffix =
+        ".${PinyinDictionary.Type.LibIME.ext}.${LibIMEDictionary.DISABLE}"
+    val suffix = if (safeFileName.endsWith(disabledSuffix)) disabledSuffix else ".${type.ext}"
+    val entryName = safeFileName.removeSuffix(suffix)
+    if (entryName.isBlank() || entryName == "." || entryName == "..") return null
+    return PinyinDictionaryImportTarget(safeFileName, entryName)
+}
 
 private const val MAX_PROCESS_OUTPUT_CHARS = 64 * 1024
 

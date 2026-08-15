@@ -9,6 +9,7 @@ import org.fcitx.fcitx5.android.core.data.DataManager
 import org.fcitx.fcitx5.android.utils.safeFileName
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
+import org.fcitx.fcitx5.android.utils.errorArg
 import org.fcitx.fcitx5.android.utils.errorRuntime
 import org.fcitx.fcitx5.android.utils.resolveDirectChild
 import org.fcitx.fcitx5.android.utils.withTempDir
@@ -43,27 +44,32 @@ object QuickPhraseManager {
 
     private fun importFromFile(file: File): Result<CustomQuickPhrase> {
         return runCatching {
+            val target = quickPhraseImportTarget(file.name)
+                ?: errorArg(R.string.exception_quickphrase_filename, file.name)
             // check quickphrase format of each line
             file.readLines().forEachIndexed { idx, line ->
                 if (line.isNotBlank() && QuickPhraseEntry.fromLine(line) == null) {
                     errorRuntime(R.string.exception_quickphrase_parse, "\n(${idx + 1}) $line")
                 }
             }
-            val dest = File(customQuickPhraseDir, file.name)
+            val dest = File(customQuickPhraseDir, target.fileName)
             file.copyTo(dest)
             CustomQuickPhrase(dest)
         }
     }
 
-    fun importFromInputStream(stream: InputStream, fileName: String): Result<CustomQuickPhrase> {
-        return stream.use { i ->
+    fun importFromInputStream(stream: InputStream, fileName: String): Result<CustomQuickPhrase> =
+        runCatching {
+            val target = quickPhraseImportTarget(fileName)
+                ?: errorArg(R.string.exception_quickphrase_filename, fileName)
             withTempDir { dir ->
-                val tempFile = dir.resolve(fileName.safeFileName())
-                tempFile.outputStream().use { o -> i.copyTo(o) }
-                importFromFile(tempFile)
+                val tempFile = dir.resolve(target.fileName)
+                stream.use { input ->
+                    tempFile.outputStream().use { output -> input.copyTo(output) }
+                }
+                importFromFile(tempFile).getOrThrow()
             }
         }
-    }
 
     private fun <T : QuickPhrase> listDir(
         dir: File,
@@ -78,4 +84,18 @@ object QuickPhraseManager {
             } ?: listOf()
 
 
+}
+
+internal data class QuickPhraseImportTarget(
+    val fileName: String,
+    val entryName: String,
+)
+
+internal fun quickPhraseImportTarget(fileName: String): QuickPhraseImportTarget? {
+    val safeFileName = fileName.safeFileName()
+    val suffix = ".${QuickPhrase.EXT}"
+    if (!safeFileName.endsWith(suffix)) return null
+    val entryName = safeFileName.removeSuffix(suffix)
+    if (entryName.isBlank() || entryName == "." || entryName == "..") return null
+    return QuickPhraseImportTarget(safeFileName, entryName)
 }
