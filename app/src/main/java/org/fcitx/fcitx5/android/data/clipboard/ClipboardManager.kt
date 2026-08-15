@@ -246,8 +246,7 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
         }
     }
 
-    private var lastClipTimestamp = -1L
-    private var lastClipHash = 0
+    private val changeDeduplicator = ClipboardChangeDeduplicator()
 
     override fun onPrimaryClipChanged() {
         val clip = clipboardManager.primaryClip ?: return
@@ -255,17 +254,18 @@ object ClipboardManager : ClipboardManager.OnPrimaryClipChangedListener,
          * skip duplicate ClipData
          * https://developer.android.com/reference/android/content/ClipboardManager.OnPrimaryClipChangedListener#onPrimaryClipChanged()
          */
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val timestamp = clip.description.timestamp
-            if (timestamp == lastClipTimestamp) return
-            lastClipTimestamp = timestamp
-        } else {
-            val timestamp = SystemClock.elapsedRealtime()
-            val hash = clip.hashCode()
-            if (timestamp - lastClipTimestamp < 100L && hash == lastClipHash) return
-            lastClipTimestamp = timestamp
-            lastClipHash = hash
-        }
+        val change = ClipboardChangeSnapshot(
+            sourceTimestamp = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                clip.description.timestamp.takeIf { it > 0L }
+            } else {
+                null
+            },
+            receivedAtElapsedMillis = SystemClock.elapsedRealtime(),
+            content = ClipboardEntry.fromClipDataItems(clip).map {
+                ClipboardContentSignature(it.text, it.type, it.sensitive)
+            },
+        )
+        if (changeDeduplicator.shouldIgnore(change)) return
         launch {
             mutex.withLock {
                 val entries = ClipboardEntry
