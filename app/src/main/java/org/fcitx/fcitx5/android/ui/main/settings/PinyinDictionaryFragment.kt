@@ -96,8 +96,14 @@ class PinyinDictionaryFragment : Fragment(), OnItemChangedListener<PinyinDiction
 
             override fun showEntry(x: PinyinDictionary): String = x.name
         }.also {
+            it.addOnItemChangedListener(this)
             uiInitialized = true
         }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        registerLauncher()
     }
 
     override fun onCreateView(
@@ -106,8 +112,6 @@ class PinyinDictionaryFragment : Fragment(), OnItemChangedListener<PinyinDiction
         savedInstanceState: Bundle?
     ): View {
         createNotificationChannel()
-        registerLauncher()
-        ui.addOnItemChangedListener(this)
         resetDustman()
         return ui.root
     }

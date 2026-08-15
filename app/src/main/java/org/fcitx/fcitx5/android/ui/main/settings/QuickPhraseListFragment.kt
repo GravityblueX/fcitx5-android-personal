@@ -214,8 +214,14 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
             override fun showEntry(x: QuickPhrase): String = x.name
 
         }.also {
+            it.addOnItemChangedListener(this)
             uiInitialized = true
         }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        registerLauncher()
     }
 
     private fun createNotificationChannel() {
@@ -315,8 +321,6 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
         savedInstanceState: Bundle?
     ): View {
         createNotificationChannel()
-        registerLauncher()
-        ui.addOnItemChangedListener(this)
         resetDustman()
         return ui.root
     }

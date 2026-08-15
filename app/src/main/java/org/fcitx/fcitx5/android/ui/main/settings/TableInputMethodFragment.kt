@@ -100,6 +100,7 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
 
             override fun showEntry(x: TableBasedInputMethod): String = x.name
         }.also {
+            it.addOnItemChangedListener(this)
             uiInitialized = true
         }
     }
@@ -145,7 +146,6 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
         savedInstanceState: Bundle?
     ): View {
         resetDustman()
-        ui.addOnItemChangedListener(this)
         return ui.root
     }
 
