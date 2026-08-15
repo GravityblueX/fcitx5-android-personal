@@ -23,6 +23,9 @@ import org.fcitx.fcitx5.android.utils.config.ConfigDescriptor
 import org.fcitx.fcitx5.android.utils.config.ConfigType
 import org.fcitx.fcitx5.android.utils.lazyRoute
 
+internal fun parseIntegerListEntries(items: Array<RawConfig>?): List<Int> =
+    items?.mapNotNull { it.value.toIntOrNull() }.orEmpty()
+
 class ListFragment : Fragment() {
 
     val args by lazyRoute<SettingsRoute.ListConfig>()
@@ -73,7 +76,7 @@ class ListFragment : Fragment() {
                                 converter = { it.toInt() },
                                 validator = { it.toIntOrNull() != null }
                             ),
-                            initialEntries = cfg.subItems?.map { it.value.toInt() } ?: listOf(),
+                            initialEntries = parseIntegerListEntries(cfg.subItems),
                             enableOrder = true,
                             show = { it.toString() }
                         )
