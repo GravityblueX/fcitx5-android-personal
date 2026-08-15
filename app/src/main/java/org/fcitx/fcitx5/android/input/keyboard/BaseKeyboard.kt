@@ -368,6 +368,10 @@ abstract class BaseKeyboard(
                                 GestureType.Up -> {
                                     onPopupTrigger(view.id)
                                 }
+                                GestureType.Cancel -> {
+                                    onPopupAction(PopupAction.DismissAction(view.id))
+                                    false
+                                }
                                 else -> false
                             } || oldOnGestureListener.onGesture(view, event)
                         }
@@ -391,6 +395,10 @@ abstract class BaseKeyboard(
                                 }
                                 GestureType.Up -> {
                                     onPopupTrigger(view.id)
+                                }
+                                GestureType.Cancel -> {
+                                    onPopupAction(PopupAction.DismissAction(view.id))
+                                    false
                                 }
                                 else -> false
                             } || oldOnGestureListener.onGesture(view, event)
@@ -416,7 +424,7 @@ abstract class BaseKeyboard(
                                             PopupAction.PreviewUpdateAction(view.id, text)
                                         )
                                     }
-                                    GestureType.Up -> {
+                                    GestureType.Up, GestureType.Cancel -> {
                                         onPopupAction(PopupAction.DismissAction(view.id))
                                     }
                                 }
@@ -438,7 +446,7 @@ abstract class BaseKeyboard(
                                             view.currentBounds
                                         )
                                     )
-                                    GestureType.Up -> {
+                                    GestureType.Up, GestureType.Cancel -> {
                                         onPopupAction(PopupAction.DismissAction(view.id))
                                     }
                                     else -> {}

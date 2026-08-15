@@ -39,7 +39,7 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
 
     enum class SwipeAxis { X, Y }
 
-    enum class GestureType { Down, Move, Up }
+    enum class GestureType { Down, Move, Up, Cancel }
 
     data class Event(
         val type: GestureType,
@@ -272,7 +272,7 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
-                dispatchGestureEvent(GestureType.Up, event.x, event.y)
+                dispatchGestureEvent(GestureType.Cancel, event.x, event.y)
                 cancelGestures()
                 return true
             }

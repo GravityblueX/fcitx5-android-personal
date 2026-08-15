@@ -317,6 +317,7 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                     v.iconRotation = 0f
                     return@OnGestureListener handled
                 }
+                CustomGestureView.GestureType.Cancel -> v.iconRotation = 0f
                 else -> {}
             }
         }

@@ -232,6 +232,10 @@ class PickerPageUi(
                                     onPopupAction(PopupAction.DismissAction(view.id))
                                 }
                             }
+                            CustomGestureView.GestureType.Cancel -> {
+                                onPopupAction(PopupAction.DismissAction(view.id))
+                                false
+                            }
                         }
                     }
                 }
