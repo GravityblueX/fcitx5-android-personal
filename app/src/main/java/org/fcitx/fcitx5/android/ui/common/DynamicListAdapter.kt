@@ -75,6 +75,7 @@ abstract class DynamicListAdapter<T>(
         ViewHolder(DynamicListEntryUi(parent.context))
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        resetViewState(holder)
         val item = entries[position]
         with(holder) {
             handleImage.setOnLongClickListener {
@@ -125,9 +126,9 @@ abstract class DynamicListAdapter<T>(
         }
     }
 
-    override fun onViewRecycled(holder: DynamicListAdapter<T>.ViewHolder) {
-        // reset view state and remove listeners once recycled
+    private fun resetViewState(holder: ViewHolder) {
         holder.apply {
+            handleImage.setOnLongClickListener(null)
             multiselectCheckBox.setOnCheckedChangeListener(null)
             multiselectCheckBox.isEnabled = true
             multiselectCheckBox.isChecked = false
@@ -135,9 +136,14 @@ abstract class DynamicListAdapter<T>(
             checkBox.isEnabled = true
             checkBox.isChecked = false
             nameText.setOnClickListener(null)
+            nameText.setOnLongClickListener(null)
             settingsButton.setOnClickListener(null)
             editButton.setOnClickListener(null)
         }
+    }
+
+    override fun onViewRecycled(holder: DynamicListAdapter<T>.ViewHolder) {
+        resetViewState(holder)
     }
 
     private fun select(item: T, shouldSelect: Boolean) {
