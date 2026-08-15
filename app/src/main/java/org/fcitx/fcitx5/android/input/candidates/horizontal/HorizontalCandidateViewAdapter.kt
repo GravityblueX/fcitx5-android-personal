@@ -13,6 +13,7 @@ import com.google.android.flexbox.FlexboxLayoutManager
 import org.fcitx.fcitx5.android.core.CandidateWord
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.input.candidates.CandidateItemUi
+import org.fcitx.fcitx5.android.input.candidates.CandidateStableIdTracker
 import org.fcitx.fcitx5.android.input.candidates.CandidateViewHolder
 import splitties.dimensions.dp
 import splitties.views.dsl.core.matchParent
@@ -32,8 +33,11 @@ open class HorizontalCandidateViewAdapter(val theme: Theme) :
     var total = -1
         private set
 
+    private val candidateIds = CandidateStableIdTracker()
+
     @SuppressLint("NotifyDataSetChanged")
     fun updateCandidates(data: Array<CandidateWord>, total: Int) {
+        candidateIds.update(data)
         this.candidates = data
         this.total = total
         notifyDataSetChanged()
@@ -41,7 +45,7 @@ open class HorizontalCandidateViewAdapter(val theme: Theme) :
 
     override fun getItemCount() = candidates.size
 
-    override fun getItemId(position: Int) = candidates.getOrNull(position).hashCode().toLong()
+    override fun getItemId(position: Int) = candidateIds[position]
 
     @CallSuper
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CandidateViewHolder {

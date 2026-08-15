@@ -21,6 +21,7 @@ import com.google.android.flexbox.FlexboxLayoutManager
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.core.FcitxEvent.PagedCandidateEvent.LayoutHint
 import org.fcitx.fcitx5.android.data.theme.Theme
+import org.fcitx.fcitx5.android.input.candidates.CandidateStableIdTracker
 import splitties.views.dsl.core.Ui
 import splitties.views.dsl.recyclerview.recyclerView
 
@@ -38,6 +39,8 @@ class PagedCandidatesUi(
 
     private var isVertical = false
 
+    private val candidateIds = CandidateStableIdTracker()
+
     sealed class UiHolder(open val ui: Ui) : RecyclerView.ViewHolder(ui.root) {
         class Candidate(override val ui: LabeledCandidateItemUi) : UiHolder(ui)
         class Pagination(override val ui: PaginationUi) : UiHolder(ui)
@@ -48,8 +51,11 @@ class PagedCandidatesUi(
             setHasStableIds(true)
         }
 
-        override fun getItemId(position: Int): Long =
-            data.candidates.getOrNull(position).hashCode().toLong()
+        override fun getItemId(position: Int): Long = if (position < data.candidates.size) {
+            candidateIds[position]
+        } else {
+            PAGINATION_ITEM_ID
+        }
 
         override fun getItemCount() =
             data.candidates.size + (if (data.hasPrev || data.hasNext) 1 else 0)
@@ -125,6 +131,7 @@ class PagedCandidatesUi(
         data: FcitxEvent.PagedCandidateEvent.Data,
         orientation: FloatingCandidatesOrientation
     ) {
+        candidateIds.update(data.candidates)
         this.data = data
         this.isVertical = when (orientation) {
             FloatingCandidatesOrientation.Automatic -> data.layoutHint == LayoutHint.Vertical
@@ -140,5 +147,9 @@ class PagedCandidatesUi(
             }
         }
         candidatesAdapter.notifyDataSetChanged()
+    }
+
+    companion object {
+        private const val PAGINATION_ITEM_ID = Long.MIN_VALUE
     }
 }
