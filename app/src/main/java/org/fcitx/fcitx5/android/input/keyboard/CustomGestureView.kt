@@ -70,6 +70,14 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
     @Volatile
     private var longPressTriggered = false
     var longPressEnabled = false
+        set(enabled) {
+            field = enabled
+            if (!enabled) {
+                longPressJob?.cancel()
+                longPressJob = null
+                longPressTriggered = false
+            }
+        }
     private var longPressJob: Job? = null
 
     @Volatile
@@ -78,6 +86,14 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
     @Volatile
     private var repeatStarted = false
     var repeatEnabled = false
+        set(enabled) {
+            field = enabled
+            if (!enabled) {
+                repeatJob?.cancel()
+                repeatJob = null
+                repeatStarted = false
+            }
+        }
     private var repeatJob: Job? = null
 
     var swipeEnabled = false
@@ -126,15 +142,6 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
         super.onDetachedFromWindow()
     }
 
-    private fun cancelGestureJobs() {
-        longPressJob?.cancel()
-        longPressJob = null
-        longPressTriggered = false
-        repeatJob?.cancel()
-        repeatJob = null
-        repeatStarted = false
-    }
-
     private fun pointInView(x: Float, y: Float): Boolean {
         return -touchSlop <= x &&
                 -touchSlop <= y &&
@@ -144,32 +151,23 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
 
     private fun resetState() {
         touchMovedOutside = false
-        if (longPressEnabled) {
-            longPressTriggered = false
-            longPressJob?.cancel()
-            longPressJob = null
-        }
-        if (repeatEnabled) {
-            repeatStarted = false
-            repeatJob?.cancel()
-            repeatJob = null
-        }
-        if (swipeEnabled) {
-            if (swipeRepeatEnabled) {
-                swipeRepeatTriggered = false
-            }
-            swipeXUnconsumed = 0f
-            swipeYUnconsumed = 0f
-            swipeTotalX = 0
-            swipeTotalY = 0
-        }
+        longPressTriggered = false
+        longPressJob?.cancel()
+        longPressJob = null
+        repeatStarted = false
+        repeatJob?.cancel()
+        repeatJob = null
+        swipeRepeatTriggered = false
+        swipeXUnconsumed = 0f
+        swipeYUnconsumed = 0f
+        swipeTotalX = 0
+        swipeTotalY = 0
         gestureConsumed = false
         // double tap state should be preserved on touch up
     }
 
     fun cancelGestures() {
         isPressed = false
-        cancelGestureJobs()
         resetState()
         if (doubleTapEnabled) {
             maybeDoubleTap = false
@@ -205,7 +203,7 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
                         delay(longPressDelay.toLong())
                         repeatStarted = true
                         var lastTriggerTime: Long
-                        while (isActive && isEnabled) {
+                        while (isActive && isEnabled && repeatEnabled) {
                             lastTriggerTime = SystemClock.uptimeMillis()
                             onRepeatListener?.invoke(this@CustomGestureView)
                             val t = lastTriggerTime + RepeatInterval - SystemClock.uptimeMillis()
