@@ -29,6 +29,49 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
+internal fun isSafeUserDataExportPath(file: File, sourceDir: File): Boolean {
+    val relative = runCatching { file.relativeTo(sourceDir) }.getOrNull() ?: return false
+    val canonicalSource = runCatching { sourceDir.canonicalFile }.getOrNull() ?: return false
+    val expectedPath = canonicalSource.resolve(relative.path).normalize()
+    val canonicalSourcePrefix = canonicalSource.path + File.separator
+    if (expectedPath != canonicalSource &&
+        !expectedPath.path.startsWith(canonicalSourcePrefix)
+    ) {
+        return false
+    }
+    return runCatching { file.canonicalFile == expectedPath }.getOrDefault(false)
+}
+
+internal fun writeUserDataFileTree(
+    sourceDir: File,
+    destinationPrefix: String,
+    destination: ZipOutputStream,
+    include: (File) -> Boolean = { true },
+) {
+    destination.putNextEntry(ZipEntry("$destinationPrefix/"))
+    destination.closeEntry()
+    sourceDir.walkTopDown()
+        .onEnter { directory -> isSafeUserDataExportPath(directory, sourceDir) }
+        .forEach { file ->
+            val relative = file.relativeTo(sourceDir)
+            if (relative.path.isEmpty() ||
+                !isSafeUserDataExportPath(file, sourceDir) ||
+                !include(file)
+            ) {
+                return@forEach
+            }
+            val destinationPath = "$destinationPrefix/${relative.invariantSeparatorsPath}"
+            if (file.isDirectory) {
+                destination.putNextEntry(ZipEntry("$destinationPath/"))
+                destination.closeEntry()
+            } else if (file.isFile) {
+                destination.putNextEntry(ZipEntry(destinationPath))
+                file.inputStream().use { it.copyTo(destination) }
+                destination.closeEntry()
+            }
+        }
+}
+
 object UserDataManager {
 
     private const val PRODUCT_PACKAGE_NAME = "org.fcitx.fcitx17.android"
@@ -69,26 +112,6 @@ object UserDataManager {
     )
 
     private val importJournalFile get() = appContext.filesDir.resolve(".user-data-import")
-    private fun writeFileTree(
-        srcDir: File,
-        destPrefix: String,
-        dest: ZipOutputStream,
-        include: (File) -> Boolean = { true },
-    ) {
-        dest.putNextEntry(ZipEntry("$destPrefix/"))
-        srcDir.walkTopDown().forEach { f ->
-            val related = f.relativeTo(srcDir)
-            if (related.path != "" && include(f)) {
-                if (f.isDirectory) {
-                    dest.putNextEntry(ZipEntry("$destPrefix/${related.path}/"))
-                } else if (f.isFile) {
-                    dest.putNextEntry(ZipEntry("$destPrefix/${related.path}"))
-                    f.inputStream().use { it.copyTo(dest) }
-                }
-            }
-        }
-    }
-
     private val sharedPrefsDir = File(appContext.applicationInfo.dataDir, "shared_prefs")
     private val dataBasesDir = File(appContext.applicationInfo.dataDir, "databases")
     private val externalDir = appContext.externalFilesDirOrFilesDir
@@ -98,13 +121,13 @@ object UserDataManager {
     fun export(dest: OutputStream, timestamp: Long = System.currentTimeMillis()) = runCatching {
         ZipOutputStream(dest.buffered()).use { zipStream ->
             // shared_prefs
-            writeFileTree(sharedPrefsDir, "shared_prefs", zipStream) { file ->
+            writeUserDataFileTree(sharedPrefsDir, "shared_prefs", zipStream) { file ->
                 file.isDirectory || !isTransientSharedPreferenceFile(file.name)
             }
             // databases
-            writeFileTree(dataBasesDir, "databases", zipStream)
+            writeUserDataFileTree(dataBasesDir, "databases", zipStream)
             // external
-            writeFileTree(externalDir, "external", zipStream)
+            writeUserDataFileTree(externalDir, "external", zipStream)
             // recently_used moved to SharedPreference and shoud not be exported
             // metadata
             zipStream.putNextEntry(ZipEntry("metadata.json"))
