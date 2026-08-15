@@ -6,6 +6,7 @@ package org.fcitx.fcitx5.android.data.quickphrase
 
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.data.DataManager
+import org.fcitx.fcitx5.android.utils.cleanupStagedFileInstalls
 import org.fcitx.fcitx5.android.utils.installNewFileAtomically
 import org.fcitx.fcitx5.android.utils.safeFileName
 import org.fcitx.fcitx5.android.utils.appContext
@@ -25,7 +26,10 @@ object QuickPhraseManager {
 
     private val customQuickPhraseDir = File(
         appContext.externalFilesDirOrFilesDir, "data/data/quickphrase.d"
-    ).also { it.mkdirs() }
+    ).also { directory ->
+        directory.mkdirs()
+        cleanupStagedFileInstalls(directory)
+    }
 
     fun listQuickPhrase(): List<QuickPhrase> {
         val builtin = listDir(builtinQuickPhraseDir) { file ->

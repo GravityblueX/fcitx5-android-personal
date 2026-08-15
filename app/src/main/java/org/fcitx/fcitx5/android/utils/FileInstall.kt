@@ -5,8 +5,12 @@
 package org.fcitx.fcitx5.android.utils
 
 import android.system.Os
+import timber.log.Timber
 import java.io.File
 import java.io.InputStream
+
+private const val FILE_INSTALL_STAGING_PREFIX = "file-install-"
+private const val FILE_INSTALL_STAGING_SUFFIX = ".staged"
 
 internal fun installNewFileAtomically(
     stream: InputStream,
@@ -24,7 +28,11 @@ internal fun installNewFileAtomically(
 ): File {
     val destination = directory.resolveDirectChild(fileName)
     if (destination.exists()) throw FileAlreadyExistsException(destination)
-    val staged = File.createTempFile("file-install-", ".staged", directory)
+    val staged = File.createTempFile(
+        FILE_INSTALL_STAGING_PREFIX,
+        FILE_INSTALL_STAGING_SUFFIX,
+        directory,
+    )
     var reserved = false
     var published = false
     try {
@@ -38,4 +46,16 @@ internal fun installNewFileAtomically(
         if (reserved && !published) destination.delete()
         staged.delete()
     }
+}
+
+internal fun isFileInstallStagingFile(fileName: String): Boolean =
+    fileName.startsWith(FILE_INSTALL_STAGING_PREFIX) &&
+            fileName.endsWith(FILE_INSTALL_STAGING_SUFFIX)
+
+internal fun cleanupStagedFileInstalls(directory: File) {
+    directory.listFiles()
+        ?.filter { file -> file.isFile && isFileInstallStagingFile(file.name) }
+        ?.forEach { staged ->
+            if (!staged.delete()) Timber.w("Failed to remove stale file install: ${staged.path}")
+        }
 }

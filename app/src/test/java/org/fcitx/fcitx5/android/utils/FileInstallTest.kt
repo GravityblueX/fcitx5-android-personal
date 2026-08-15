@@ -19,6 +19,33 @@ import java.nio.file.StandardCopyOption
 class FileInstallTest {
 
     @Test
+    fun identifiesOnlyFileInstallStagingNames() {
+        assertTrue(isFileInstallStagingFile("file-install-123.staged"))
+        assertFalse(isFileInstallStagingFile(".file-install-123.staged"))
+        assertFalse(isFileInstallStagingFile("file-install-123.conf"))
+    }
+
+    @Test
+    fun cleansOnlyStagedInstallFiles() {
+        val directory = Files.createTempDirectory("file-install-cleanup-").toFile()
+        try {
+            val staged = directory.resolve("file-install-123.staged").apply { writeText("partial") }
+            val wrongPrefix = directory.resolve("other-123.staged").apply { writeText("keep") }
+            val wrongSuffix = directory.resolve("file-install-123.conf").apply { writeText("keep") }
+            val matchingDirectory = directory.resolve("file-install-dir.staged").apply { mkdir() }
+
+            cleanupStagedFileInstalls(directory)
+
+            assertFalse(staged.exists())
+            assertTrue(wrongPrefix.exists())
+            assertTrue(wrongSuffix.exists())
+            assertTrue(matchingDirectory.isDirectory)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun publishesOnlyAfterStagingCompletes() {
         val directory = Files.createTempDirectory("file-install-").toFile()
         try {

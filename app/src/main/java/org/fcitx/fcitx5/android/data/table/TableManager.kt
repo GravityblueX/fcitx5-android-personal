@@ -8,6 +8,7 @@ import android.system.Os
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.table.dict.Dictionary
 import org.fcitx.fcitx5.android.data.table.dict.LibIMEDictionary
+import org.fcitx.fcitx5.android.utils.cleanupStagedFileInstalls
 import org.fcitx.fcitx5.android.utils.safeFileName
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
@@ -23,7 +24,10 @@ object TableManager {
 
     private val inputMethodDir = File(
         appContext.externalFilesDirOrFilesDir, "data/inputmethod"
-    ).also { it.mkdirs() }
+    ).also { directory ->
+        directory.mkdirs()
+        cleanupStagedFileInstalls(directory)
+    }
 
     private val tableDicDir = File(
         appContext.externalFilesDirOrFilesDir, "data/table"
