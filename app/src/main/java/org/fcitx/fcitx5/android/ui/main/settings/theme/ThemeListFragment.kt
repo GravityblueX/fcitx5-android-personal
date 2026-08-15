@@ -44,7 +44,7 @@ class ThemeListFragment : Fragment() {
 
     private var followSystemDayNightTheme by ThemeManager.prefs.followSystemDayNightTheme
 
-    private var beingExported: Theme.Custom? = null
+    private lateinit var pendingThemeExport: PendingThemeExport
 
     @Keep
     private val onThemeChangeListener = ThemeManager.OnThemeChangeListener {
@@ -55,6 +55,7 @@ class ThemeListFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingThemeExport = PendingThemeExport(savedInstanceState?.getString(PENDING_EXPORT_NAME))
 
         imageLauncher = registerForActivityResult(CustomThemeActivity.Contract()) { result ->
             if (result == null) return@registerForActivityResult
@@ -113,10 +114,11 @@ class ThemeListFragment : Fragment() {
             }
         exportLauncher =
             registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-                if (uri == null) return@registerForActivityResult
+                val exportedName = pendingThemeExport.consume()
+                if (uri == null || exportedName == null) return@registerForActivityResult
+                val exported = ThemeManager.getTheme(exportedName) as? Theme.Custom
+                    ?: return@registerForActivityResult
                 val ctx = requireContext()
-                val exported = beingExported ?: return@registerForActivityResult
-                beingExported = null
                 lifecycleScope.withLoadingDialog(requireContext()) {
                     try {
                         withContext(Dispatchers.IO) {
@@ -230,12 +232,21 @@ class ThemeListFragment : Fragment() {
     }
 
     private fun exportTheme(theme: Theme.Custom) {
-        beingExported = theme
+        pendingThemeExport.begin(theme.name)
         exportLauncher.launch(theme.name + ".zip")
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(PENDING_EXPORT_NAME, pendingThemeExport.themeName)
+        super.onSaveInstanceState(outState)
     }
 
     override fun onDestroy() {
         ThemeManager.removeOnChangedListener(onThemeChangeListener)
         super.onDestroy()
+    }
+
+    companion object {
+        private const val PENDING_EXPORT_NAME = "pending_export_name"
     }
 }
