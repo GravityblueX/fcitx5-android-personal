@@ -21,10 +21,13 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewModelScope
 import com.google.android.material.color.MaterialColors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.reloadQuickPhrase
@@ -56,15 +59,12 @@ import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.verticalLayout
 import splitties.views.imageDrawable
 import splitties.views.setPaddingDp
-import java.util.concurrent.atomic.AtomicBoolean
 
 class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
 
     private val viewModel: MainViewModel by activityViewModels()
 
     private lateinit var launcher: ActivityResultLauncher<String>
-
-    private val busy: AtomicBoolean = AtomicBoolean(false)
 
     private val dustman = NaiveDustman<Boolean>()
 
@@ -279,27 +279,27 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
     private fun reloadQuickPhrase() {
         if (!dustman.dirty) return
         resetDustman()
-        // save the reference to NotificationManager, in case we need to cancel notification
-        // after Fragment detached
-        val nm = requireContext().notificationManager
-        lifecycleScope.launch {
-            if (busy.compareAndSet(false, true)) {
+        val context = requireContext().applicationContext
+        val nm = context.notificationManager
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_baseline_library_books_24)
+            .setContentTitle(context.getString(R.string.quickphrase_editor))
+            .setContentText(context.getString(R.string.reloading))
+            .setOngoing(true)
+            .setProgress(100, 0, true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+        val connection = viewModel.fcitx
+        viewModel.viewModelScope.launch {
+            reloadMutex.withLock {
                 val id = RELOAD_ID++
                 try {
-                    NotificationCompat.Builder(requireContext(), CHANNEL_ID)
-                        .setSmallIcon(R.drawable.ic_baseline_library_books_24)
-                        .setContentTitle(getString(R.string.quickphrase_editor))
-                        .setContentText(getString(R.string.reloading))
-                        .setOngoing(true)
-                        .setProgress(100, 0, true)
-                        .setPriority(NotificationCompat.PRIORITY_HIGH)
-                        .build().let { nm.notify(id, it) }
-                    viewModel.fcitx.runOnReady {
+                    nm.notify(id, notification)
+                    connection.runOnReady {
                         reloadQuickPhrase()
                     }
                 } finally {
                     nm.cancel(id)
-                    busy.set(false)
                 }
             }
         }
@@ -371,6 +371,7 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
     }
 
     companion object {
+        private val reloadMutex = Mutex()
         private var RELOAD_ID = 0
         private var IMPORT_ID = 0
         const val CHANNEL_ID = "quickphrase"
