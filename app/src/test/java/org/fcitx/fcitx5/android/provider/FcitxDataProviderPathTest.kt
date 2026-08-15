@@ -24,6 +24,18 @@ class FcitxDataProviderPathTest {
     }
 
     @Test
+    fun rejectsCanonicalPathRedirections() {
+        val root = File("provider-root").absoluteFile
+        val direct = root.resolve("direct")
+        val redirected = object : File(root, "linked") {
+            override fun getCanonicalFile(): File = root.resolve("target")
+        }
+
+        assertTrue(isUnredirectedPath(direct))
+        assertFalse(isUnredirectedPath(redirected))
+    }
+
+    @Test
     fun insertsConflictSuffixBeforeFileExtension() {
         assertEquals(
             "sample.main (2).dict",

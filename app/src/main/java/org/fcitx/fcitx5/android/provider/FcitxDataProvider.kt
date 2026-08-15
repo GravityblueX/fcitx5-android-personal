@@ -24,6 +24,10 @@ import java.io.IOException
 internal fun isSameOrDescendant(file: File, directory: File): Boolean =
     file == directory || file.path.startsWith("${directory.path}${File.separator}")
 
+internal fun isUnredirectedPath(file: File): Boolean = runCatching {
+    file.canonicalFile == file.absoluteFile.normalize()
+}.getOrDefault(false)
+
 internal fun documentNameWithConflictSuffix(
     displayName: String,
     conflictId: Int,
@@ -102,6 +106,9 @@ class FcitxDataProvider : DocumentsProvider() {
         isSameOrDescendant(file.canonicalFile, baseDir)
     }.getOrDefault(false)
 
+    private fun isSafeDocumentPath(file: File): Boolean =
+        isUnredirectedPath(file) && isWithinBaseDir(file)
+
     @Throws(FileNotFoundException::class)
     private fun requireNonRootDocument(file: File, documentId: String) {
         if (file == baseDir) {
@@ -111,7 +118,11 @@ class FcitxDataProvider : DocumentsProvider() {
 
     @Throws(FileNotFoundException::class)
     private fun fileFromDocId(docId: String): File {
-        val file = File(docIdPrefix, docId).canonicalFile
+        val requested = File(docIdPrefix, docId)
+        if (!isUnredirectedPath(requested)) {
+            throw FileNotFoundException("documentId=$docId redirects through a symbolic link")
+        }
+        val file = requested.canonicalFile
         if (!isWithinBaseDir(file)) {
             throw FileNotFoundException("documentId=$docId is outside the data directory")
         }
@@ -151,7 +162,7 @@ class FcitxDataProvider : DocumentsProvider() {
         sortOrder: String?
     ) = MatrixCursor(projection ?: DEFAULT_DOCUMENT_PROJECTION).apply {
         fileFromDocId(parentDocumentId).listFiles()
-            ?.filter(::isWithinBaseDir)
+            ?.filter(::isSafeDocumentPath)
             ?.forEach { newRowFromFile(it) }
     }
 
@@ -227,12 +238,12 @@ class FcitxDataProvider : DocumentsProvider() {
     }
 
     private fun copyWithinBaseDir(source: File, destination: File): Boolean {
-        if (!isWithinBaseDir(source)) return false
+        if (!isSafeDocumentPath(source)) return false
         if (!source.isDirectory) return source.copyTo(destination).exists()
         if (!destination.mkdir()) return false
         val children = source.listFiles() ?: return false
         return children
-            .filter(::isWithinBaseDir)
+            .filter(::isSafeDocumentPath)
             .all { child -> copyWithinBaseDir(child, destination.resolve(child.name)) }
     }
 
@@ -305,8 +316,8 @@ class FcitxDataProvider : DocumentsProvider() {
     ) = MatrixCursor(projection ?: DEFAULT_DOCUMENT_PROJECTION).apply {
         val q = query.lowercase()
         fileFromDocId(rootId).walkTopDown()
-            .onEnter(::isWithinBaseDir)
-            .filter { isWithinBaseDir(it) && it.name.lowercase().contains(q) }
+            .onEnter(::isSafeDocumentPath)
+            .filter { isSafeDocumentPath(it) && it.name.lowercase().contains(q) }
             .take(SEARCH_RESULTS_LIMIT)
             .forEach { newRowFromFile(it) }
     }
