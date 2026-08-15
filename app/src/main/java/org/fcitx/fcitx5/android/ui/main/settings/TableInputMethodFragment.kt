@@ -58,7 +58,7 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
     private var confUri: Uri? = null
     private var dictUri: Uri? = null
     private var filesSelectionDialog: AlertDialog? = null
-    private var tableToReplace: TableBasedInputMethod? = null
+    private lateinit var pendingTableReplacement: PendingTableReplacement
 
     private val dustman = NaiveDustman<TableBasedInputMethod>()
 
@@ -75,7 +75,6 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
                     if (it.tableFileExists) drawable(R.drawable.ic_baseline_edit_24)
                     else styledDrawable(android.R.attr.alertDialogIcon)
                 setOnClickListener { _ ->
-                    tableToReplace = it
                     lifecycleScope.launch {
                         if (it.tableFileExists) {
                             showReplaceTableDialog(it)
@@ -118,9 +117,17 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        pendingTableReplacement = PendingTableReplacement(
+            savedInstanceState?.getString(PENDING_TABLE_REPLACEMENT)
+        )
         createNotificationChannel()
         registerLauncher()
-        super.onCreate(savedInstanceState)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(PENDING_TABLE_REPLACEMENT, pendingTableReplacement.configFileName)
+        super.onSaveInstanceState(outState)
     }
 
     override fun onCreateView(
@@ -172,7 +179,11 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
             if (uri != null) prepareDictFromUri(uri)
         }
         replaceLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-            if (uri != null) replaceDictFromUri(uri)
+            val configFileName = pendingTableReplacement.consume()
+            if (uri == null || configFileName == null) return@registerForActivityResult
+            val inputMethod = ui.entries.find { it.file.name == configFileName }
+                ?: return@registerForActivityResult
+            replaceDictFromUri(uri, inputMethod)
         }
     }
 
@@ -335,12 +346,10 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
         }
     }
 
-    private fun replaceDictFromUri(uri: Uri) {
+    private fun replaceDictFromUri(uri: Uri, im: TableBasedInputMethod) {
         val ctx = requireContext()
         val cr = ctx.contentResolver
         val nm = ctx.notificationManager
-        val im = tableToReplace ?: return
-        tableToReplace = null
         lifecycleScope.launch {
             val importId = IMPORT_ID++
             val dictName = cr.queryFileName(uri) ?: return@launch
@@ -378,7 +387,7 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
             .setTitle(R.string.update_table)
             .setMessage(getString(R.string.table_dict_replace_message, im.tableFileName))
             .setNeutralButton(R.string.table_file_placeholder) { _, _ ->
-                replaceLauncher.launch("*/*")
+                launchTableReplacement(im)
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -391,9 +400,14 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
             .setMessage(getString(R.string.table_file_does_not_exist_message, im.tableFileName))
             .setPositiveButton(android.R.string.ok, null)
             .setNeutralButton(R.string.table_file_placeholder) { _, _ ->
-                replaceLauncher.launch("*/*")
+                launchTableReplacement(im)
             }
             .show()
+    }
+
+    private fun launchTableReplacement(im: TableBasedInputMethod) {
+        pendingTableReplacement.begin(im.file.name)
+        replaceLauncher.launch("*/*")
     }
 
     private fun reloadConfig() {
@@ -441,6 +455,7 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
 
     companion object {
         private var IMPORT_ID = 0
+        private const val PENDING_TABLE_REPLACEMENT = "pending_table_replacement"
         const val CHANNEL_ID = "table_dict"
     }
 }
