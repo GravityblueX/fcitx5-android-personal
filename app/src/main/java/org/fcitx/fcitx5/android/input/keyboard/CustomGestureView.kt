@@ -117,14 +117,12 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
     override fun setEnabled(enabled: Boolean) {
         super.setEnabled(enabled)
         if (!enabled) {
-            cancelGestureJobs()
-            isPressed = false
+            cancelGestures()
         }
     }
 
     override fun onDetachedFromWindow() {
-        cancelGestureJobs()
-        isPressed = false
+        cancelGestures()
         super.onDetachedFromWindow()
     }
 
@@ -164,9 +162,19 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
             swipeYUnconsumed = 0f
             swipeTotalX = 0
             swipeTotalY = 0
-            gestureConsumed = false
         }
+        gestureConsumed = false
         // double tap state should be preserved on touch up
+    }
+
+    fun cancelGestures() {
+        isPressed = false
+        cancelGestureJobs()
+        resetState()
+        if (doubleTapEnabled) {
+            maybeDoubleTap = false
+            lastClickTime = 0
+        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -266,14 +274,8 @@ open class CustomGestureView(ctx: Context) : FrameLayout(ctx) {
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
-                isPressed = false
                 dispatchGestureEvent(GestureType.Up, event.x, event.y)
-                resetState()
-                // reset double tap state on cancel
-                if (doubleTapEnabled) {
-                    maybeDoubleTap = false
-                    lastClickTime = 0
-                }
+                cancelGestures()
                 return true
             }
         }
