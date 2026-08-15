@@ -30,7 +30,7 @@ class CustomQuickPhrase(
 
     override val name: String
         get() = if (isEnabled) super.name
-        else file.name.substringBefore(".$EXT.$DISABLE")
+        else file.name.removeSuffix(".$EXT.$DISABLE")
 
     override fun loadData() = QuickPhraseData.fromLines(file.readLines())
 

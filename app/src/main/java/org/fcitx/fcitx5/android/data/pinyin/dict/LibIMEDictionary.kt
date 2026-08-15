@@ -21,7 +21,7 @@ class LibIMEDictionary(file: File) : PinyinDictionary() {
 
     override val name: String
         get() = if (isEnabled) super.name
-        else file.name.substringBefore(".${type.ext}.$DISABLE")
+        else file.name.removeSuffix(".${type.ext}.$DISABLE")
 
     init {
         ensureFileExists()
