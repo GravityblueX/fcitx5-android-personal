@@ -31,7 +31,10 @@ class BuiltinQuickPhrase(
         }
 
     override val isEnabled: Boolean
-        get() = override?.isEnabled ?: true
+        get() {
+            evaluateOverride()
+            return override?.isEnabled ?: true
+        }
 
     private fun createOverrideIfNotExist() {
         evaluateOverride()
@@ -52,7 +55,10 @@ class BuiltinQuickPhrase(
 
     private fun loadBuiltinData() = QuickPhraseData.fromLines(file.readLines())
 
-    override fun loadData() = override?.loadData() ?: loadBuiltinData()
+    override fun loadData(): QuickPhraseData {
+        evaluateOverride()
+        return override?.loadData() ?: loadBuiltinData()
+    }
 
     override fun saveData(data: QuickPhraseData) {
         createOverrideIfNotExist()
