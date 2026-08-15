@@ -7,9 +7,12 @@ package org.fcitx.fcitx5.android.ui.main.settings.im
 import android.os.Build
 import android.view.View
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.fcitx.fcitx5.android.core.InputMethodEntry
 import org.fcitx.fcitx5.android.core.SubtypeManager
-import org.fcitx.fcitx5.android.daemon.launchOnReady
 import org.fcitx.fcitx5.android.input.handwriting.HandwritingWindow
 import org.fcitx.fcitx5.android.ui.common.BaseDynamicListUi
 import org.fcitx.fcitx5.android.ui.common.DynamicListUi
@@ -23,11 +26,16 @@ import org.fcitx.fcitx5.android.utils.navigateWithAnim
 class InputMethodListFragment : ProgressFragment(), OnItemChangedListener<InputMethodEntry> {
 
     private fun updateIMState() {
-        if (isInitialized) {
-            fcitx.launchOnReady { f ->
-                f.setEnabledIme(ui.entries.map { it.uniqueName }.toTypedArray())
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    SubtypeManager.syncWith(f.enabledIme())
+        if (!isInitialized) return
+        val enabledInputMethods = ui.entries.map { it.uniqueName }.toTypedArray()
+        val connection = fcitx
+        viewModel.viewModelScope.launch {
+            updateMutex.withLock {
+                connection.runOnReady {
+                    setEnabledIme(enabledInputMethods)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        SubtypeManager.syncWith(enabledIme())
+                    }
                 }
             }
         }
@@ -107,5 +115,9 @@ class InputMethodListFragment : ProgressFragment(), OnItemChangedListener<InputM
 
     override fun onItemUpdated(idx: Int, old: InputMethodEntry, new: InputMethodEntry) {
         updateIMState()
+    }
+
+    companion object {
+        private val updateMutex = Mutex()
     }
 }
