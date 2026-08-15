@@ -206,7 +206,7 @@ object PreferenceScreenFactory {
                 setDefaultValue(descriptor.defaultValue)
             }
             is ConfigEnum -> ListPreference(context).apply {
-                entries = (descriptor.entriesI18n ?: descriptor.entries).toTypedArray()
+                entries = enumEntryLabels(descriptor.entries, descriptor.entriesI18n).toTypedArray()
                 entryValues = descriptor.entries.toTypedArray()
                 summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
                 setDefaultValue(descriptor.defaultValue)

@@ -51,7 +51,7 @@ class ListFragment : Fragment() {
                     },
                     initialEntries = cfg.subItems?.map { it.value } ?: listOf(),
                     enableOrder = true,
-                    show = { d.entriesI18n?.get(d.entries.indexOf(it)) ?: it }
+                    show = { enumListEntryLabel(it, d.entries, d.entriesI18n) }
                 )
             }
             is ConfigDescriptor.ConfigList -> {
