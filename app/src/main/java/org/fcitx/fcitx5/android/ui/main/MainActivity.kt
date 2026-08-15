@@ -7,11 +7,13 @@ package org.fcitx.fcitx5.android.ui.main
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.ViewGroup
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.graphics.drawable.DrawerArrowDrawable
 import androidx.core.view.ViewCompat
@@ -39,8 +41,15 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var navController: NavController
 
+    private lateinit var pendingPinyinDictionaryImport: PendingPinyinDictionaryImport
+
+    private var pinyinDictionaryImportDialog: AlertDialog? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingPinyinDictionaryImport = PendingPinyinDictionaryImport(
+            savedInstanceState?.getString(PENDING_PINYIN_DICTIONARY_URI)
+        )
         enableEdgeToEdge()
         val binding = ActivityMainBinding.inflate(layoutInflater)
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, windowInsets ->
@@ -75,8 +84,15 @@ class MainActivity : AppCompatActivity() {
         }
         if (savedInstanceState == null) {
             processIntent(intent)
+        } else if (pendingPinyinDictionaryImport.uri != null) {
+            showPinyinDictionaryImportDialog()
         }
         checkNotificationPermission()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(PENDING_PINYIN_DICTIONARY_URI, pendingPinyinDictionaryImport.uri)
+        super.onSaveInstanceState(outState)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -102,15 +118,8 @@ class MainActivity : AppCompatActivity() {
                 startActivity<SetupActivity>()
             }
             Intent.ACTION_VIEW -> intent.data?.let {
-                MaterialAlertDialogBuilder(this)
-                    .setTitle(R.string.pinyin_dict)
-                    .setMessage(R.string.whether_import_dict)
-                    .setNegativeButton(android.R.string.cancel) { _, _ -> }
-                    .setPositiveButton(android.R.string.ok) { _, _ ->
-                        navController.popBackStack(SettingsRoute.Index, false)
-                        navController.navigateWithAnim(SettingsRoute.PinyinDict(it))
-                    }
-                    .show()
+                pendingPinyinDictionaryImport.begin(it.toString())
+                showPinyinDictionaryImportDialog()
             }
             Intent.ACTION_RUN -> {
                 val route = intent.parcelable<SettingsRoute>(EXTRA_SETTINGS_ROUTE) ?: return
@@ -119,6 +128,26 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
+    private fun showPinyinDictionaryImportDialog() {
+        val uri = pendingPinyinDictionaryImport.uri?.let(Uri::parse) ?: return
+        pinyinDictionaryImportDialog?.dismiss()
+        pinyinDictionaryImportDialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.pinyin_dict)
+            .setMessage(R.string.whether_import_dict)
+            .setNegativeButton(android.R.string.cancel) { _, _ ->
+                pendingPinyinDictionaryImport.clear()
+            }
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                pendingPinyinDictionaryImport.consume()
+                navController.popBackStack(SettingsRoute.Index, false)
+                navController.navigateWithAnim(SettingsRoute.PinyinDict(uri))
+            }
+            .setOnCancelListener { pendingPinyinDictionaryImport.clear() }
+            .setOnDismissListener { pinyinDictionaryImportDialog = null }
+            .show()
+    }
+
     private var needNotifications by AppPrefs.getInstance().internal.needNotifications
 
     private fun checkNotificationPermission() {
@@ -165,6 +194,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val PENDING_PINYIN_DICTIONARY_URI = "pending_pinyin_dictionary_uri"
         const val EXTRA_SETTINGS_ROUTE = "${BuildConfig.APPLICATION_ID}.EXTRA_SETTINGS_ROUTE"
     }
 
