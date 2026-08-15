@@ -24,6 +24,24 @@ import java.io.IOException
 internal fun isSameOrDescendant(file: File, directory: File): Boolean =
     file == directory || file.path.startsWith("${directory.path}${File.separator}")
 
+internal fun documentNameWithConflictSuffix(
+    displayName: String,
+    conflictId: Int,
+    isDirectory: Boolean,
+): String {
+    require(conflictId >= 2)
+    val extensionIndex = displayName.lastIndexOf('.')
+    val hasExtension = !isDirectory &&
+            extensionIndex > 0 &&
+            extensionIndex < displayName.lastIndex &&
+            displayName.take(extensionIndex).any { it != '.' }
+    return if (hasExtension) {
+        "${displayName.substring(0, extensionIndex)} ($conflictId)${displayName.substring(extensionIndex)}"
+    } else {
+        "$displayName ($conflictId)"
+    }
+}
+
 class FcitxDataProvider : DocumentsProvider() {
 
     companion object {
@@ -165,7 +183,11 @@ class FcitxDataProvider : DocumentsProvider() {
         mimeType: String,
         displayName: String
     ): String {
-        val newFile = createAbstractFile(parentDocumentId, displayName)
+        val newFile = createAbstractFile(
+            parentDocumentId,
+            displayName,
+            mimeType == Document.MIME_TYPE_DIR
+        )
         try {
             val ok = if (mimeType == Document.MIME_TYPE_DIR) {
                 newFile.mkdir()
@@ -222,7 +244,7 @@ class FcitxDataProvider : DocumentsProvider() {
         if (oldFile.isDirectory && isSameOrDescendant(targetParent, oldFile)) {
             throw FileNotFoundException("copyDocument id=$sourceDocumentId into itself is not allowed")
         }
-        val newFile = createAbstractFile(targetParent, oldFile.name)
+        val newFile = createAbstractFile(targetParent, oldFile.name, oldFile.isDirectory)
         try {
             val copied = copyWithinBaseDir(oldFile, newFile)
             if (!copied) {
@@ -268,7 +290,7 @@ class FcitxDataProvider : DocumentsProvider() {
         if (oldFile.isDirectory && isSameOrDescendant(targetParent, oldFile)) {
             throw FileNotFoundException("moveDocument id=$sourceDocumentId into itself is not allowed")
         }
-        val newFile = createAbstractFile(targetParent, oldFile.name)
+        val newFile = createAbstractFile(targetParent, oldFile.name, oldFile.isDirectory)
         if (!oldFile.renameTo(newFile)) {
             throw FileNotFoundException("moveDocument id=$sourceDocumentId to ${newFile.docId} failed")
         }
@@ -297,16 +319,22 @@ class FcitxDataProvider : DocumentsProvider() {
             else -> MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: MIME_TYPE_BIN
         }
 
-    private fun createAbstractFile(parentDocumentId: String, displayName: String): File {
-        return createAbstractFile(fileFromDocId(parentDocumentId), displayName)
+    private fun createAbstractFile(
+        parentDocumentId: String,
+        displayName: String,
+        isDirectory: Boolean,
+    ): File {
+        return createAbstractFile(fileFromDocId(parentDocumentId), displayName, isDirectory)
     }
 
-    private fun createAbstractFile(parent: File, displayName: String): File {
+    private fun createAbstractFile(parent: File, displayName: String, isDirectory: Boolean): File {
         val safeName = displayName.safeFileName()
         var newFile = parent.resolve(safeName)
         var noConflictId = 2
         while (newFile.exists()) {
-            newFile = parent.resolve("$safeName ($noConflictId)")
+            newFile = parent.resolve(
+                documentNameWithConflictSuffix(safeName, noConflictId, isDirectory)
+            )
             noConflictId += 1
         }
         return newFile
