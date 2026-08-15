@@ -55,10 +55,9 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
     private lateinit var dictLauncher: ActivityResultLauncher<String>
     private lateinit var replaceLauncher: ActivityResultLauncher<String>
 
-    private var confUri: Uri? = null
-    private var dictUri: Uri? = null
     private var filesSelectionDialog: AlertDialog? = null
     private lateinit var pendingTableReplacement: PendingTableReplacement
+    private lateinit var filesSelectionState: TableFilesSelectionState
 
     private val dustman = NaiveDustman<TableBasedInputMethod>()
 
@@ -121,12 +120,22 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
         pendingTableReplacement = PendingTableReplacement(
             savedInstanceState?.getString(PENDING_TABLE_REPLACEMENT)
         )
+        filesSelectionState = TableFilesSelectionState(
+            confUri = savedInstanceState?.getString(SELECTED_CONF_URI),
+            confFileName = savedInstanceState?.getString(SELECTED_CONF_NAME),
+            dictUri = savedInstanceState?.getString(SELECTED_DICT_URI),
+            dictFileName = savedInstanceState?.getString(SELECTED_DICT_NAME),
+        )
         createNotificationChannel()
         registerLauncher()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString(PENDING_TABLE_REPLACEMENT, pendingTableReplacement.configFileName)
+        outState.putString(SELECTED_CONF_URI, filesSelectionState.confUri)
+        outState.putString(SELECTED_CONF_NAME, filesSelectionState.confFileName)
+        outState.putString(SELECTED_DICT_URI, filesSelectionState.dictUri)
+        outState.putString(SELECTED_DICT_NAME, filesSelectionState.dictFileName)
         super.onSaveInstanceState(outState)
     }
 
@@ -155,6 +164,9 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
             viewLifecycleOwner,
             Lifecycle.State.STARTED
         )
+        if (filesSelectionState.hasSelection) {
+            showFilesSelectionDialog(resetSelection = false)
+        }
     }
 
     private fun createNotificationChannel() {
@@ -205,18 +217,23 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
             .show()
     }
 
-    private fun showFilesSelectionDialog() {
+    private fun showFilesSelectionDialog(resetSelection: Boolean = true) {
         filesSelectionDialog?.dismiss()
-        confUri = null
-        dictUri = null
+        if (resetSelection) {
+            filesSelectionState.clear()
+        }
         filesSelectionUi.reset()
+        filesSelectionState.confFileName?.let { filesSelectionUi.conf.summary.text = it }
+        filesSelectionState.dictFileName?.let { filesSelectionUi.dict.summary.text = it }
         filesSelectionDialog = MaterialAlertDialogBuilder(requireContext())
             .setTitle(R.string.import_table)
             .setView(filesSelectionUi.root)
             .setPositiveButton(android.R.string.ok, null)
-            .setNegativeButton(android.R.string.cancel, null)
+            .setNegativeButton(android.R.string.cancel) { _, _ -> filesSelectionState.clear() }
+            .setOnCancelListener { filesSelectionState.clear() }
             .setOnDismissListener {
                 (filesSelectionUi.root.parent as? ViewGroup)?.removeView(filesSelectionUi.root)
+                filesSelectionDialog = null
             }
             .show()
             .onPositiveButtonClick {
@@ -231,7 +248,7 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
     private fun updateFilesSelectionDialogButton(importing: Boolean = false) {
         filesSelectionDialog?.apply {
             positiveButton.isEnabled =
-                if (importing) false else (confUri != null && dictUri != null)
+                if (importing) false else filesSelectionState.isComplete
         }
     }
 
@@ -282,7 +299,10 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
                 ctx.importErrorDialog(R.string.exception_table_conf_filename, fileName)
                 return@launch
             }
-            confUri = uri
+            filesSelectionState.selectConf(uri.toString(), fileName)
+            if (filesSelectionDialog == null) {
+                showFilesSelectionDialog(resetSelection = false)
+            }
             filesSelectionUi.conf.summary.text = fileName
             updateFilesSelectionDialogButton()
         }
@@ -296,7 +316,10 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
                 ctx.importErrorDialog(R.string.exception_table_dict_filename, fileName)
                 return@launch
             }
-            dictUri = uri
+            filesSelectionState.selectDict(uri.toString(), fileName)
+            if (filesSelectionDialog == null) {
+                showFilesSelectionDialog(resetSelection = false)
+            }
             filesSelectionUi.dict.summary.text = fileName
             updateFilesSelectionDialogButton()
         }
@@ -306,8 +329,8 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
         val ctx = requireContext()
         val cr = ctx.contentResolver
         val nm = ctx.notificationManager
-        val confUri = this@TableInputMethodFragment.confUri
-        val dictUri = this@TableInputMethodFragment.dictUri
+        val confUri = filesSelectionState.confUri?.let(Uri::parse)
+        val dictUri = filesSelectionState.dictUri?.let(Uri::parse)
         if (confUri == null || dictUri == null) {
             lifecycleScope.launch {
                 ctx.importErrorDialog(R.string.exception_table_import_both_files)
@@ -316,9 +339,9 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
         }
         lifecycleScope.launch {
             val importId = IMPORT_ID++
-            val confName = cr.queryFileName(confUri) ?: return@launch
-            val dictName = cr.queryFileName(dictUri) ?: return@launch
             try {
+                val confName = cr.queryFileName(confUri) ?: return@launch
+                val dictName = cr.queryFileName(dictUri) ?: return@launch
                 NotificationCompat.Builder(ctx, CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_baseline_library_books_24)
                     .setContentTitle(getString(R.string.table_im))
@@ -335,6 +358,7 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
                         .getOrThrow()
                 }
                 dismissFilesSelectionDialog()
+                filesSelectionState.clear()
                 ui.addItem(item = imported)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -456,6 +480,10 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
     companion object {
         private var IMPORT_ID = 0
         private const val PENDING_TABLE_REPLACEMENT = "pending_table_replacement"
+        private const val SELECTED_CONF_URI = "selected_conf_uri"
+        private const val SELECTED_CONF_NAME = "selected_conf_name"
+        private const val SELECTED_DICT_URI = "selected_dict_uri"
+        private const val SELECTED_DICT_NAME = "selected_dict_name"
         const val CHANNEL_ID = "table_dict"
     }
 }
