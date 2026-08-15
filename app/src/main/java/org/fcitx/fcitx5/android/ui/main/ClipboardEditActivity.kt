@@ -11,6 +11,7 @@ import android.view.Gravity
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -24,49 +25,76 @@ class ClipboardEditActivity : Activity() {
 
     private val scope: CoroutineScope = MainScope()
 
+    private lateinit var binding: ActivityClipboardEditBinding
+
     private lateinit var editText: EditText
 
     private var entryId: Int = -1
 
+    private var loadGeneration = 0L
+
+    private var loadJob: Job? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.attributes.gravity = Gravity.TOP
-        val binding = ActivityClipboardEditBinding.inflate(layoutInflater).apply {
+        binding = ActivityClipboardEditBinding.inflate(layoutInflater).apply {
             editText = clipboardEditText
             clipboardEditCancel.setOnClickListener { finish() }
             clipboardEditOk.setOnClickListener { finishEditing() }
             clipboardEditCopy.setOnClickListener { finishEditing(copy = true) }
         }
         setContentView(binding.root)
-        inputMethodManager.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
         processIntent(intent)
     }
 
     private fun finishEditing(copy: Boolean = false) {
+        if (entryId < 0) return
         val str = editText.str
         ClipboardManager.updateTextAsync(entryId, str, copy)
         finish()
     }
 
+    private fun setEditingEnabled(enabled: Boolean) {
+        editText.isEnabled = enabled
+        binding.clipboardEditOk.isEnabled = enabled
+        binding.clipboardEditCopy.isEnabled = enabled
+    }
+
     private fun setEntry(entry: ClipboardEntry) {
         entryId = entry.id
         editText.setText(entry.text)
+        setEditingEnabled(true)
+        editText.requestFocus()
+        inputMethodManager.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         processIntent(intent)
     }
 
     private fun processIntent(intent: Intent) {
-        scope.launch {
-            intent.run {
+        val generation = ++loadGeneration
+        loadJob?.cancel()
+        entryId = -1
+        editText.text.clear()
+        setEditingEnabled(false)
+        loadJob = scope.launch {
+            val entry = intent.run {
                 if (getBooleanExtra(LAST_ENTRY, false)) {
                     ClipboardManager.lastEntry
                 } else {
                     ClipboardManager.get(getIntExtra(ENTRY_ID, -1))
                 }
-            }?.let { setEntry(it) }
+            }
+            if (generation != loadGeneration) return@launch
+            if (entry == null) {
+                finish()
+                return@launch
+            }
+            setEntry(entry)
         }
     }
 
