@@ -49,15 +49,26 @@ abstract class PinyinDictionary {
             throw IllegalStateException("File ${file.absolutePath} does not exist")
     }
 
-    protected fun ensureTxt(dest: File) {
+    protected fun isSameFile(dest: File): Boolean =
+        file.canonicalFile == dest.canonicalFile
+
+    protected fun requireTxt(dest: File) {
         if (dest.extension != Type.Text.ext)
             throw IllegalArgumentException("Dest file name must end with .${Type.Text.ext}")
+    }
+
+    protected fun ensureTxt(dest: File) {
+        requireTxt(dest)
         dest.delete()
     }
 
-    protected fun ensureBin(dest: File) {
+    protected fun requireBin(dest: File) {
         if (dest.extension != Type.LibIME.ext)
             throw IllegalArgumentException("Dest file name must end with .${Type.LibIME.ext}")
+    }
+
+    protected fun ensureBin(dest: File) {
+        requireBin(dest)
         dest.delete()
     }
 

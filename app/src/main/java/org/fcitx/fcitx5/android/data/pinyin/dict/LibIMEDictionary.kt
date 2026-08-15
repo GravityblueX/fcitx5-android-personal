@@ -65,6 +65,10 @@ class LibIMEDictionary(file: File) : PinyinDictionary() {
     }
 
     override fun toLibIMEDictionary(dest: File): LibIMEDictionary {
+        if (isSameFile(dest)) {
+            requireBin(dest)
+            return this
+        }
         ensureBin(dest)
         file.copyTo(dest)
         return LibIMEDictionary(dest)

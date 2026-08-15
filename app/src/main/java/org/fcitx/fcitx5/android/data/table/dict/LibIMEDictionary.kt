@@ -33,6 +33,10 @@ class LibIMEDictionary(file: File) : Dictionary() {
     }
 
     override fun toLibIMEDictionary(dest: File): LibIMEDictionary {
+        if (isSameFile(dest)) {
+            requireBin(dest)
+            return this
+        }
         ensureBin(dest)
         TableManager.checkTableDictFormat(file.absolutePath)
         file.copyTo(dest)

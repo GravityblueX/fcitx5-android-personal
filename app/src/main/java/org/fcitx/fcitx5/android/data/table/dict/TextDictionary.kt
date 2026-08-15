@@ -23,6 +23,10 @@ class TextDictionary(file: File) : Dictionary() {
     }
 
     override fun toTextDictionary(dest: File): TextDictionary {
+        if (isSameFile(dest)) {
+            requireTxt(dest)
+            return this
+        }
         ensureTxt(dest)
         file.copyTo(dest)
         return TextDictionary(dest)
