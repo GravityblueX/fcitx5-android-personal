@@ -53,6 +53,8 @@ class PinyinDictionaryFragment : Fragment(), OnItemChangedListener<PinyinDiction
 
     private lateinit var launcher: ActivityResultLauncher<String>
 
+    private lateinit var pendingRouteImport: PendingPinyinDictionaryRouteImport
+
     private val dustman = NaiveDustman<Boolean>()
 
     private var uiInitialized = false
@@ -104,7 +106,20 @@ class PinyinDictionaryFragment : Fragment(), OnItemChangedListener<PinyinDiction
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val restoredRouteImport = savedInstanceState?.containsKey(PENDING_ROUTE_IMPORT_URI) == true
+        pendingRouteImport = PendingPinyinDictionaryRouteImport(
+            if (restoredRouteImport) {
+                savedInstanceState.getString(PENDING_ROUTE_IMPORT_URI)
+            } else {
+                args.uri
+            }
+        )
         registerLauncher()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(PENDING_ROUTE_IMPORT_URI, pendingRouteImport.uri)
+        super.onSaveInstanceState(outState)
     }
 
     override fun onCreateView(
@@ -118,7 +133,11 @@ class PinyinDictionaryFragment : Fragment(), OnItemChangedListener<PinyinDiction
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        args.uri?.let { importFromUri(Uri.parse(it)) }
+        pendingRouteImport.start()?.let { uri ->
+            importFromUri(Uri.parse(uri)) { shouldRetry ->
+                pendingRouteImport.finish(shouldRetry)
+            }
+        }
         super.onViewCreated(view, savedInstanceState)
         viewModel.toolbarButton.value =
             if (ui.entries.isNotEmpty()) ButtonMode.EDIT else ButtonMode.NONE
@@ -153,32 +172,36 @@ class PinyinDictionaryFragment : Fragment(), OnItemChangedListener<PinyinDiction
         }
     }
 
-    private fun importFromUri(uri: Uri) {
+    private fun importFromUri(
+        uri: Uri,
+        onFinished: ((shouldRetry: Boolean) -> Unit)? = null,
+    ) {
         val ctx = requireContext()
         val cr = ctx.contentResolver
         val nm = ctx.notificationManager
         lifecycleScope.launch {
             val id = IMPORT_ID++
-            val fileName = cr.queryFileName(uri) ?: return@launch
-            val importTarget = pinyinDictionaryImportTarget(fileName)
-            if (importTarget == null) {
-                ctx.importErrorDialog(R.string.invalid_dict)
-                return@launch
-            }
-            val entryName = importTarget.entryName
-            if (ui.entries.any { it.name == entryName }) {
-                ctx.importErrorDialog(R.string.dict_already_exists)
-                return@launch
-            }
-            NotificationCompat.Builder(ctx, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_baseline_library_books_24)
-                .setContentTitle(getString(R.string.pinyin_dict))
-                .setContentText("${getString(R.string.importing)} $entryName")
-                .setOngoing(true)
-                .setProgress(100, 0, true)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .build().let { nm.notify(id, it) }
+            var shouldRetry = false
             try {
+                val fileName = cr.queryFileName(uri) ?: return@launch
+                val importTarget = pinyinDictionaryImportTarget(fileName)
+                if (importTarget == null) {
+                    ctx.importErrorDialog(R.string.invalid_dict)
+                    return@launch
+                }
+                val entryName = importTarget.entryName
+                if (ui.entries.any { it.name == entryName }) {
+                    ctx.importErrorDialog(R.string.dict_already_exists)
+                    return@launch
+                }
+                NotificationCompat.Builder(ctx, CHANNEL_ID)
+                    .setSmallIcon(R.drawable.ic_baseline_library_books_24)
+                    .setContentTitle(getString(R.string.pinyin_dict))
+                    .setContentText("${getString(R.string.importing)} $entryName")
+                    .setOngoing(true)
+                    .setProgress(100, 0, true)
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .build().let { nm.notify(id, it) }
                 val imported = withContext(Dispatchers.IO) {
                     val inputStream = cr.requireInputStream(uri)
                     PinyinDictManager.importFromInputStream(inputStream, importTarget.sourceFileName)
@@ -186,10 +209,17 @@ class PinyinDictionaryFragment : Fragment(), OnItemChangedListener<PinyinDiction
                 }
                 ui.addItem(item = imported)
             } catch (e: Exception) {
-                if (e is CancellationException) throw e
+                if (e is CancellationException) {
+                    shouldRetry = true
+                    throw e
+                }
                 ctx.importErrorDialog(e)
             } finally {
-                nm.cancel(id)
+                try {
+                    nm.cancel(id)
+                } finally {
+                    onFinished?.invoke(shouldRetry)
+                }
             }
         }
     }
@@ -267,6 +297,7 @@ class PinyinDictionaryFragment : Fragment(), OnItemChangedListener<PinyinDiction
         private val reloadMutex = Mutex()
         private var RELOAD_ID = 0
         private var IMPORT_ID = 0
+        private const val PENDING_ROUTE_IMPORT_URI = "pending_route_import_uri"
         const val CHANNEL_ID = "pinyin_dict"
     }
 }

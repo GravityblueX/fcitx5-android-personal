@@ -111,7 +111,7 @@ object PreferenceScreenFactory {
 
         fun pinyinDictionary() = Preference(context).apply {
             setOnPreferenceClickListener {
-                navigate(SettingsRoute.PinyinDict(""))
+                navigate(SettingsRoute.PinyinDict())
             }
         }
 
