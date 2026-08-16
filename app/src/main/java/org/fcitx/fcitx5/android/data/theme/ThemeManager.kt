@@ -96,13 +96,13 @@ object ThemeManager {
         }
     }
 
-    fun deleteTheme(name: String) {
-        customThemes.find { it.name == name }?.also {
-            ThemeFilesManager.deleteThemeFiles(it)
-            customThemes.remove(it)
-        }
-        if (activeTheme.name == name) {
-            activeTheme = evaluateActiveTheme()
+    fun deleteTheme(name: String): Result<Unit> {
+        val theme = customThemes.find { it.name == name } ?: return Result.success(Unit)
+        return ThemeFilesManager.deleteThemeFiles(theme).onSuccess {
+            customThemes.remove(theme)
+            if (activeTheme.name == name) {
+                activeTheme = evaluateActiveTheme()
+            }
         }
     }
 
