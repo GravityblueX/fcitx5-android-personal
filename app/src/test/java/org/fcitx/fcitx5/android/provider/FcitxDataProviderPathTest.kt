@@ -9,6 +9,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
 
 class FcitxDataProviderPathTest {
 
@@ -61,5 +62,37 @@ class FcitxDataProviderPathTest {
             "folder.with.dots (2)",
             documentNameWithConflictSuffix("folder.with.dots", 2, isDirectory = true)
         )
+    }
+
+    @Test
+    fun reservesCopyDestinationsWithoutReplacingExistingEntries() {
+        val root = Files.createTempDirectory("provider-copy-").toFile()
+        try {
+            val existingFile = root.resolve("existing.txt").also { it.writeText("existing") }
+            val existingDirectory = root.resolve("existing-directory").also(File::mkdir)
+
+            assertFalse(reserveDocumentCopyDestination(existingFile, isDirectory = false))
+            assertFalse(reserveDocumentCopyDestination(existingDirectory, isDirectory = true))
+            assertEquals("existing", existingFile.readText())
+            assertTrue(existingDirectory.isDirectory)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun reservesCopyDestinationWithRequestedType() {
+        val root = Files.createTempDirectory("provider-copy-").toFile()
+        try {
+            val file = root.resolve("new.txt")
+            val directory = root.resolve("new-directory")
+
+            assertTrue(reserveDocumentCopyDestination(file, isDirectory = false))
+            assertTrue(reserveDocumentCopyDestination(directory, isDirectory = true))
+            assertTrue(file.isFile)
+            assertTrue(directory.isDirectory)
+        } finally {
+            root.deleteRecursively()
+        }
     }
 }

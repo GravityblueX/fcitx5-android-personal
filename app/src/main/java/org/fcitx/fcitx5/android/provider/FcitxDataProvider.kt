@@ -15,6 +15,7 @@ import android.provider.DocumentsContract.Root
 import android.provider.DocumentsProvider
 import android.webkit.MimeTypeMap
 import org.fcitx.fcitx5.android.utils.FileUtil
+import org.fcitx.fcitx5.android.utils.moveToWithoutReplacing
 import org.fcitx.fcitx5.android.utils.safeFileName
 import org.fcitx.fcitx5.android.R
 import java.io.File
@@ -27,6 +28,9 @@ internal fun isSameOrDescendant(file: File, directory: File): Boolean =
 internal fun isUnredirectedPath(file: File): Boolean = runCatching {
     file.canonicalFile == file.absoluteFile.normalize()
 }.getOrDefault(false)
+
+internal fun reserveDocumentCopyDestination(destination: File, isDirectory: Boolean): Boolean =
+    if (isDirectory) destination.mkdir() else destination.createNewFile()
 
 internal fun documentNameWithConflictSuffix(
     displayName: String,
@@ -237,14 +241,27 @@ class FcitxDataProvider : DocumentsProvider() {
         return child.path.startsWith("${parent.path}${File.separator}")
     }
 
-    private fun copyWithinBaseDir(source: File, destination: File): Boolean {
-        if (!isSafeDocumentPath(source)) return false
-        if (!source.isDirectory) return source.copyTo(destination).exists()
-        if (!destination.mkdir()) return false
-        val children = source.listFiles() ?: return false
-        return children
+    private fun copyIntoReservedDestination(source: File, destination: File) {
+        if (!isSafeDocumentPath(source)) {
+            throw IOException("Source path is unsafe: ${source.path}")
+        }
+        if (!source.isDirectory) {
+            source.inputStream().use { input ->
+                destination.outputStream().use { output -> input.copyTo(output) }
+            }
+            return
+        }
+        val children = source.listFiles()
+            ?: throw IOException("Cannot list source directory: ${source.path}")
+        children
             .filter(::isSafeDocumentPath)
-            .all { child -> copyWithinBaseDir(child, destination.resolve(child.name)) }
+            .forEach { child ->
+                val childDestination = destination.resolve(child.name)
+                if (!reserveDocumentCopyDestination(childDestination, child.isDirectory)) {
+                    throw IOException("Cannot reserve copy destination: ${childDestination.path}")
+                }
+                copyIntoReservedDestination(child, childDestination)
+            }
     }
 
     @Throws(FileNotFoundException::class)
@@ -256,16 +273,18 @@ class FcitxDataProvider : DocumentsProvider() {
             throw FileNotFoundException("copyDocument id=$sourceDocumentId into itself is not allowed")
         }
         val newFile = createAbstractFile(targetParent, oldFile.name, oldFile.isDirectory)
+        var destinationReserved = false
         try {
-            val copied = copyWithinBaseDir(oldFile, newFile)
-            if (!copied) {
-                throw IOException("copyDocument id=${sourceDocumentId} to ${newFile.docId} failed")
+            if (!reserveDocumentCopyDestination(newFile, oldFile.isDirectory)) {
+                throw IOException("Cannot reserve copy destination: ${newFile.path}")
             }
+            destinationReserved = true
+            copyIntoReservedDestination(oldFile, newFile)
         } catch (e: Exception) {
             val failure = FileNotFoundException(
                 "copyDocument id=${sourceDocumentId} to ${newFile.docId} failed: ${e.message}"
             ).apply { initCause(e) }
-            if (newFile.exists()) {
+            if (destinationReserved) {
                 FileUtil.removeFile(newFile).exceptionOrNull()?.let { cleanupFailure ->
                     failure.addSuppressed(cleanupFailure)
                 }
@@ -283,7 +302,7 @@ class FcitxDataProvider : DocumentsProvider() {
         if (newFile.exists()) {
             throw FileNotFoundException("renameDocument id=$documentId to $displayName failed: target exists")
         }
-        if (!oldFile.renameTo(newFile)) {
+        if (!oldFile.moveToWithoutReplacing(newFile)) {
             throw FileNotFoundException("renameDocument id=$documentId to $displayName failed")
         }
         return newFile.docId
@@ -302,7 +321,7 @@ class FcitxDataProvider : DocumentsProvider() {
             throw FileNotFoundException("moveDocument id=$sourceDocumentId into itself is not allowed")
         }
         val newFile = createAbstractFile(targetParent, oldFile.name, oldFile.isDirectory)
-        if (!oldFile.renameTo(newFile)) {
+        if (!oldFile.moveToWithoutReplacing(newFile)) {
             throw FileNotFoundException("moveDocument id=$sourceDocumentId to ${newFile.docId} failed")
         }
         return newFile.docId
