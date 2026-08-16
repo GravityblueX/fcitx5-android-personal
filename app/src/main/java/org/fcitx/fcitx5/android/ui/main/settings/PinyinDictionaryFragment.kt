@@ -44,6 +44,7 @@ import org.fcitx.fcitx5.android.utils.importErrorDialog
 import org.fcitx.fcitx5.android.utils.lazyRoute
 import org.fcitx.fcitx5.android.utils.notificationManager
 import org.fcitx.fcitx5.android.utils.queryFileName
+import org.fcitx.fcitx5.android.utils.removeIfExists
 import org.fcitx.fcitx5.android.utils.toast
 import timber.log.Timber
 
@@ -270,14 +271,24 @@ class PinyinDictionaryFragment : Fragment(), OnItemChangedListener<PinyinDiction
         dustman.addOrUpdate(item.name, item.isEnabled)
     }
 
+    private fun removeItems(indexed: List<Pair<Int, PinyinDictionary>>) {
+        applyFileBackedRemovals(
+            indexed,
+            remove = { item ->
+                check(item is LibIMEDictionary)
+                item.file.removeIfExists()
+            },
+            onRemoved = { item -> dustman.remove(item.name) },
+            restore = ui::addItem,
+        )?.let(requireContext()::toast)
+    }
+
     override fun onItemRemoved(idx: Int, item: PinyinDictionary) {
-        item as LibIMEDictionary
-        item.file.delete()
-        dustman.remove(item.name)
+        removeItems(listOf(idx to item))
     }
 
     override fun onItemRemovedBatch(indexed: List<Pair<Int, PinyinDictionary>>) {
-        batchRemove(indexed)
+        removeItems(indexed)
     }
 
     override fun onItemUpdated(idx: Int, old: PinyinDictionary, new: PinyinDictionary) {

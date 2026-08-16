@@ -42,6 +42,7 @@ import org.fcitx.fcitx5.android.utils.notificationManager
 import org.fcitx.fcitx5.android.utils.onPositiveButtonClick
 import org.fcitx.fcitx5.android.utils.positiveButton
 import org.fcitx.fcitx5.android.utils.queryFileName
+import org.fcitx.fcitx5.android.utils.toast
 import splitties.resources.drawable
 import splitties.resources.styledDrawable
 import splitties.views.imageDrawable
@@ -448,9 +449,17 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
         dustman.addOrUpdate(item.name, item)
     }
 
+    private fun removeItems(indexed: List<Pair<Int, TableBasedInputMethod>>) {
+        applyFileBackedRemovals(
+            indexed,
+            remove = TableBasedInputMethod::delete,
+            onRemoved = { item -> dustman.remove(item.name) },
+            restore = ui::addItem,
+        )?.let(requireContext()::toast)
+    }
+
     override fun onItemRemoved(idx: Int, item: TableBasedInputMethod) {
-        item.delete()
-        dustman.remove(item.name)
+        removeItems(listOf(idx to item))
     }
 
     override fun onItemUpdated(idx: Int, old: TableBasedInputMethod, new: TableBasedInputMethod) {
@@ -458,7 +467,7 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
     }
 
     override fun onItemRemovedBatch(indexed: List<Pair<Int, TableBasedInputMethod>>) {
-        batchRemove(indexed)
+        removeItems(indexed)
     }
 
     override fun onStop() {

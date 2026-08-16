@@ -52,6 +52,7 @@ import org.fcitx.fcitx5.android.utils.notificationManager
 import org.fcitx.fcitx5.android.utils.onPositiveButtonClick
 import org.fcitx.fcitx5.android.utils.parcelable
 import org.fcitx.fcitx5.android.utils.queryFileName
+import org.fcitx.fcitx5.android.utils.removeIfExists
 import org.fcitx.fcitx5.android.utils.str
 import org.fcitx.fcitx5.android.utils.toast
 import splitties.resources.drawable
@@ -113,7 +114,7 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
                                 PopupMenu(requireContext(), this).apply {
                                     menu.item(R.string.edit) { edit() }
                                     menu.item(R.string.reset) {
-                                        entry.deleteOverride()
+                                        entry.deleteOverride().onFailure(requireContext()::toast)
                                         ui.updateItem(ui.indexItem(entry), entry)
                                         // not sure if the content changes
                                         dustman.forceDirty()
@@ -371,13 +372,24 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
         dustman.addOrUpdate(item.name, item.isEnabled)
     }
 
+    private fun removeItems(indexed: List<Pair<Int, QuickPhrase>>) {
+        applyFileBackedRemovals(
+            indexed,
+            remove = { item ->
+                check(item is CustomQuickPhrase)
+                item.file.removeIfExists()
+            },
+            onRemoved = { item -> dustman.remove(item.name) },
+            restore = ui::addItem,
+        )?.let(requireContext()::toast)
+    }
+
     override fun onItemRemoved(idx: Int, item: QuickPhrase) {
-        item.file.delete()
-        dustman.remove(item.name)
+        removeItems(listOf(idx to item))
     }
 
     override fun onItemRemovedBatch(indexed: List<Pair<Int, QuickPhrase>>) {
-        batchRemove(indexed)
+        removeItems(indexed)
     }
 
     override fun onItemUpdated(idx: Int, old: QuickPhrase, new: QuickPhrase) {

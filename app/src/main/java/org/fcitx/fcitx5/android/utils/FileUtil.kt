@@ -10,6 +10,10 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 
+internal fun File.removeIfExists(): Result<Unit> = runCatching {
+    if (!delete() && exists()) throw IOException("Cannot delete '$path'")
+}
+
 internal fun File.moveToWithoutReplacing(destination: File): Boolean = try {
     Files.move(toPath(), destination.toPath())
     true

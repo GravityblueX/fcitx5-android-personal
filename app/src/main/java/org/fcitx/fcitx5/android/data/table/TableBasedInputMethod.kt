@@ -10,6 +10,7 @@ import org.fcitx.fcitx5.android.data.table.dict.LibIMEDictionary
 import org.fcitx.fcitx5.android.utils.Ini
 import org.fcitx.fcitx5.android.utils.Locales
 import org.fcitx.fcitx5.android.utils.errorRuntime
+import org.fcitx.fcitx5.android.utils.removeIfExists
 import timber.log.Timber
 import java.io.File
 
@@ -45,10 +46,14 @@ class TableBasedInputMethod(val file: File) {
         Ini.writeIniToFile(ini, file)
     }
 
-    fun delete() {
-        table?.file?.delete()
+    fun delete(): Result<Unit> = file.removeIfExists().onSuccess {
+        val dictionaryFile = table?.file
         table = null
-        file.delete()
+        dictionaryFile?.let {
+            it.removeIfExists().onFailure { failure ->
+                Timber.w(failure, "Failed to remove orphaned table dictionary: ${it.path}")
+            }
+        }
     }
 
     companion object {

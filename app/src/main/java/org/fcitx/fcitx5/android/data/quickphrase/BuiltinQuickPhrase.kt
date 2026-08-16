@@ -6,6 +6,7 @@ package org.fcitx.fcitx5.android.data.quickphrase
 
 import kotlinx.parcelize.Parcelize
 import org.fcitx.fcitx5.android.utils.installNewFileAtomically
+import org.fcitx.fcitx5.android.utils.removeIfExists
 import java.io.File
 
 @Parcelize
@@ -77,9 +78,15 @@ class BuiltinQuickPhrase(
         return override!!.disable()
     }
 
-    fun deleteOverride() {
-        listOf(overrideFile, File(overrideFile.path + ".$DISABLE")).forEach(File::delete)
+    fun deleteOverride(): Result<Unit> {
+        var firstFailure: Throwable? = null
+        listOf(overrideFile, File(overrideFile.path + ".$DISABLE")).forEach { file ->
+            file.removeIfExists().onFailure { failure ->
+                if (firstFailure == null) firstFailure = failure
+            }
+        }
         evaluateOverride()
+        return firstFailure?.let { Result.failure(it) } ?: Result.success(Unit)
     }
 
     /**
