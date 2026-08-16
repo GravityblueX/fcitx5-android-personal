@@ -96,6 +96,31 @@ internal fun isDocumentStagingPath(file: File, root: File): Boolean {
     return false
 }
 
+@Throws(FileNotFoundException::class)
+internal fun resolveExistingDocumentPath(
+    requested: File,
+    baseDir: File,
+    documentId: String,
+): File {
+    val file = runCatching { requested.canonicalFile }.getOrElse { failure ->
+        throw FileNotFoundException("documentId=$documentId cannot be resolved: ${failure.message}")
+            .apply { initCause(failure) }
+    }
+    if (file != requested.absoluteFile.normalize()) {
+        throw FileNotFoundException("documentId=$documentId redirects through a symbolic link")
+    }
+    if (!isSameOrDescendant(file, baseDir)) {
+        throw FileNotFoundException("documentId=$documentId is outside the data directory")
+    }
+    if (isDocumentStagingPath(file, baseDir)) {
+        throw FileNotFoundException("documentId=$documentId is an internal staging path")
+    }
+    if (!file.exists()) {
+        throw FileNotFoundException("documentId=$documentId does not exist")
+    }
+    return file
+}
+
 internal fun createDocumentCopyStaging(parent: File, isDirectory: Boolean): File {
     require(parent.isDirectory) { "Document copy parent is not a directory: ${parent.path}" }
     while (true) {
@@ -280,23 +305,8 @@ class FcitxDataProvider : DocumentsProvider() {
     }
 
     @Throws(FileNotFoundException::class)
-    private fun fileFromDocId(docId: String): File {
-        val requested = File(docIdPrefix, docId)
-        val file = runCatching { requested.canonicalFile }.getOrElse { failure ->
-            throw FileNotFoundException("documentId=$docId cannot be resolved: ${failure.message}")
-                .apply { initCause(failure) }
-        }
-        if (file != requested.absoluteFile.normalize()) {
-            throw FileNotFoundException("documentId=$docId redirects through a symbolic link")
-        }
-        if (!isSameOrDescendant(file, baseDir)) {
-            throw FileNotFoundException("documentId=$docId is outside the data directory")
-        }
-        if (isDocumentStagingPath(file, baseDir)) {
-            throw FileNotFoundException("documentId=$docId is an internal staging path")
-        }
-        return file
-    }
+    private fun fileFromDocId(docId: String): File =
+        resolveExistingDocumentPath(File(docIdPrefix, docId), baseDir, docId)
 
     override fun onCreate(): Boolean {
         baseDir = (context!!.getExternalFilesDir(null) ?: return false).canonicalFile

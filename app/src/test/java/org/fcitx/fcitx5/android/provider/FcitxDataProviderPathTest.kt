@@ -11,6 +11,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.io.FileNotFoundException
 import java.io.IOException
 import java.nio.file.Files
 
@@ -210,6 +211,35 @@ class FcitxDataProviderPathTest {
         assertTrue(isDocumentStagingPath(staging.resolve("child.txt"), root))
         assertFalse(isDocumentStagingPath(root.resolve("ordinary/child.txt"), root))
         assertFalse(isDocumentStagingPath(File("outside/child.txt"), root))
+    }
+
+    @Test
+    fun resolvesOnlyExistingVisibleDocumentPaths() {
+        val container = Files.createTempDirectory("provider-resolve-").toFile()
+        try {
+            val root = container.resolve("root").apply { mkdir() }.canonicalFile
+            val existing = root.resolve("existing.txt").apply { writeText("content") }
+            val missing = root.resolve("missing.txt")
+            val outside = container.resolve("outside.txt").apply { writeText("outside") }
+            val staging = createDocumentCopyStaging(root, isDirectory = false)
+
+            assertEquals(
+                existing.canonicalFile,
+                resolveExistingDocumentPath(existing, root, "root/existing.txt"),
+            )
+            assertThrows(FileNotFoundException::class.java) {
+                resolveExistingDocumentPath(missing, root, "root/missing.txt")
+            }
+            assertThrows(FileNotFoundException::class.java) {
+                resolveExistingDocumentPath(outside, root, "outside.txt")
+            }
+            assertThrows(FileNotFoundException::class.java) {
+                resolveExistingDocumentPath(staging, root, "root/${staging.name}")
+            }
+            assertFalse(missing.exists())
+        } finally {
+            container.deleteRecursively()
+        }
     }
 
     @Test
