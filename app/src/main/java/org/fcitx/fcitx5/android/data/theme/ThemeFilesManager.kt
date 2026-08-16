@@ -50,6 +50,16 @@ object ThemeFilesManager {
                 Timber.e(failure, "Failed to recover interrupted theme import")
             }
         }
+        if (!hasUnresolvedThemeImportTransaction(directory)) {
+            cleanupAbandonedThemeDraftImages(
+                directory,
+                referencedThemeImageFileNames(directory),
+            ).forEach { result ->
+                result.onFailure { failure ->
+                    Timber.w(failure, "Failed to remove abandoned theme draft image")
+                }
+            }
+        }
     }
 
     private fun recoverPendingThemeImports(): Boolean {
@@ -399,3 +409,58 @@ internal fun cleanupLegacyThemeMetadataStaging(directory: File) {
             }
         }
 }
+
+internal fun themeDraftImageOwner(fileName: String): String? {
+    if ('/' in fileName || '\\' in fileName) return null
+    val owner = when {
+        fileName.endsWith("-cropped.png") -> fileName.removeSuffix("-cropped.png")
+        else -> {
+            val markerIndex = fileName.lastIndexOf("-src")
+            if (markerIndex < 0) return null
+            val suffix = fileName.substring(markerIndex + 4)
+            if (suffix.isNotEmpty() && !suffix.startsWith('.')) return null
+            fileName.substring(0, markerIndex)
+        }
+    }
+    val uuid = runCatching { UUID.fromString(owner) }.getOrNull() ?: return null
+    return owner.takeIf { uuid.toString().equals(owner, ignoreCase = true) }
+}
+
+internal fun referencedThemeImageFileNames(directory: File): Set<String> {
+    val canonicalDirectory = directory.canonicalFile
+    return directory.listFiles(FileFilter { file -> file.isFile && file.extension == "json" })
+        ?.mapNotNull { metadata ->
+            runCatching {
+                Json.decodeFromString(
+                    CustomThemeSerializer.WithMigrationStatus,
+                    metadata.readText(),
+                ).first
+            }.getOrNull()
+        }
+        ?.flatMap { theme ->
+            theme.backgroundImage?.let { background ->
+                listOf(background.srcFilePath, background.croppedFilePath)
+            }.orEmpty()
+        }
+        ?.mapNotNull { path ->
+            runCatching {
+                File(path).canonicalFile.takeIf { file ->
+                    file.parentFile == canonicalDirectory
+                }?.name
+            }.getOrNull()
+        }
+        ?.toSet()
+        .orEmpty()
+}
+
+internal fun cleanupAbandonedThemeDraftImages(
+    directory: File,
+    referencedFileNames: Set<String>,
+): List<Result<Unit>> = directory.listFiles()
+    ?.filter { file ->
+        file.isFile &&
+                themeDraftImageOwner(file.name) != null &&
+                file.name !in referencedFileNames
+    }
+    ?.map(File::removeIfExists)
+    .orEmpty()

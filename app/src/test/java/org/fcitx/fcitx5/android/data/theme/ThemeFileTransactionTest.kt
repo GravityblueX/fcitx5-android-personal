@@ -4,10 +4,12 @@
  */
 package org.fcitx.fcitx5.android.data.theme
 
+import kotlinx.serialization.json.Json
 import org.fcitx.fcitx5.android.utils.runWithRollback
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -199,6 +201,67 @@ class ThemeFileTransactionTest {
             assertEquals(listOf("background-src"), directory.list()?.sorted())
         } finally {
             root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun identifiesOnlyGeneratedThemeDraftImages() {
+        val themeName = "123e4567-e89b-12d3-a456-426614174000"
+
+        assertEquals(themeName, themeDraftImageOwner("$themeName-src"))
+        assertEquals(themeName, themeDraftImageOwner("$themeName-src.png"))
+        assertEquals(themeName, themeDraftImageOwner("$themeName-src.webp"))
+        assertEquals(themeName, themeDraftImageOwner("$themeName-cropped.png"))
+        assertNull(themeDraftImageOwner("not-a-uuid-src.png"))
+        assertNull(themeDraftImageOwner("$themeName-source.png"))
+        assertNull(themeDraftImageOwner("$themeName-src-extra.png"))
+        assertNull(themeDraftImageOwner("$themeName-src.image/webp"))
+        assertNull(themeDraftImageOwner("$themeName-cropped.jpg"))
+    }
+
+    @Test
+    fun cleansOnlyUnreferencedThemeDraftImages() {
+        val directory = Files.createTempDirectory("theme-draft-cleanup-").toFile()
+        try {
+            val themeName = "123e4567-e89b-12d3-a456-426614174000"
+            val abandonedName = "123e4567-e89b-12d3-a456-426614174001"
+            val referencedSource = directory.resolve("$themeName-src.png").apply {
+                writeText("source")
+            }
+            val referencedCrop = directory.resolve("$themeName-cropped.png").apply {
+                writeText("crop")
+            }
+            val metadata = directory.resolve("$themeName.json")
+            val theme = ThemePreset.TransparentDark.deriveCustomBackground(
+                themeName,
+                referencedCrop.path,
+                referencedSource.path,
+            )
+            metadata.writeText(Json.encodeToString(CustomThemeSerializer, theme))
+            val abandonedSource = directory.resolve("$abandonedName-src.jpg").apply {
+                writeText("abandoned source")
+            }
+            val abandonedCrop = directory.resolve("$abandonedName-cropped.png").apply {
+                writeText("abandoned crop")
+            }
+            val unrelated = directory.resolve("notes.txt").apply { writeText("keep") }
+            val matchingDirectory = directory.resolve("$abandonedName-src.png").apply { mkdir() }
+
+            val results = cleanupAbandonedThemeDraftImages(
+                directory,
+                referencedThemeImageFileNames(directory),
+            )
+
+            assertTrue(results.all(Result<Unit>::isSuccess))
+            assertTrue(referencedSource.isFile)
+            assertTrue(referencedCrop.isFile)
+            assertTrue(metadata.isFile)
+            assertFalse(abandonedSource.exists())
+            assertFalse(abandonedCrop.exists())
+            assertTrue(unrelated.isFile)
+            assertTrue(matchingDirectory.isDirectory)
+        } finally {
+            directory.deleteRecursively()
         }
     }
 
