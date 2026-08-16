@@ -16,6 +16,17 @@ internal inline fun <T> runWithCleanup(
     cleanup: () -> Result<Unit>,
     onCleanupFailure: (Throwable) -> Unit,
     block: () -> T,
+): T = runWithCleanups(
+    cleanup = { listOf(cleanup()) },
+    onCleanupFailure = onCleanupFailure,
+    block = block,
+)
+
+@PublishedApi
+internal inline fun <T> runWithCleanups(
+    cleanup: () -> Iterable<Result<Unit>>,
+    onCleanupFailure: (Throwable) -> Unit,
+    block: () -> T,
 ): T {
     var primaryFailure: Throwable? = null
     try {
@@ -24,16 +35,16 @@ internal inline fun <T> runWithCleanup(
         primaryFailure = failure
         throw failure
     } finally {
-        val cleanupResult = try {
-            cleanup()
+        val cleanupResults = try {
+            cleanup().toList()
         } catch (failure: Throwable) {
-            Result.failure(failure)
+            listOf(Result.failure(failure))
         }
         val primary = primaryFailure
         if (primary == null) {
-            cleanupResult.onFailure(onCleanupFailure)
+            cleanupResults.forEach { it.onFailure(onCleanupFailure) }
         } else {
-            primary.addSuppressedFailures(listOf(cleanupResult))
+            primary.addSuppressedFailures(cleanupResults)
         }
     }
 }

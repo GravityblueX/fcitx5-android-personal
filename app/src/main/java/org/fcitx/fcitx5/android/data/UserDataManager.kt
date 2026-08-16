@@ -17,8 +17,13 @@ import org.fcitx.fcitx5.android.utils.FileUtil
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
 import org.fcitx.fcitx5.android.utils.createTempDir
+import org.fcitx.fcitx5.android.utils.ensureDirectory
 import org.fcitx.fcitx5.android.utils.errorRuntime
 import org.fcitx.fcitx5.android.utils.extract
+import org.fcitx.fcitx5.android.utils.removeIfExists
+import org.fcitx.fcitx5.android.utils.runWithCleanup
+import org.fcitx.fcitx5.android.utils.runWithCleanups
+import org.fcitx.fcitx5.android.utils.runWithRollback
 import org.fcitx.fcitx5.android.utils.versionCodeCompat
 import org.fcitx.fcitx5.android.utils.withTempDir
 import timber.log.Timber
@@ -70,6 +75,30 @@ internal fun writeUserDataFileTree(
                 destination.closeEntry()
             }
         }
+}
+
+internal enum class ImportRecoveryAction {
+    NONE,
+    REMOVE_TARGET,
+    RESTORE_BACKUP,
+    REPLACE_TARGET_WITH_BACKUP,
+    UNRECOVERABLE,
+}
+
+internal fun determineImportRecoveryAction(
+    targetExists: Boolean,
+    stagedExists: Boolean,
+    backupExpected: Boolean,
+    backupExists: Boolean,
+): ImportRecoveryAction = when {
+    backupExists && !backupExpected -> ImportRecoveryAction.UNRECOVERABLE
+    backupExists && targetExists -> ImportRecoveryAction.REPLACE_TARGET_WITH_BACKUP
+    backupExists -> ImportRecoveryAction.RESTORE_BACKUP
+    backupExpected && !targetExists -> ImportRecoveryAction.UNRECOVERABLE
+    backupExpected -> ImportRecoveryAction.NONE
+    stagedExists && targetExists -> ImportRecoveryAction.UNRECOVERABLE
+    !stagedExists && targetExists -> ImportRecoveryAction.REMOVE_TARGET
+    else -> ImportRecoveryAction.NONE
 }
 
 object UserDataManager {
@@ -160,9 +189,10 @@ object UserDataManager {
 
     private fun createImportBackupPath(parent: File): File {
         val backup = createTempDir(parent)
-        check(backup.delete()) { "Cannot prepare import backup: ${backup.path}" }
+        backup.removeIfExists().getOrThrow()
         return backup
     }
+
     private fun stageImportDirectory(directory: ImportDirectory): StagedImportDirectory? {
         val source = directory.source
         val target = directory.target
@@ -173,20 +203,17 @@ object UserDataManager {
             return null
         }
         val parent = target.parentFile ?: error("Cannot resolve import directory parent: ${target.path}")
-        check(parent.mkdirs() || parent.isDirectory) {
-            "Cannot create import directory parent: $parent"
-        }
+        parent.ensureDirectory()
         val staged = createTempDir(parent)
-        try {
+        return runWithRollback(
+            rollback = { listOf(FileUtil.removeFile(staged)) },
+        ) {
             check(source.copyRecursively(staged, overwrite = true)) {
                 "Failed to stage imported user data: ${source.path}"
             }
             directory.preserveExistingFiles?.invoke(target, staged)
             val backup = target.takeIf(File::exists)?.let { createImportBackupPath(parent) }
-            return StagedImportDirectory(target, staged, backup)
-        } catch (e: Exception) {
-            staged.deleteRecursively()
-            throw e
+            StagedImportDirectory(target, staged, backup)
         }
     }
 
@@ -225,24 +252,25 @@ object UserDataManager {
         return restored
     }
 
-    private fun cleanupStagedImportDirectories(directories: List<StagedImportDirectory>) {
-        directories.forEach { directory ->
-            listOf(directory.staged, directory.backup).filterNotNull().forEach { file ->
-                if (file.exists() && !file.deleteRecursively()) {
-                    Timber.w("Failed to clean temporary user data import directory: ${file.path}")
-                }
-            }
-        }
+    private fun cleanupStagedImportDirectories(
+        directories: List<StagedImportDirectory>,
+    ): List<Result<Unit>> = directories.flatMap { directory ->
+        listOfNotNull(directory.staged, directory.backup).map(FileUtil::removeFile)
+    }
+
+    private fun reportImportCleanupFailure(failure: Throwable) {
+        Timber.w(failure, "Failed to clean user data import transaction")
     }
 
     private fun writeImportJournal(directories: List<StagedImportDirectory>) {
         val journal = importJournalFile
         val parent = journal.parentFile ?: error("Cannot resolve import journal parent")
-        check(parent.mkdirs() || parent.isDirectory) {
-            "Cannot create import journal parent: $parent"
-        }
+        parent.ensureDirectory()
         val staged = File.createTempFile("user-data-import-", ".journal", parent)
-        try {
+        runWithCleanup(
+            cleanup = { staged.removeIfExists() },
+            onCleanupFailure = ::reportImportCleanupFailure,
+        ) {
             staged.writeText(
                 json.encodeToString(
                     ImportJournal(
@@ -257,15 +285,21 @@ object UserDataManager {
                 )
             )
             Os.rename(staged.path, journal.path)
-        } finally {
-            staged.delete()
         }
     }
 
-    private fun deleteImportJournal() {
-        val journal = importJournalFile
-        if (journal.exists() && !journal.delete()) {
-            Timber.w("Failed to remove user data import journal: ${journal.path}")
+    private fun deleteImportJournal(): Result<Unit> = importJournalFile.removeIfExists()
+
+    private fun cleanupImportTransaction(
+        directories: List<StagedImportDirectory>,
+        journalWritten: Boolean,
+    ): List<Result<Unit>> {
+        val cleanupResults = cleanupStagedImportDirectories(directories)
+        return buildList {
+            addAll(cleanupResults)
+            if (journalWritten && cleanupResults.all(Result<Unit>::isSuccess)) {
+                add(deleteImportJournal())
+            }
         }
     }
 
@@ -278,16 +312,31 @@ object UserDataManager {
                 val target = File(directory.targetPath)
                 val staged = File(directory.stagedPath)
                 val backup = directory.backupPath?.let(::File)
-                val stagedMoved = !staged.exists() && target.exists()
-                if (backup?.exists() == true) {
-                    if (stagedMoved) {
+                when (
+                    determineImportRecoveryAction(
+                        targetExists = target.exists(),
+                        stagedExists = staged.exists(),
+                        backupExpected = backup != null,
+                        backupExists = backup?.exists() == true,
+                    )
+                ) {
+                    ImportRecoveryAction.NONE -> Unit
+                    ImportRecoveryAction.REMOVE_TARGET -> {
                         FileUtil.removeFile(target).getOrThrow()
                     }
-                    if (!target.exists()) {
-                        Os.rename(backup.path, target.path)
+
+                    ImportRecoveryAction.RESTORE_BACKUP -> {
+                        Os.rename(requireNotNull(backup).path, target.path)
                     }
-                } else if (stagedMoved) {
-                    FileUtil.removeFile(target).getOrThrow()
+
+                    ImportRecoveryAction.REPLACE_TARGET_WITH_BACKUP -> {
+                        FileUtil.removeFile(target).getOrThrow()
+                        Os.rename(requireNotNull(backup).path, target.path)
+                    }
+
+                    ImportRecoveryAction.UNRECOVERABLE -> {
+                        error("Cannot determine safe recovery for imported path: ${target.path}")
+                    }
                 }
             } catch (e: Exception) {
                 recovered = false
@@ -307,19 +356,18 @@ object UserDataManager {
             return
         }
         val completed = importJournal.directories.all { directory ->
-            File(directory.targetPath).exists() && !File(directory.stagedPath).exists()
+            File(directory.targetPath).isDirectory && !File(directory.stagedPath).exists()
         }
         val recovered = completed || recoverInterruptedImport(importJournal.directories)
         if (!recovered) return
-        importJournal.directories.forEach { directory ->
-            listOfNotNull(directory.backupPath, directory.stagedPath).forEach { path ->
-                val file = File(path)
-                if (file.exists() && !file.deleteRecursively()) {
-                    Timber.w("Failed to clean recovered user data import directory: ${file.path}")
-                }
-            }
+        val cleanupResults = importJournal.directories.flatMap { directory ->
+            listOfNotNull(directory.backupPath, directory.stagedPath)
+                .map(::File)
+                .map(FileUtil::removeFile)
         }
-        deleteImportJournal()
+        cleanupResults.forEach { it.onFailure(::reportImportCleanupFailure) }
+        if (cleanupResults.any(Result<Unit>::isFailure)) return
+        deleteImportJournal().onFailure(::reportImportCleanupFailure)
     }
 
     private fun importDirectories(directories: List<ImportDirectory>) {
@@ -327,9 +375,18 @@ object UserDataManager {
         var journalWritten = false
         var completed = false
         var rolledBack = false
-        try {
+        runWithCleanups(
+            cleanup = {
+                if (!journalWritten || completed || rolledBack) {
+                    cleanupImportTransaction(stagedDirectories, journalWritten)
+                } else {
+                    emptyList()
+                }
+            },
+            onCleanupFailure = ::reportImportCleanupFailure,
+        ) {
             directories.mapNotNullTo(stagedDirectories, ::stageImportDirectory)
-            if (stagedDirectories.isEmpty()) return
+            if (stagedDirectories.isEmpty()) return@runWithCleanups
             writeImportJournal(stagedDirectories)
             journalWritten = true
             try {
@@ -338,11 +395,6 @@ object UserDataManager {
             } catch (e: Exception) {
                 rolledBack = restoreImportDirectories(stagedDirectories, e)
                 throw e
-            }
-        } finally {
-            if (!journalWritten || completed || rolledBack) {
-                cleanupStagedImportDirectories(stagedDirectories)
-                if (journalWritten) deleteImportJournal()
             }
         }
     }
@@ -358,9 +410,7 @@ object UserDataManager {
             if (!source.isFile) return@forEach
             val target = sourceDir.resolve("${BuildConfig.APPLICATION_ID}_preferences$suffix")
             source.copyTo(target, overwrite = true)
-            if (!source.delete()) {
-                Timber.w("Failed to remove migrated preference file: ${source.path}")
-            }
+            source.removeIfExists().onFailure(::reportImportCleanupFailure)
         }
     }
 
@@ -379,11 +429,7 @@ object UserDataManager {
                 importedSharedPrefsDir.listFiles()
                     ?.filter { isTransientSharedPreferenceFile(it.name) }
                     ?.forEach { transientFile ->
-                        if (!transientFile.delete()) {
-                            Timber.w(
-                                "Failed to discard imported runtime cache: ${transientFile.path}"
-                            )
-                        }
+                        transientFile.removeIfExists().onFailure(::reportImportCleanupFailure)
                     }
                 migrateDefaultSharedPreferences(importedSharedPrefsDir, metadata.packageName)
                 importDirectories(

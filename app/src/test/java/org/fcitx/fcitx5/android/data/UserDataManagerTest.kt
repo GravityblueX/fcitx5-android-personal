@@ -78,6 +78,103 @@ class UserDataManagerTest {
     }
 
     @Test
+    fun restoresExistingDataFromAvailableBackup() {
+        assertEquals(
+            ImportRecoveryAction.RESTORE_BACKUP,
+            determineImportRecoveryAction(
+                targetExists = false,
+                stagedExists = true,
+                backupExpected = true,
+                backupExists = true,
+            ),
+        )
+        assertEquals(
+            ImportRecoveryAction.REPLACE_TARGET_WITH_BACKUP,
+            determineImportRecoveryAction(
+                targetExists = true,
+                stagedExists = false,
+                backupExpected = true,
+                backupExists = true,
+            ),
+        )
+    }
+
+    @Test
+    fun preservesTargetAfterExpectedBackupWasRestored() {
+        assertEquals(
+            ImportRecoveryAction.NONE,
+            determineImportRecoveryAction(
+                targetExists = true,
+                stagedExists = false,
+                backupExpected = true,
+                backupExists = false,
+            ),
+        )
+        assertEquals(
+            ImportRecoveryAction.NONE,
+            determineImportRecoveryAction(
+                targetExists = true,
+                stagedExists = true,
+                backupExpected = true,
+                backupExists = false,
+            ),
+        )
+    }
+
+    @Test
+    fun removesImportedTargetOnlyWhenNoOriginalExisted() {
+        assertEquals(
+            ImportRecoveryAction.REMOVE_TARGET,
+            determineImportRecoveryAction(
+                targetExists = true,
+                stagedExists = false,
+                backupExpected = false,
+                backupExists = false,
+            ),
+        )
+        assertEquals(
+            ImportRecoveryAction.NONE,
+            determineImportRecoveryAction(
+                targetExists = false,
+                stagedExists = true,
+                backupExpected = false,
+                backupExists = false,
+            ),
+        )
+    }
+
+    @Test
+    fun rejectsAmbiguousRecoveryStates() {
+        assertEquals(
+            ImportRecoveryAction.UNRECOVERABLE,
+            determineImportRecoveryAction(
+                targetExists = false,
+                stagedExists = false,
+                backupExpected = true,
+                backupExists = false,
+            ),
+        )
+        assertEquals(
+            ImportRecoveryAction.UNRECOVERABLE,
+            determineImportRecoveryAction(
+                targetExists = true,
+                stagedExists = true,
+                backupExpected = false,
+                backupExists = false,
+            ),
+        )
+        assertEquals(
+            ImportRecoveryAction.UNRECOVERABLE,
+            determineImportRecoveryAction(
+                targetExists = true,
+                stagedExists = false,
+                backupExpected = false,
+                backupExists = true,
+            ),
+        )
+    }
+
+    @Test
     fun recognizesFilesInsideExportRoot() {
         val root = Files.createTempDirectory("user-data-export-").toFile()
         try {

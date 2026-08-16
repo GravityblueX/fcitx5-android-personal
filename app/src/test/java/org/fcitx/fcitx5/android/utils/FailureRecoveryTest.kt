@@ -50,6 +50,32 @@ class FailureRecoveryTest {
     }
 
     @Test
+    fun preservesEveryCleanupFailure() {
+        val primaryFailure = IOException("primary")
+        val firstCleanupFailure = IOException("first cleanup")
+        val secondCleanupFailure = IOException("second cleanup")
+
+        val thrown = assertThrows(IOException::class.java) {
+            runWithCleanups(
+                cleanup = {
+                    listOf(
+                        Result.failure(firstCleanupFailure),
+                        Result.failure(secondCleanupFailure),
+                    )
+                },
+                onCleanupFailure = {},
+                block = { throw primaryFailure },
+            )
+        }
+
+        assertSame(primaryFailure, thrown)
+        assertArrayEquals(
+            arrayOf(firstCleanupFailure, secondCleanupFailure),
+            thrown.suppressed,
+        )
+    }
+
+    @Test
     fun handlesCleanupCallbackThrowing() {
         val primaryFailure = IOException("primary")
         val cleanupFailure = IOException("cleanup")
