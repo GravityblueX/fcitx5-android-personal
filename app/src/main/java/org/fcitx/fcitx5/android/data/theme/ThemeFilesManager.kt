@@ -21,9 +21,19 @@ import java.io.FileFilter
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.UUID
+import java.util.concurrent.locks.ReentrantLock
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import kotlin.concurrent.withLock
+
+private val themeFileOperationLock = ReentrantLock()
+
+internal fun <T> runThemeFileOperation(block: () -> T): T =
+    themeFileOperationLock.withLock(block)
+
+private fun <T> runThemeFileResultOperation(block: () -> T): Result<T> =
+    runThemeFileOperation { runCatching(block) }
 
 object ThemeFilesManager {
 
@@ -79,6 +89,14 @@ object ThemeFilesManager {
         return Triple(themeName, croppedImageFile, srcImageFile)
     }
 
+    fun installNewThemeImage(stream: InputStream, destination: File): File =
+        runThemeFileOperation {
+            require(isThemeFile(destination)) { "Invalid theme image path: $destination" }
+            stream.use { input ->
+                installNewFileAtomically(input, dir, destination.name)
+            }
+        }
+
     private fun saveThemeMetadata(theme: Theme.Custom) {
         val file = themeFile(theme)
         replaceFileAtomically(file) { staged ->
@@ -86,13 +104,15 @@ object ThemeFilesManager {
         }
     }
 
-    fun saveThemeFiles(theme: Theme.Custom) = saveThemeMetadata(theme)
+    fun saveThemeFiles(theme: Theme.Custom) = runThemeFileOperation {
+        saveThemeMetadata(theme)
+    }
 
     fun saveThemeFiles(
         theme: Theme.Custom,
         pendingCroppedImage: File,
         replaceExistingImage: Boolean,
-    ) {
+    ) = runThemeFileOperation {
         require(pendingCroppedImage.isFile) {
             "Cannot find pending cropped theme image: $pendingCroppedImage"
         }
@@ -119,7 +139,7 @@ object ThemeFilesManager {
         }
     }
 
-    fun deleteThemeFiles(theme: Theme.Custom): Result<Unit> =
+    fun deleteThemeFiles(theme: Theme.Custom): Result<Unit> = runThemeFileOperation {
         themeFile(theme).removeIfExists().onSuccess {
             theme.backgroundImage?.let { background ->
                 listOf(File(background.croppedFilePath), File(background.srcFilePath))
@@ -131,10 +151,12 @@ object ThemeFilesManager {
                     }
             }
         }
+    }
 
-    fun listThemes(): MutableList<Theme.Custom> {
-        val files = dir.listFiles(FileFilter { it.extension == "json" }) ?: return mutableListOf()
-        return files
+    fun listThemes(): MutableList<Theme.Custom> = runThemeFileOperation {
+        val files = dir.listFiles(FileFilter { it.extension == "json" })
+            ?: return@runThemeFileOperation mutableListOf()
+        files
             .sortedByDescending { it.lastModified() } // newest first
             .mapNotNull decode@{
                 val (theme, migrated) = runCatching {
@@ -169,7 +191,7 @@ object ThemeFilesManager {
      * [dest] will be closed on finished
      */
     fun exportTheme(theme: Theme.Custom, dest: OutputStream) =
-        runCatching {
+        runThemeFileResultOperation {
             ZipOutputStream(dest.buffered()).use { zipStream ->
                 // we don't export the internal path of images
                 val tweakedTheme = theme.backgroundImage?.let {
@@ -208,7 +230,7 @@ object ThemeFilesManager {
      * @return (newCreated, theme, migrated)
      */
     fun importTheme(src: InputStream): Result<Triple<Boolean, Theme.Custom, Boolean>> =
-        runCatching {
+        runThemeFileResultOperation {
             ZipInputStream(src).use { zipStream ->
                 withTempDir { tempDir ->
                     val extracted = zipStream.extract(tempDir)

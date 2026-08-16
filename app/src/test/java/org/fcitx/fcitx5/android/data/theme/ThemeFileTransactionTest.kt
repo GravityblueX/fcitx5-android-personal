@@ -6,14 +6,55 @@ package org.fcitx.fcitx5.android.data.theme
 
 import org.fcitx.fcitx5.android.utils.runWithRollback
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.file.Files
+import java.util.concurrent.Callable
+import java.util.concurrent.CyclicBarrier
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class ThemeFileTransactionTest {
+
+    @Test
+    fun serializesThemeFileOperations() {
+        val workerCount = 8
+        val barrier = CyclicBarrier(workerCount)
+        val activeOperations = AtomicInteger()
+        val maximumActiveOperations = AtomicInteger()
+        val executor = Executors.newFixedThreadPool(workerCount)
+        try {
+            val operations = List(workerCount) {
+                Callable {
+                    barrier.await(5, TimeUnit.SECONDS)
+                    runThemeFileOperation {
+                        val active = activeOperations.incrementAndGet()
+                        try {
+                            maximumActiveOperations.updateAndGet { maximum ->
+                                maxOf(maximum, active)
+                            }
+                            Thread.sleep(25)
+                        } finally {
+                            activeOperations.decrementAndGet()
+                        }
+                    }
+                }
+            }
+
+            executor.invokeAll(operations).forEach { future ->
+                future.get(5, TimeUnit.SECONDS)
+            }
+
+            assertEquals(1, maximumActiveOperations.get())
+        } finally {
+            executor.shutdownNow()
+        }
+    }
 
     @Test
     fun identifiesOnlyLegacyThemeMetadataStagingFiles() {

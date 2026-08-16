@@ -50,7 +50,6 @@ import org.fcitx.fcitx5.android.ui.main.CropImageActivity.CropResult
 import org.fcitx.fcitx5.android.utils.toast
 import org.fcitx.fcitx5.android.utils.requireInputStream
 import org.fcitx.fcitx5.android.utils.DarkenColorFilter
-import org.fcitx.fcitx5.android.utils.installNewFileAtomically
 import org.fcitx.fcitx5.android.utils.item
 import org.fcitx.fcitx5.android.utils.parcelable
 import org.fcitx.fcitx5.android.utils.removeIfExists
@@ -343,13 +342,10 @@ class CustomThemeActivity : AppCompatActivity() {
                                     )
                                 }
                             runCatching {
-                                contentResolver.requireInputStream(it.srcUri).use { input ->
-                                    installNewFileAtomically(
-                                        input,
-                                        checkNotNull(srcImageFile.parentFile),
-                                        srcImageFile.name,
-                                    )
-                                }
+                                ThemeFilesManager.installNewThemeImage(
+                                    contentResolver.requireInputStream(it.srcUri),
+                                    srcImageFile,
+                                )
                             }.getOrElse { failure ->
                                 cropResultFile.removeIfExists().onFailure(failure::addSuppressed)
                                 toast(R.string.exception_document_unavailable)
