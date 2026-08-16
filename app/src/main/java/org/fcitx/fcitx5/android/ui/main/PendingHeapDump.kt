@@ -14,9 +14,7 @@ internal class PendingHeapDump(savedPath: String? = null) {
     val path: String?
         get() = file?.path
 
-    fun begin(file: File) {
-        this.file = file
-    }
+    fun begin(file: File): File? = this.file.also { this.file = file }
 
     fun consume(): File? = file.also { file = null }
 }

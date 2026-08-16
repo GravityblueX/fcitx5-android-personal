@@ -25,10 +25,13 @@ import org.fcitx.fcitx5.android.ui.main.modified.MySwitchPreference
 import org.fcitx.fcitx5.android.utils.requireOutputStream
 import org.fcitx.fcitx5.android.utils.addPreference
 import org.fcitx.fcitx5.android.utils.iso8601UTCDateTime
+import org.fcitx.fcitx5.android.utils.removeIfExists
+import org.fcitx.fcitx5.android.utils.runWithCleanup
 import org.fcitx.fcitx5.android.utils.setupForest
 import org.fcitx.fcitx5.android.utils.startActivity
 import org.fcitx.fcitx5.android.utils.toast
 import timber.log.Timber
+import java.io.File
 
 class DeveloperFragment : PaddingPreferenceFragment() {
 
@@ -41,26 +44,34 @@ class DeveloperFragment : PaddingPreferenceFragment() {
         launcher = registerForActivityResult(CreateDocument("application/octet-stream")) { uri ->
             val hprofFile = pendingHeapDump.consume() ?: return@registerForActivityResult
             if (uri == null) {
-                hprofFile.delete()
+                hprofFile.removeIfExists().onFailure { failure ->
+                    Timber.w(failure, "Failed to remove cancelled heap dump: ${hprofFile.path}")
+                }
                 return@registerForActivityResult
             }
             val ctx = requireContext()
             lifecycleScope.launch {
                 try {
-                    withContext(Dispatchers.IO) {
-                        ctx.contentResolver.requireOutputStream(uri).use { o ->
-                            hprofFile.inputStream().use { i -> i.copyTo(o) }
+                    runWithCleanup(
+                        cleanup = {
+                            withContext(NonCancellable + Dispatchers.IO) {
+                                hprofFile.removeIfExists()
+                            }
+                        },
+                        onCleanupFailure = { failure ->
+                            Timber.w(failure, "Failed to remove exported heap dump: ${hprofFile.path}")
+                        },
+                    ) {
+                        withContext(Dispatchers.IO) {
+                            ctx.contentResolver.requireOutputStream(uri).use { o ->
+                                hprofFile.inputStream().use { i -> i.copyTo(o) }
+                            }
                         }
                     }
                 } catch (e: Exception) {
                     if (e is CancellationException) throw e
+                    Timber.e(e, "Failed to export heap dump")
                     ctx.toast(e)
-                } finally {
-                    withContext(NonCancellable) {
-                        withContext(Dispatchers.IO) {
-                            hprofFile.delete()
-                        }
-                    }
                 }
             }
         }
@@ -148,11 +159,33 @@ class DeveloperFragment : PaddingPreferenceFragment() {
             }
             addPreference(R.string.capture_heap_dump) {
                 val fileName = "${context.packageName}_${iso8601UTCDateTime()}.hprof"
-                val hprofFile = context.cacheDir.resolve(fileName)
-                System.gc()
-                Debug.dumpHprofData(hprofFile.absolutePath)
-                pendingHeapDump.begin(hprofFile)
-                launcher.launch(fileName)
+                var hprofFile: File? = null
+                var registered = false
+                var supersededCleanupFailure: Throwable? = null
+                try {
+                    val outputFile = File.createTempFile("heap-dump-", ".hprof", context.cacheDir)
+                    hprofFile = outputFile
+                    System.gc()
+                    Debug.dumpHprofData(outputFile.absolutePath)
+                    val superseded = pendingHeapDump.begin(outputFile)
+                    registered = true
+                    superseded
+                        ?.takeIf { it != outputFile }
+                        ?.removeIfExists()
+                        ?.onFailure { failure ->
+                            supersededCleanupFailure = failure
+                            Timber.w(failure, "Failed to remove superseded heap dump")
+                        }
+                    launcher.launch(fileName)
+                } catch (e: Exception) {
+                    if (registered) pendingHeapDump.consume()
+                    supersededCleanupFailure
+                        ?.takeIf { cleanupFailure -> cleanupFailure !== e }
+                        ?.let(e::addSuppressed)
+                    hprofFile?.removeIfExists()?.onFailure(e::addSuppressed)
+                    Timber.e(e, "Failed to capture heap dump")
+                    context.toast(e)
+                }
             }
         }
     }

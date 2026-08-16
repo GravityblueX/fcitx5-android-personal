@@ -20,13 +20,24 @@ class PendingHeapDumpTest {
     }
 
     @Test
-    fun beginningDumpReplacesPendingFile() {
-        val pending = PendingHeapDump("cache/old.hprof")
+    fun beginningDumpReturnsReplacedPendingFile() {
+        val old = File("cache/old.hprof")
+        val pending = PendingHeapDump(old.path)
         val replacement = File("cache/new.hprof")
 
-        pending.begin(replacement)
+        assertEquals(old, pending.begin(replacement))
 
         assertEquals(replacement, pending.file)
+    }
+
+    @Test
+    fun beginningDumpTracksFileWhenIdle() {
+        val pending = PendingHeapDump()
+        val file = File("cache/new.hprof")
+
+        assertNull(pending.begin(file))
+
+        assertEquals(file, pending.file)
     }
 
     @Test
