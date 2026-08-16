@@ -18,9 +18,14 @@ import org.fcitx.fcitx5.android.utils.FileUtil
 import org.fcitx.fcitx5.android.utils.moveToWithoutReplacing
 import org.fcitx.fcitx5.android.utils.safeFileName
 import org.fcitx.fcitx5.android.R
+import timber.log.Timber
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
+import java.util.UUID
+
+private const val DOCUMENT_COPY_STAGING_PREFIX = ".document-copy-"
+private const val DOCUMENT_COPY_STAGING_SUFFIX = ".staged"
 
 internal fun isSameOrDescendant(file: File, directory: File): Boolean =
     file == directory || file.path.startsWith("${directory.path}${File.separator}")
@@ -31,6 +36,100 @@ internal fun isUnredirectedPath(file: File): Boolean = runCatching {
 
 internal fun reserveDocumentCopyDestination(destination: File, isDirectory: Boolean): Boolean =
     if (isDirectory) destination.mkdir() else destination.createNewFile()
+
+internal fun isDocumentCopyStagingFileName(fileName: String): Boolean {
+    if (!fileName.startsWith(DOCUMENT_COPY_STAGING_PREFIX) ||
+        !fileName.endsWith(DOCUMENT_COPY_STAGING_SUFFIX)
+    ) {
+        return false
+    }
+    val id = fileName
+        .removePrefix(DOCUMENT_COPY_STAGING_PREFIX)
+        .removeSuffix(DOCUMENT_COPY_STAGING_SUFFIX)
+    val uuid = runCatching { UUID.fromString(id) }.getOrNull() ?: return false
+    return uuid.toString().equals(id, ignoreCase = true)
+}
+
+internal fun createDocumentCopyStaging(parent: File, isDirectory: Boolean): File {
+    require(parent.isDirectory) { "Document copy parent is not a directory: ${parent.path}" }
+    while (true) {
+        val staging = parent.resolve(
+            "$DOCUMENT_COPY_STAGING_PREFIX${UUID.randomUUID()}$DOCUMENT_COPY_STAGING_SUFFIX"
+        )
+        if (reserveDocumentCopyDestination(staging, isDirectory)) return staging
+        if (!staging.exists()) {
+            throw IOException("Cannot create document copy staging: ${staging.path}")
+        }
+    }
+}
+
+internal fun publishDocumentCopy(
+    staging: File,
+    targetParent: File,
+    displayName: String,
+    isDirectory: Boolean,
+    move: (File, File) -> Boolean = { source, destination ->
+        source.moveToWithoutReplacing(destination)
+    },
+): File {
+    val safeName = displayName.safeFileName()
+    var conflictId = 1
+    while (true) {
+        val destinationName = if (conflictId == 1) {
+            safeName
+        } else {
+            documentNameWithConflictSuffix(safeName, conflictId, isDirectory)
+        }
+        val destination = targetParent.resolve(destinationName)
+        if (move(staging, destination)) return destination
+        if (!destination.exists()) {
+            throw IOException("Cannot publish document copy: ${destination.path}")
+        }
+        if (conflictId == Int.MAX_VALUE) {
+            throw IOException("Cannot find available document copy destination")
+        }
+        conflictId += 1
+    }
+}
+
+internal fun copyDocumentAtomically(
+    source: File,
+    targetParent: File,
+    remove: (File) -> Result<Unit> = FileUtil::removeFile,
+    copy: (File, File) -> Unit,
+): File {
+    val isDirectory = source.isDirectory
+    val staging = createDocumentCopyStaging(targetParent, isDirectory)
+    try {
+        copy(source, staging)
+        return publishDocumentCopy(staging, targetParent, source.name, isDirectory)
+    } catch (failure: Throwable) {
+        remove(staging).exceptionOrNull()?.let(failure::addSuppressed)
+        throw failure
+    }
+}
+
+internal fun cleanupStagedDocumentCopies(
+    directory: File,
+    remove: (File) -> Result<Unit> = FileUtil::removeFile,
+): List<Result<Unit>> {
+    val root = directory.canonicalFile
+    val results = mutableListOf<Result<Unit>>()
+    fun cleanup(current: File) {
+        current.listFiles()?.forEach { child ->
+            if (isDocumentCopyStagingFileName(child.name)) {
+                results += remove(child)
+            } else if (child.isDirectory &&
+                isUnredirectedPath(child) &&
+                isSameOrDescendant(child.canonicalFile, root)
+            ) {
+                cleanup(child)
+            }
+        }
+    }
+    cleanup(root)
+    return results
+}
 
 internal fun documentNameWithConflictSuffix(
     displayName: String,
@@ -137,6 +236,11 @@ class FcitxDataProvider : DocumentsProvider() {
         baseDir = (context!!.getExternalFilesDir(null) ?: return false).canonicalFile
         docIdPrefix = "${baseDir.parent}${File.separator}"
         textFilePaths = Array(TEXT_FILES.size) { baseDir.resolve(TEXT_FILES[it]).absolutePath }
+        cleanupStagedDocumentCopies(baseDir).forEach { result ->
+            result.onFailure { failure ->
+                Timber.w(failure, "Failed to clean staged document copy")
+            }
+        }
         return true
     }
 
@@ -166,7 +270,9 @@ class FcitxDataProvider : DocumentsProvider() {
         sortOrder: String?
     ) = MatrixCursor(projection ?: DEFAULT_DOCUMENT_PROJECTION).apply {
         fileFromDocId(parentDocumentId).listFiles()
-            ?.filter(::isSafeDocumentPath)
+            ?.filter { file ->
+                isSafeDocumentPath(file) && !isDocumentCopyStagingFileName(file.name)
+            }
             ?.forEach { newRowFromFile(it) }
     }
 
@@ -254,7 +360,9 @@ class FcitxDataProvider : DocumentsProvider() {
         val children = source.listFiles()
             ?: throw IOException("Cannot list source directory: ${source.path}")
         children
-            .filter(::isSafeDocumentPath)
+            .filter { child ->
+                isSafeDocumentPath(child) && !isDocumentCopyStagingFileName(child.name)
+            }
             .forEach { child ->
                 val childDestination = destination.resolve(child.name)
                 if (!reserveDocumentCopyDestination(childDestination, child.isDirectory)) {
@@ -272,24 +380,16 @@ class FcitxDataProvider : DocumentsProvider() {
         if (oldFile.isDirectory && isSameOrDescendant(targetParent, oldFile)) {
             throw FileNotFoundException("copyDocument id=$sourceDocumentId into itself is not allowed")
         }
-        val newFile = createAbstractFile(targetParent, oldFile.name, oldFile.isDirectory)
-        var destinationReserved = false
-        try {
-            if (!reserveDocumentCopyDestination(newFile, oldFile.isDirectory)) {
-                throw IOException("Cannot reserve copy destination: ${newFile.path}")
-            }
-            destinationReserved = true
-            copyIntoReservedDestination(oldFile, newFile)
+        val newFile = try {
+            copyDocumentAtomically(
+                oldFile,
+                targetParent,
+                copy = ::copyIntoReservedDestination,
+            )
         } catch (e: Exception) {
-            val failure = FileNotFoundException(
-                "copyDocument id=${sourceDocumentId} to ${newFile.docId} failed: ${e.message}"
+            throw FileNotFoundException(
+                "copyDocument id=$sourceDocumentId failed: ${e.message}"
             ).apply { initCause(e) }
-            if (destinationReserved) {
-                FileUtil.removeFile(newFile).exceptionOrNull()?.let { cleanupFailure ->
-                    failure.addSuppressed(cleanupFailure)
-                }
-            }
-            throw failure
         }
         return newFile.docId
     }
@@ -335,8 +435,14 @@ class FcitxDataProvider : DocumentsProvider() {
     ) = MatrixCursor(projection ?: DEFAULT_DOCUMENT_PROJECTION).apply {
         val q = query.lowercase()
         fileFromDocId(rootId).walkTopDown()
-            .onEnter(::isSafeDocumentPath)
-            .filter { isSafeDocumentPath(it) && it.name.lowercase().contains(q) }
+            .onEnter { file ->
+                isSafeDocumentPath(file) && !isDocumentCopyStagingFileName(file.name)
+            }
+            .filter { file ->
+                isSafeDocumentPath(file) &&
+                        !isDocumentCopyStagingFileName(file.name) &&
+                        file.name.lowercase().contains(q)
+            }
             .take(SEARCH_RESULTS_LIMIT)
             .forEach { newRowFromFile(it) }
     }
