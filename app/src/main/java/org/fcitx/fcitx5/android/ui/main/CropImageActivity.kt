@@ -34,6 +34,7 @@ import kotlinx.parcelize.Parcelize
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.utils.item
 import org.fcitx.fcitx5.android.utils.parcelable
+import org.fcitx.fcitx5.android.utils.removeIfExists
 import org.fcitx.fcitx5.android.utils.subMenu
 import org.fcitx.fcitx5.android.utils.toast
 import splitties.dimensions.dp
@@ -243,14 +244,16 @@ class CropImageActivity : AppCompatActivity() {
     }
 
     private fun onCropImage() {
-        val tempOutFile = File.createTempFile("cropped", ".png", cacheDir)
+        var tempOutFile: File? = null
         try {
+            val outputFile = File.createTempFile("cropped", ".png", cacheDir)
+            tempOutFile = outputFile
             val bitmap = cropView.getCroppedImage(
                 reqWidth = cropOption.width,
                 reqHeight = cropOption.height,
                 options = CropImageView.RequestSizeOptions.RESIZE_INSIDE,
             )
-            tempOutFile.outputStream().use {
+            outputFile.outputStream().use {
                 check(bitmap?.compress(Bitmap.CompressFormat.PNG, 100, it) == true) {
                     "Failed to compress cropped image"
                 }
@@ -258,16 +261,20 @@ class CropImageActivity : AppCompatActivity() {
             val success = CropResult.Success(
                 rect = cropView.cropRect!!,
                 rotation = cropView.rotatedDegrees,
-                file = tempOutFile,
+                file = outputFile,
                 srcUri = sourceImageUri
             )
             setResult(RESULT_OK, Intent().putExtra(CROP_RESULT, success))
         } catch (e: Exception) {
-            tempOutFile.delete()
+            cleanupFailedCrop(tempOutFile, e)
             Timber.e("Exception when cropping image: ${e.stackTraceToString()}")
             toast(e)
             setResult(RESULT_CANCELED)
         }
         finish()
     }
+}
+
+internal fun cleanupFailedCrop(file: File?, failure: Throwable) {
+    file?.removeIfExists()?.onFailure(failure::addSuppressed)
 }
