@@ -33,6 +33,7 @@ import splitties.views.dsl.core.lParams
 import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.verticalLayout
 import splitties.views.setPaddingDp
+import timber.log.Timber
 
 class QuickPhraseEditFragment : ProgressFragment(), OnItemChangedListener<QuickPhraseEntry> {
     private val args by lazyRoute<SettingsRoute.QuickPhraseEdit>()
@@ -165,17 +166,21 @@ class QuickPhraseEditFragment : ProgressFragment(), OnItemChangedListener<QuickP
         val resultManager = parentFragmentManager
         resetDustman()
         viewModel.viewModelScope.launch {
-            saveMutex.withLock {
-                withContext(Dispatchers.IO) {
-                    target.saveData(data)
+            dustman.runCatchingSave {
+                saveMutex.withLock {
+                    withContext(Dispatchers.IO) {
+                        target.saveData(data)
+                    }
+                    // tell parent that we need to reload
+                    if (!resultManager.isDestroyed) {
+                        resultManager.setFragmentResult(
+                            RESULT,
+                            Bundle().apply { putParcelable(RESULT, target) }
+                        )
+                    }
                 }
-                // tell parent that we need to reload
-                if (!resultManager.isDestroyed) {
-                    resultManager.setFragmentResult(
-                        RESULT,
-                        Bundle().apply { putParcelable(RESULT, target) }
-                    )
-                }
+            }.onFailure {
+                Timber.e(it, "Failed to save quick phrase")
             }
         }
     }

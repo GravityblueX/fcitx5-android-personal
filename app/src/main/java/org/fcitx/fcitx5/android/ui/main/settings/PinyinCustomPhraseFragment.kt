@@ -41,6 +41,7 @@ import splitties.views.dsl.core.lParams
 import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.verticalLayout
 import splitties.views.setPaddingDp
+import timber.log.Timber
 import kotlin.math.absoluteValue
 import kotlin.math.min
 
@@ -227,13 +228,17 @@ class PinyinCustomPhraseFragment : Fragment(), OnItemChangedListener<PinyinCusto
         val fcitx = viewModel.fcitx
         resetDustman()
         viewModel.viewModelScope.launch {
-            saveMutex.withLock {
-                withContext(Dispatchers.IO) {
-                    CustomPhraseManager.save(entries)
+            dustman.runCatchingSave {
+                saveMutex.withLock {
+                    withContext(Dispatchers.IO) {
+                        CustomPhraseManager.save(entries)
+                    }
+                    fcitx.runOnReady {
+                        reloadPinyinCustomPhrase()
+                    }
                 }
-                fcitx.runOnReady {
-                    reloadPinyinCustomPhrase()
-                }
+            }.onFailure {
+                Timber.e(it, "Failed to save pinyin custom phrases")
             }
         }
     }

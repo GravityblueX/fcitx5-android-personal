@@ -30,6 +30,7 @@ import splitties.views.dsl.core.lParams
 import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.verticalLayout
 import splitties.views.setPaddingDp
+import timber.log.Timber
 
 class PunctuationEditorFragment : ProgressFragment(), OnItemChangedListener<PunctuationMapEntry> {
 
@@ -66,10 +67,14 @@ class PunctuationEditorFragment : ProgressFragment(), OnItemChangedListener<Punc
         val connection = fcitx
         resetDustman()
         viewModel.viewModelScope.launch {
-            saveMutex.withLock {
-                connection.runOnReady {
-                    PunctuationManager.save(this, targetLang, entries)
+            dustman.runCatchingSave {
+                saveMutex.withLock {
+                    connection.runOnReady {
+                        PunctuationManager.save(this, targetLang, entries)
+                    }
                 }
+            }.onFailure {
+                Timber.e(it, "Failed to save punctuation mappings")
             }
         }
     }

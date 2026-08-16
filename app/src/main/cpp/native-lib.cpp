@@ -1252,15 +1252,19 @@ Java_org_fcitx_fcitx5_android_data_pinyin_CustomPhraseManager_save(JNIEnv *env, 
                        *CString(env, phraseValue),
                        static_cast<int>(phraseOrder));
     }
-    fcitx::StandardPaths::global().safeSave(
+    const auto saved = fcitx::StandardPaths::global().safeSave(
             fcitx::StandardPathsType::PkgData, "pinyin/customphrase",
             [&](int fd) {
                 boost::iostreams::stream_buffer<boost::iostreams::file_descriptor_sink>
                         buffer(fd, boost::iostreams::file_descriptor_flags::never_close_handle);
                 std::ostream out(&buffer);
                 dict.save(out);
-                return true;
+                out.flush();
+                return out.good();
             });
+    if (!saved) {
+        throwJavaException(env, "Failed to save pinyin custom phrases");
+    }
 }
 
 extern "C"

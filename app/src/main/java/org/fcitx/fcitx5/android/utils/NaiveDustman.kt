@@ -4,6 +4,7 @@
  */
 package org.fcitx.fcitx5.android.utils
 
+import kotlinx.coroutines.CancellationException
 import kotlin.properties.Delegates
 
 class NaiveDustman<T> {
@@ -11,6 +12,8 @@ class NaiveDustman<T> {
     private val initialValues = mutableMapOf<String, T>()
 
     private val dirtyStatus = mutableSetOf<String>()
+
+    private var forcedDirty = false
 
     var dirty by Delegates.observable(false) { _, old, new ->
         if (old != new) {
@@ -26,6 +29,7 @@ class NaiveDustman<T> {
     var onClean: (() -> Unit)? = null
 
     fun forceDirty() {
+        forcedDirty = true
         dirty = true
     }
 
@@ -35,7 +39,7 @@ class NaiveDustman<T> {
         } else {
             dirtyStatus.remove(key)
         }
-        dirty = dirtyStatus.isNotEmpty()
+        dirty = forcedDirty || dirtyStatus.isNotEmpty()
     }
 
     fun addOrUpdate(key: String, value: T) {
@@ -51,10 +55,22 @@ class NaiveDustman<T> {
     }
 
     fun reset(initial: Map<String, T>) {
+        forcedDirty = false
         dirty = false
         dirtyStatus.clear()
         initialValues.clear()
         initialValues.putAll(initial)
+    }
+
+    suspend fun runCatchingSave(block: suspend () -> Unit): Result<Unit> = try {
+        block()
+        Result.success(Unit)
+    } catch (exception: CancellationException) {
+        forceDirty()
+        throw exception
+    } catch (exception: Exception) {
+        forceDirty()
+        Result.failure(exception)
     }
 
 }
