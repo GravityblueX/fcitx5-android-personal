@@ -4,7 +4,6 @@ import android.system.Os
 import kotlinx.serialization.json.Json
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.utils.appContext
-import org.fcitx.fcitx5.android.utils.addSuppressedFailures
 import org.fcitx.fcitx5.android.utils.cleanupStagedFileInstalls
 import org.fcitx.fcitx5.android.utils.ensureDirectory
 import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
@@ -46,6 +45,26 @@ object ThemeFilesManager {
         cleanupLegacyThemeMetadataStaging(directory)
         cleanupStagedFileInstalls(directory)
         cleanupStagedThemeInstalls(directory)
+        recoverThemeImportTransactions(directory).forEach { result ->
+            result.onFailure { failure ->
+                Timber.e(failure, "Failed to recover interrupted theme import")
+            }
+        }
+    }
+
+    private fun recoverPendingThemeImports(): Boolean {
+        recoverThemeImportTransactions(dir).forEach { result ->
+            result.onFailure { failure ->
+                Timber.e(failure, "Failed to recover interrupted theme import")
+            }
+        }
+        return !hasUnresolvedThemeImportTransaction(dir)
+    }
+
+    private fun requireRecoveredThemeImports() {
+        check(recoverPendingThemeImports()) {
+            "Cannot access theme data while an interrupted import requires recovery"
+        }
     }
 
     private fun themeFile(name: String) = dir.resolveDirectChild("$name.json")
@@ -94,12 +113,14 @@ object ThemeFilesManager {
         return Triple(themeName, croppedImageFile, srcImageFile)
     }
 
-    fun installNewThemeImage(stream: InputStream, destination: File): File {
-        require(isThemeFile(destination)) { "Invalid theme image path: $destination" }
-        return stream.use { input ->
-            publishNewThemeFile(input, dir, destination.name)
+    fun installNewThemeImage(stream: InputStream, destination: File): File =
+        runThemeFileOperation {
+            requireRecoveredThemeImports()
+            require(isThemeFile(destination)) { "Invalid theme image path: $destination" }
+            stream.use { input ->
+                publishNewThemeFile(input, dir, destination.name)
+            }
         }
-    }
 
     private fun saveThemeMetadata(theme: Theme.Custom) {
         val file = themeFile(theme)
@@ -109,6 +130,7 @@ object ThemeFilesManager {
     }
 
     fun saveThemeFiles(theme: Theme.Custom) = runThemeFileOperation {
+        requireRecoveredThemeImports()
         saveThemeMetadata(theme)
     }
 
@@ -117,6 +139,7 @@ object ThemeFilesManager {
         pendingCroppedImage: File,
         replaceExistingImage: Boolean,
     ) = runThemeFileOperation {
+        requireRecoveredThemeImports()
         require(pendingCroppedImage.isFile) {
             "Cannot find pending cropped theme image: $pendingCroppedImage"
         }
@@ -143,21 +166,22 @@ object ThemeFilesManager {
         }
     }
 
-    fun deleteThemeFiles(theme: Theme.Custom): Result<Unit> = runThemeFileOperation {
-        themeFile(theme).removeIfExists().onSuccess {
-            theme.backgroundImage?.let { background ->
-                listOf(File(background.croppedFilePath), File(background.srcFilePath))
-                    .filter(::isThemeFile)
-                    .forEach { file ->
-                        file.removeIfExists().onFailure {
-                            Timber.w(it, "Failed to remove orphaned theme image: ${file.path}")
-                        }
+    fun deleteThemeFiles(theme: Theme.Custom): Result<Unit> = runThemeFileResultOperation {
+        requireRecoveredThemeImports()
+        themeFile(theme).removeIfExists().getOrThrow()
+        theme.backgroundImage?.let { background ->
+            listOf(File(background.croppedFilePath), File(background.srcFilePath))
+                .filter(::isThemeFile)
+                .forEach { file ->
+                    file.removeIfExists().onFailure {
+                        Timber.w(it, "Failed to remove orphaned theme image: ${file.path}")
                     }
-            }
+                }
         }
     }
 
     fun listThemes(): MutableList<Theme.Custom> = runThemeFileOperation {
+        if (!recoverPendingThemeImports()) return@runThemeFileOperation mutableListOf()
         val files = dir.listFiles(FileFilter { it.extension == "json" })
             ?: return@runThemeFileOperation mutableListOf()
         files
@@ -196,6 +220,7 @@ object ThemeFilesManager {
      */
     fun exportTheme(theme: Theme.Custom, dest: OutputStream) =
         runThemeFileResultOperation {
+            requireRecoveredThemeImports()
             ZipOutputStream(dest.buffered()).use { zipStream ->
                 // we don't export the internal path of images
                 val tweakedTheme = theme.backgroundImage?.let {
@@ -235,6 +260,7 @@ object ThemeFilesManager {
      */
     fun importTheme(src: InputStream): Result<Triple<Boolean, Theme.Custom, Boolean>> =
         runThemeFileResultOperation {
+            requireRecoveredThemeImports()
             ZipInputStream(src).use { zipStream ->
                 withTempDir { tempDir ->
                     val extracted = zipStream.extract(tempDir)
@@ -252,60 +278,63 @@ object ThemeFilesManager {
                     val oldSrcFile = oldTheme?.backgroundImage?.srcFilePath?.let(::File)
                     val oldCroppedFile = oldTheme?.backgroundImage?.croppedFilePath?.let(::File)
                     val themeFile = themeFile(decoded.name)
-                    val themeBackup = backup(themeFile, tempDir)
+                    val mutations = mutableListOf<ThemeImportMutation>()
                     val newTheme = decoded.backgroundImage?.let { background ->
                         val srcFile = imageFile(background.srcFilePath)
                         val croppedFile = imageFile(background.croppedFilePath)
-                        if (srcFile == croppedFile) errorRuntime(R.string.exception_theme_json)
+                        if (setOf(srcFile, croppedFile, themeFile).size != 3) {
+                            errorRuntime(R.string.exception_theme_json)
+                        }
                         val importedSrcFile = extracted.find { it.name == srcFile.name && it.isFile }
                             ?: errorRuntime(R.string.exception_theme_src_image)
                         val importedCroppedFile = extracted.find { it.name == croppedFile.name && it.isFile }
                             ?: errorRuntime(R.string.exception_theme_cropped_image)
                         val srcFileMatchesOldTheme = oldSrcFile?.canonicalFile == srcFile
                         val croppedFileMatchesOldTheme = oldCroppedFile?.canonicalFile == croppedFile
-                        val srcBackup = backup(srcFile, tempDir)
-                        val croppedBackup = backup(croppedFile, tempDir)
-                        try {
-                            installImportedFile(importedSrcFile, srcFile, srcFileMatchesOldTheme)
-                            installImportedFile(
-                                importedCroppedFile,
-                                croppedFile,
-                                croppedFileMatchesOldTheme,
+                        mutations += ThemeImportMutation(
+                            srcFile,
+                            importedSrcFile,
+                            replaceExisting = srcFileMatchesOldTheme,
+                        )
+                        mutations += ThemeImportMutation(
+                            croppedFile,
+                            importedCroppedFile,
+                            replaceExisting = croppedFileMatchesOldTheme,
+                        )
+                        decoded.copy(
+                            backgroundImage = background.copy(
+                                croppedFilePath = croppedFile.path,
+                                srcFilePath = srcFile.path
                             )
-                            decoded.copy(
-                                backgroundImage = background.copy(
-                                    croppedFilePath = croppedFile.path,
-                                    srcFilePath = srcFile.path
-                                )
-                            ).also(::saveThemeFiles)
-                        } catch (e: Exception) {
-                            e.addSuppressedFailures(
-                                listOf(
-                                    restore(srcFile, srcBackup),
-                                    restore(croppedFile, croppedBackup),
-                                    restore(themeFile, themeBackup),
-                                )
-                            )
-                            throw e
-                        }
-                    } ?: try {
-                        decoded.also(::saveThemeFiles)
-                    } catch (e: Exception) {
-                        e.addSuppressedFailures(listOf(restore(themeFile, themeBackup)))
-                        throw e
+                        )
+                    } ?: decoded
+                    val importedMetadata = File.createTempFile(
+                        "theme-import-",
+                        ".json",
+                        tempDir,
+                    ).also { metadata ->
+                        metadata.writeText(Json.encodeToString(CustomThemeSerializer, newTheme))
                     }
+                    mutations += ThemeImportMutation(
+                        themeFile,
+                        importedMetadata,
+                        replaceExisting = true,
+                    )
                     val newBackgroundFiles = newTheme.backgroundImage?.let {
                         listOf(File(it.srcFilePath).canonicalFile, File(it.croppedFilePath).canonicalFile)
                     }.orEmpty()
+                    val retainedFiles = (newBackgroundFiles + themeFile.canonicalFile).toSet()
                     listOf(oldSrcFile, oldCroppedFile)
                         .filterNotNull()
                         .filter(::isThemeFile)
-                        .filterNot { it.canonicalFile in newBackgroundFiles }
+                        .map(File::getCanonicalFile)
+                        .distinct()
+                        .filterNot { it in retainedFiles }
+                        .filter(File::isFile)
                         .forEach { file ->
-                            file.removeIfExists().onFailure {
-                                Timber.w(it, "Failed to remove orphaned theme image: ${file.path}")
-                            }
+                            mutations += ThemeImportMutation(file, source = null)
                         }
+                    executeThemeImportTransaction(dir, mutations)
                     Triple(newCreated, newTheme, migrated)
                 }
             }
