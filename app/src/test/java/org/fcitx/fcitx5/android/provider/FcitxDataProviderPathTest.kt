@@ -76,14 +76,14 @@ class FcitxDataProviderPathTest {
     }
 
     @Test
-    fun reservesCopyDestinationsWithoutReplacingExistingEntries() {
+    fun reservesDocumentDestinationsWithoutReplacingExistingEntries() {
         val root = Files.createTempDirectory("provider-copy-").toFile()
         try {
             val existingFile = root.resolve("existing.txt").also { it.writeText("existing") }
             val existingDirectory = root.resolve("existing-directory").also(File::mkdir)
 
-            assertFalse(reserveDocumentCopyDestination(existingFile, isDirectory = false))
-            assertFalse(reserveDocumentCopyDestination(existingDirectory, isDirectory = true))
+            assertFalse(reserveDocumentDestination(existingFile, isDirectory = false))
+            assertFalse(reserveDocumentDestination(existingDirectory, isDirectory = true))
             assertEquals("existing", existingFile.readText())
             assertTrue(existingDirectory.isDirectory)
         } finally {
@@ -92,16 +92,66 @@ class FcitxDataProviderPathTest {
     }
 
     @Test
-    fun reservesCopyDestinationWithRequestedType() {
+    fun reservesDocumentDestinationWithRequestedType() {
         val root = Files.createTempDirectory("provider-copy-").toFile()
         try {
             val file = root.resolve("new.txt")
             val directory = root.resolve("new-directory")
 
-            assertTrue(reserveDocumentCopyDestination(file, isDirectory = false))
-            assertTrue(reserveDocumentCopyDestination(directory, isDirectory = true))
+            assertTrue(reserveDocumentDestination(file, isDirectory = false))
+            assertTrue(reserveDocumentDestination(directory, isDirectory = true))
             assertTrue(file.isFile)
             assertTrue(directory.isDirectory)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun retriesDocumentDestinationWhenCandidateIsClaimedConcurrently() {
+        val root = Files.createTempDirectory("provider-destination-").toFile()
+        try {
+            val attempts = mutableListOf<String>()
+
+            val claimed = claimDocumentDestination(
+                root,
+                "sample.txt",
+                isDirectory = false,
+            ) { candidate ->
+                attempts += candidate.name
+                if (attempts.size == 1) candidate.writeText("racer")
+                reserveDocumentDestination(candidate, isDirectory = false)
+            }
+
+            assertEquals(listOf("sample.txt", "sample (2).txt"), attempts)
+            assertEquals("sample (2).txt", claimed.name)
+            assertEquals("racer", root.resolve("sample.txt").readText())
+            assertTrue(claimed.isFile)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun failsDocumentDestinationClaimAfterNonConflictError() {
+        val root = Files.createTempDirectory("provider-destination-").toFile()
+        try {
+            val attempts = mutableListOf<String>()
+
+            val thrown = assertThrows(IOException::class.java) {
+                claimDocumentDestination(
+                    root,
+                    "sample.txt",
+                    isDirectory = false,
+                ) { candidate ->
+                    attempts += candidate.name
+                    false
+                }
+            }
+
+            assertEquals(listOf("sample.txt"), attempts)
+            assertTrue(thrown.message.orEmpty().contains("sample.txt"))
+            assertTrue(root.listFiles().orEmpty().isEmpty())
         } finally {
             root.deleteRecursively()
         }

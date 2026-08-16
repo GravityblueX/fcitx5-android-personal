@@ -34,8 +34,35 @@ internal fun isUnredirectedPath(file: File): Boolean = runCatching {
     file.canonicalFile == file.absoluteFile.normalize()
 }.getOrDefault(false)
 
-internal fun reserveDocumentCopyDestination(destination: File, isDirectory: Boolean): Boolean =
+internal fun reserveDocumentDestination(destination: File, isDirectory: Boolean): Boolean =
     if (isDirectory) destination.mkdir() else destination.createNewFile()
+
+internal fun claimDocumentDestination(
+    parent: File,
+    displayName: String,
+    isDirectory: Boolean,
+    claim: (File) -> Boolean,
+): File {
+    require(parent.isDirectory) { "Document parent is not a directory: ${parent.path}" }
+    val safeName = displayName.safeFileName()
+    var conflictId = 1
+    while (true) {
+        val destinationName = if (conflictId == 1) {
+            safeName
+        } else {
+            documentNameWithConflictSuffix(safeName, conflictId, isDirectory)
+        }
+        val destination = parent.resolve(destinationName)
+        if (claim(destination)) return destination
+        if (!destination.exists()) {
+            throw IOException("Cannot claim document destination: ${destination.path}")
+        }
+        if (conflictId == Int.MAX_VALUE) {
+            throw IOException("Cannot find available document destination")
+        }
+        conflictId += 1
+    }
+}
 
 internal fun isDocumentCopyStagingFileName(fileName: String): Boolean {
     if (!fileName.startsWith(DOCUMENT_COPY_STAGING_PREFIX) ||
@@ -56,7 +83,7 @@ internal fun createDocumentCopyStaging(parent: File, isDirectory: Boolean): File
         val staging = parent.resolve(
             "$DOCUMENT_COPY_STAGING_PREFIX${UUID.randomUUID()}$DOCUMENT_COPY_STAGING_SUFFIX"
         )
-        if (reserveDocumentCopyDestination(staging, isDirectory)) return staging
+        if (reserveDocumentDestination(staging, isDirectory)) return staging
         if (!staging.exists()) {
             throw IOException("Cannot create document copy staging: ${staging.path}")
         }
@@ -71,25 +98,8 @@ internal fun publishDocumentCopy(
     move: (File, File) -> Boolean = { source, destination ->
         source.moveToWithoutReplacing(destination)
     },
-): File {
-    val safeName = displayName.safeFileName()
-    var conflictId = 1
-    while (true) {
-        val destinationName = if (conflictId == 1) {
-            safeName
-        } else {
-            documentNameWithConflictSuffix(safeName, conflictId, isDirectory)
-        }
-        val destination = targetParent.resolve(destinationName)
-        if (move(staging, destination)) return destination
-        if (!destination.exists()) {
-            throw IOException("Cannot publish document copy: ${destination.path}")
-        }
-        if (conflictId == Int.MAX_VALUE) {
-            throw IOException("Cannot find available document copy destination")
-        }
-        conflictId += 1
-    }
+): File = claimDocumentDestination(targetParent, displayName, isDirectory) { destination ->
+    move(staging, destination)
 }
 
 internal fun copyDocumentAtomically(
@@ -304,22 +314,16 @@ class FcitxDataProvider : DocumentsProvider() {
         mimeType: String,
         displayName: String
     ): String {
-        val newFile = createAbstractFile(
-            parentDocumentId,
-            displayName,
-            mimeType == Document.MIME_TYPE_DIR
-        )
-        try {
-            val ok = if (mimeType == Document.MIME_TYPE_DIR) {
-                newFile.mkdir()
-            } else {
-                newFile.createNewFile()
+        val parent = fileFromDocId(parentDocumentId)
+        val isDirectory = mimeType == Document.MIME_TYPE_DIR
+        val newFile = try {
+            claimDocumentDestination(parent, displayName, isDirectory) { destination ->
+                reserveDocumentDestination(destination, isDirectory)
             }
-            if (!ok) {
-                throw FileNotFoundException("createDocument id=${newFile.path} failed")
-            }
-        } catch (e: IOException) {
-            throw FileNotFoundException("createDocument id=${newFile.path} failed: ${e.message}")
+        } catch (e: Exception) {
+            throw FileNotFoundException(
+                "createDocument parent=$parentDocumentId name=$displayName failed: ${e.message}"
+            ).apply { initCause(e) }
         }
         return newFile.docId
     }
@@ -365,7 +369,7 @@ class FcitxDataProvider : DocumentsProvider() {
             }
             .forEach { child ->
                 val childDestination = destination.resolve(child.name)
-                if (!reserveDocumentCopyDestination(childDestination, child.isDirectory)) {
+                if (!reserveDocumentDestination(childDestination, child.isDirectory)) {
                     throw IOException("Cannot reserve copy destination: ${childDestination.path}")
                 }
                 copyIntoReservedDestination(child, childDestination)
@@ -416,13 +420,25 @@ class FcitxDataProvider : DocumentsProvider() {
     ): String {
         val oldFile = fileFromDocId(sourceDocumentId)
         requireNonRootDocument(oldFile, sourceDocumentId)
+        val sourceParent = fileFromDocId(sourceParentDocumentId)
+        if (oldFile.parentFile != sourceParent) {
+            throw FileNotFoundException(
+                "moveDocument id=$sourceDocumentId is not a child of $sourceParentDocumentId"
+            )
+        }
         val targetParent = fileFromDocId(targetParentDocumentId)
         if (oldFile.isDirectory && isSameOrDescendant(targetParent, oldFile)) {
             throw FileNotFoundException("moveDocument id=$sourceDocumentId into itself is not allowed")
         }
-        val newFile = createAbstractFile(targetParent, oldFile.name, oldFile.isDirectory)
-        if (!oldFile.moveToWithoutReplacing(newFile)) {
-            throw FileNotFoundException("moveDocument id=$sourceDocumentId to ${newFile.docId} failed")
+        if (sourceParent == targetParent) return oldFile.docId
+        val newFile = try {
+            claimDocumentDestination(targetParent, oldFile.name, oldFile.isDirectory) { destination ->
+                oldFile.moveToWithoutReplacing(destination)
+            }
+        } catch (e: Exception) {
+            throw FileNotFoundException(
+                "moveDocument id=$sourceDocumentId to $targetParentDocumentId failed: ${e.message}"
+            ).apply { initCause(e) }
         }
         return newFile.docId
     }
@@ -454,27 +470,6 @@ class FcitxDataProvider : DocumentsProvider() {
             textFilePaths.contains(absolutePath) -> MIME_TYPE_TEXT
             else -> MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: MIME_TYPE_BIN
         }
-
-    private fun createAbstractFile(
-        parentDocumentId: String,
-        displayName: String,
-        isDirectory: Boolean,
-    ): File {
-        return createAbstractFile(fileFromDocId(parentDocumentId), displayName, isDirectory)
-    }
-
-    private fun createAbstractFile(parent: File, displayName: String, isDirectory: Boolean): File {
-        val safeName = displayName.safeFileName()
-        var newFile = parent.resolve(safeName)
-        var noConflictId = 2
-        while (newFile.exists()) {
-            newFile = parent.resolve(
-                documentNameWithConflictSuffix(safeName, noConflictId, isDirectory)
-            )
-            noConflictId += 1
-        }
-        return newFile
-    }
 
     @Throws(FileNotFoundException::class)
     private fun MatrixCursor.newRowFromFile(file: File) {
