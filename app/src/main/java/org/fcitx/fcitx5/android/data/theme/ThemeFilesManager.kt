@@ -1,5 +1,6 @@
 package org.fcitx.fcitx5.android.data.theme
 
+import android.system.Os
 import kotlinx.serialization.json.Json
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.utils.appContext
@@ -9,10 +10,10 @@ import org.fcitx.fcitx5.android.utils.ensureDirectory
 import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
 import org.fcitx.fcitx5.android.utils.errorRuntime
 import org.fcitx.fcitx5.android.utils.extract
-import org.fcitx.fcitx5.android.utils.installNewFileAtomically
 import org.fcitx.fcitx5.android.utils.removeIfExists
 import org.fcitx.fcitx5.android.utils.replaceFileAtomically
 import org.fcitx.fcitx5.android.utils.resolveDirectChild
+import org.fcitx.fcitx5.android.utils.runWithCleanup
 import org.fcitx.fcitx5.android.utils.runWithRollback
 import org.fcitx.fcitx5.android.utils.withTempDir
 import timber.log.Timber
@@ -26,6 +27,9 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import kotlin.concurrent.withLock
+
+private const val THEME_INSTALL_STAGING_PREFIX = ".theme-install-"
+private const val THEME_INSTALL_STAGING_SUFFIX = ".staged"
 
 private val themeFileOperationLock = ReentrantLock()
 
@@ -41,6 +45,7 @@ object ThemeFilesManager {
         directory.ensureDirectory()
         cleanupLegacyThemeMetadataStaging(directory)
         cleanupStagedFileInstalls(directory)
+        cleanupStagedThemeInstalls(directory)
     }
 
     private fun themeFile(name: String) = dir.resolveDirectChild("$name.json")
@@ -77,7 +82,7 @@ object ThemeFilesManager {
             }
         } else {
             source.inputStream().use { input ->
-                installNewFileAtomically(input, dir, destination.name)
+                publishNewThemeFile(input, dir, destination.name)
             }
         }
     }
@@ -89,13 +94,12 @@ object ThemeFilesManager {
         return Triple(themeName, croppedImageFile, srcImageFile)
     }
 
-    fun installNewThemeImage(stream: InputStream, destination: File): File =
-        runThemeFileOperation {
-            require(isThemeFile(destination)) { "Invalid theme image path: $destination" }
-            stream.use { input ->
-                installNewFileAtomically(input, dir, destination.name)
-            }
+    fun installNewThemeImage(stream: InputStream, destination: File): File {
+        require(isThemeFile(destination)) { "Invalid theme image path: $destination" }
+        return stream.use { input ->
+            publishNewThemeFile(input, dir, destination.name)
         }
+    }
 
     private fun saveThemeMetadata(theme: Theme.Custom) {
         val file = themeFile(theme)
@@ -307,6 +311,51 @@ object ThemeFilesManager {
             }
         }
 
+}
+
+internal fun isThemeInstallStagingFile(fileName: String): Boolean =
+    fileName.startsWith(THEME_INSTALL_STAGING_PREFIX) &&
+            fileName.endsWith(THEME_INSTALL_STAGING_SUFFIX)
+
+internal fun cleanupStagedThemeInstalls(directory: File) {
+    directory.listFiles()
+        ?.filter { file -> file.isFile && isThemeInstallStagingFile(file.name) }
+        ?.forEach { staged ->
+            staged.removeIfExists().onFailure { failure ->
+                Timber.w(failure, "Failed to remove stale theme install: ${staged.path}")
+            }
+        }
+}
+
+internal fun publishNewThemeFile(
+    stream: InputStream,
+    directory: File,
+    fileName: String,
+    publish: (File, File) -> Unit = { staged, destination ->
+        Os.rename(staged.path, destination.path)
+    },
+): File {
+    directory.ensureDirectory()
+    val destination = directory.resolveDirectChild(fileName)
+    val staged = File.createTempFile(
+        THEME_INSTALL_STAGING_PREFIX,
+        THEME_INSTALL_STAGING_SUFFIX,
+        directory,
+    )
+    return runWithCleanup(
+        cleanup = { staged.removeIfExists() },
+        onCleanupFailure = { failure ->
+            Timber.w(failure, "Failed to remove staged theme file: ${staged.path}")
+        },
+    ) {
+        staged.outputStream().use { output -> stream.copyTo(output) }
+        runThemeFileOperation {
+            if (destination.exists()) throw FileAlreadyExistsException(destination)
+            publish(staged, destination)
+            check(destination.isFile) { "Failed to publish theme file: ${destination.path}" }
+            destination
+        }
+    }
 }
 
 internal fun isLegacyThemeMetadataStagingFile(fileName: String): Boolean =

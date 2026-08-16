@@ -86,6 +86,123 @@ class ThemeFileTransactionTest {
     }
 
     @Test
+    fun identifiesOnlyThemeInstallStagingFiles() {
+        assertTrue(isThemeInstallStagingFile(".theme-install-123.staged"))
+        assertFalse(isThemeInstallStagingFile("theme-install-123.staged"))
+        assertFalse(isThemeInstallStagingFile(".theme-install-123.tmp"))
+        assertFalse(isThemeInstallStagingFile("theme-123.staged"))
+        assertFalse(isThemeInstallStagingFile("file-install-123.staged"))
+    }
+
+    @Test
+    fun cleansOnlyThemeInstallStagingFiles() {
+        val directory = Files.createTempDirectory("theme-install-cleanup-").toFile()
+        try {
+            val staged = directory.resolve(".theme-install-123.staged").apply {
+                writeText("partial")
+            }
+            val metadataStaging = directory.resolve("theme-123.staged").apply {
+                writeText("keep")
+            }
+            val otherStaging = directory.resolve("file-install-123.staged").apply {
+                writeText("keep")
+            }
+            val matchingDirectory = directory.resolve(".theme-install-dir.staged").apply {
+                mkdir()
+            }
+
+            cleanupStagedThemeInstalls(directory)
+
+            assertFalse(staged.exists())
+            assertTrue(metadataStaging.isFile)
+            assertTrue(otherStaging.isFile)
+            assertTrue(matchingDirectory.isDirectory)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun publishesCompleteThemeFileWithoutPlaceholder() {
+        val root = Files.createTempDirectory("theme-publish-").toFile()
+        try {
+            val content = byteArrayOf(0, 1, 2, 3, 4)
+            val directory = root.resolve("destination")
+
+            val published = publishNewThemeFile(
+                content.inputStream(),
+                directory,
+                "background-src",
+                publish = { staged, destination ->
+                    assertFalse(destination.exists())
+                    assertArrayEquals(content, staged.readBytes())
+                    assertTrue(staged.renameTo(destination))
+                },
+            )
+
+            assertEquals(directory.resolve("background-src").canonicalFile, published)
+            assertArrayEquals(content, published.readBytes())
+            assertEquals(listOf("background-src"), directory.list()?.sorted())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun cleansStagingWhenThemePublishFails() {
+        val root = Files.createTempDirectory("theme-publish-").toFile()
+        try {
+            val content = byteArrayOf(0, 1, 2, 3, 4)
+            val directory = root.resolve("destination")
+            val failure = IllegalStateException("publish failed")
+
+            val thrown = assertThrows(IllegalStateException::class.java) {
+                publishNewThemeFile(
+                    content.inputStream(),
+                    directory,
+                    "background-src",
+                    publish = { staged, destination ->
+                        assertArrayEquals(content, staged.readBytes())
+                        assertFalse(destination.exists())
+                        throw failure
+                    },
+                )
+            }
+
+            assertSame(failure, thrown)
+            assertFalse(directory.resolve("background-src").exists())
+            assertTrue(directory.list()?.isEmpty() == true)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun doesNotReplaceExistingThemeFileDuringPublish() {
+        val root = Files.createTempDirectory("theme-publish-").toFile()
+        try {
+            val directory = root.resolve("destination").apply { mkdir() }
+            val existing = directory.resolve("background-src").apply {
+                writeText("existing")
+            }
+
+            assertThrows(FileAlreadyExistsException::class.java) {
+                publishNewThemeFile(
+                    "new content".byteInputStream(),
+                    directory,
+                    "background-src",
+                    publish = { _, _ -> error("Unexpected publish") },
+                )
+            }
+
+            assertEquals("existing", existing.readText())
+            assertEquals(listOf("background-src"), directory.list()?.sorted())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun preservesPrimaryFailureAndRecordsEveryRollbackFailure() {
         val primary = IllegalStateException("primary")
         val firstRollback = IllegalStateException("first rollback")
