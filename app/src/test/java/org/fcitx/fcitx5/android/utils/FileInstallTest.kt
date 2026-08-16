@@ -57,8 +57,8 @@ class FileInstallTest {
                 "target.conf",
             ) { staged, destination ->
                 assertEquals(content, staged.readText())
-                assertEquals("", destination.readText())
-                publishForTest(staged, destination)
+                assertFalse(destination.exists())
+                publishNewForTest(staged, destination)
             }
 
             assertEquals("target.conf", installed.name)
@@ -79,7 +79,7 @@ class FileInstallTest {
                 ByteArrayInputStream("content".toByteArray()),
                 directory,
                 "target.conf",
-                ::publishForTest,
+                ::publishNewForTest,
             )
 
             assertTrue(directory.isDirectory)
@@ -98,7 +98,8 @@ class FileInstallTest {
                 directory,
                 "target.conf",
             ) { staged, destination ->
-                staged.copyTo(destination, overwrite = true)
+                assertFalse(destination.exists())
+                staged.copyTo(destination)
             }
 
             assertEquals("content", installed.readText())
@@ -123,7 +124,7 @@ class FileInstallTest {
             }
 
             assertThrows(IOException::class.java) {
-                installNewFileAtomically(stream, directory, "target.conf", ::publishForTest)
+                installNewFileAtomically(stream, directory, "target.conf", ::publishNewForTest)
             }
 
             assertTrue(directory.listFiles()?.isEmpty() == true)
@@ -133,7 +134,7 @@ class FileInstallTest {
     }
 
     @Test
-    fun cleansReservedFileWhenPublishingFails() {
+    fun cleansStagingFileWhenPublishingFails() {
         val directory = Files.createTempDirectory("file-install-").toFile()
         try {
             assertThrows(IOException::class.java) {
@@ -143,12 +144,44 @@ class FileInstallTest {
                     "target.conf",
                 ) { staged, destination ->
                     assertEquals("complete content", staged.readText())
-                    assertTrue(destination.isFile)
+                    assertFalse(destination.exists())
                     throw IOException("publish interrupted")
                 }
             }
 
             assertTrue(directory.listFiles()?.isEmpty() == true)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun preservesFileCreatedWhileContentIsStaged() {
+        val directory = Files.createTempDirectory("file-install-").toFile()
+        try {
+            val destination = directory.resolve("target.conf")
+            var contentRead = false
+            val stream = object : InputStream() {
+                private var emitted = false
+
+                override fun read(): Int {
+                    if (!contentRead) {
+                        destination.writeText("concurrent content")
+                        contentRead = true
+                    }
+                    if (emitted) return -1
+                    emitted = true
+                    return 'x'.code
+                }
+            }
+
+            assertThrows(FileAlreadyExistsException::class.java) {
+                installNewFileAtomically(stream, directory, "target.conf")
+            }
+
+            assertTrue(contentRead)
+            assertEquals("concurrent content", destination.readText())
+            assertEquals(listOf("target.conf"), directory.list()?.sorted())
         } finally {
             directory.deleteRecursively()
         }
@@ -194,7 +227,7 @@ class FileInstallTest {
                 publish = { staged, target ->
                     assertEquals("replacement content", staged.readText())
                     assertEquals("existing content", target.readText())
-                    publishForTest(staged, target)
+                    replaceForTest(staged, target)
                 }
             )
 
@@ -258,7 +291,11 @@ class FileInstallTest {
         }
     }
 
-    private fun publishForTest(staged: File, destination: File) {
+    private fun publishNewForTest(staged: File, destination: File) {
+        Files.move(staged.toPath(), destination.toPath())
+    }
+
+    private fun replaceForTest(staged: File, destination: File) {
         Files.move(
             staged.toPath(),
             destination.toPath(),

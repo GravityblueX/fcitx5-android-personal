@@ -7,6 +7,7 @@ package org.fcitx.fcitx5.android.utils
 import android.system.Os
 import timber.log.Timber
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 
 private const val FILE_INSTALL_STAGING_PREFIX = "file-install-"
@@ -17,7 +18,10 @@ internal fun installNewFileAtomically(
     directory: File,
     fileName: String,
 ): File = installNewFileAtomically(stream, directory, fileName) { staged, destination ->
-    Os.rename(staged.path, destination.path)
+    if (!staged.moveToWithoutReplacing(destination)) {
+        if (destination.exists()) throw FileAlreadyExistsException(destination)
+        throw IOException("Cannot publish installed file: ${destination.path}")
+    }
 }
 
 internal fun installNewFileAtomically(
@@ -34,20 +38,12 @@ internal fun installNewFileAtomically(
         FILE_INSTALL_STAGING_SUFFIX,
         directory,
     )
-    var reserved = false
     var published = false
     try {
         return runWithRollback(
-            rollback = {
-                buildList {
-                    if (reserved) add(destination.removeIfExists())
-                    add(staged.removeIfExists())
-                }
-            },
+            rollback = { listOf(staged.removeIfExists()) },
         ) {
             staged.outputStream().use { output -> stream.copyTo(output) }
-            if (!destination.createNewFile()) throw FileAlreadyExistsException(destination)
-            reserved = true
             publish(staged, destination)
             published = true
             destination
