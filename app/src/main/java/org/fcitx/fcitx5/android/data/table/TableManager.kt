@@ -16,8 +16,12 @@ import org.fcitx.fcitx5.android.utils.errorRuntime
 import org.fcitx.fcitx5.android.utils.ensureDirectory
 import org.fcitx.fcitx5.android.utils.extract
 import org.fcitx.fcitx5.android.utils.installNewFileAtomically
+import org.fcitx.fcitx5.android.utils.removeIfExists
 import org.fcitx.fcitx5.android.utils.replaceFileAtomically
+import org.fcitx.fcitx5.android.utils.runWithCleanup
+import org.fcitx.fcitx5.android.utils.runWithRollback
 import org.fcitx.fcitx5.android.utils.withTempDir
+import timber.log.Timber
 import java.io.File
 import java.io.InputStream
 import java.util.zip.ZipInputStream
@@ -91,41 +95,39 @@ object TableManager {
         } catch (_: FileAlreadyExistsException) {
             errorRuntime(R.string.table_already_exists, importedConfName)
         }
-        val im = runCatching {
-            TableBasedInputMethod.new(importedConfFile)
-        }.getOrElse {
-            importedConfFile.delete()
-            throw it
-        }
-        val table = Dictionary.new(dictFile) ?: run {
-            importedConfFile.delete()
-            errorRuntime(R.string.invalid_table_dict, "Unsupported dictionary file: ${dictFile.name}")
-        }
-        val tableFile = reserveTableFile(
-            tableDicDir,
-            TableBasedInputMethod.fixedTableFileName(table.name)
-        )
-        im.tableFileName = tableFile.name
-        runCatching {
+        var tableFile: File? = null
+        return runWithRollback(
+            rollback = { cleanupTableImportFiles(importedConfFile, tableFile) },
+        ) {
+            val im = TableBasedInputMethod.new(importedConfFile)
+            val table = Dictionary.new(dictFile)
+                ?: errorRuntime(
+                    R.string.invalid_table_dict,
+                    "Unsupported dictionary file: ${dictFile.name}"
+                )
+            val reservedTableFile = reserveTableFile(
+                tableDicDir,
+                TableBasedInputMethod.fixedTableFileName(table.name)
+            )
+            tableFile = reservedTableFile
+            im.tableFileName = reservedTableFile.name
             val staged = File.createTempFile("table-dict-", ".dict", tableDicDir)
             try {
-                table.toLibIMEDictionary(staged)
-                Os.rename(staged.path, tableFile.path)
-                im.table = LibIMEDictionary(tableFile)
-            } finally {
-                staged.delete()
+                runWithCleanup(
+                    cleanup = { staged.removeIfExists() },
+                    onCleanupFailure = { failure ->
+                        Timber.w(failure, "Failed to remove staged table dictionary: ${staged.path}")
+                    },
+                ) {
+                    table.toLibIMEDictionary(staged)
+                    Os.rename(staged.path, reservedTableFile.path)
+                    im.table = LibIMEDictionary(reservedTableFile)
+                }
+            } catch (failure: Throwable) {
+                errorRuntime(R.string.invalid_table_dict, failure.message, failure)
             }
-        }.onFailure {
-            im.file.delete()
-            tableFile.delete()
-            errorRuntime(R.string.invalid_table_dict, it.message)
-        }
-        try {
             im.save()
-            return im
-        } catch (e: Exception) {
-            im.delete()
-            throw e
+            im
         }
     }
 
@@ -141,16 +143,14 @@ object TableManager {
             val dict = Dictionary.new(dictFile)
                 ?: errorRuntime(R.string.invalid_table_dict, "Unsupported dictionary file: ${dictFile.name}")
             val destination = File(tableDicDir, im.tableFileName)
-            runCatching {
-                dict.toLibIMEDictionary(File(tempDir, im.tableFileName))
-            }.onSuccess { converted ->
+            try {
+                val converted = dict.toLibIMEDictionary(File(tempDir, im.tableFileName))
                 replaceFileAtomically(destination) { staged ->
                     converted.file.copyTo(staged, overwrite = true)
                 }
-            }.onFailure {
-                dictFile.delete()
-                errorRuntime(R.string.invalid_table_dict, it.message)
-            }.getOrThrow()
+            } catch (failure: Throwable) {
+                errorRuntime(R.string.invalid_table_dict, failure.message, failure)
+            }
             LibIMEDictionary(destination)
         }
     }
@@ -164,6 +164,12 @@ object TableManager {
     const val MODE_BIN_TO_TXT = true
     const val MODE_TXT_TO_BIN = false
 }
+
+internal fun cleanupTableImportFiles(
+    configurationFile: File,
+    dictionaryFile: File?,
+): List<Result<Unit>> = listOfNotNull(configurationFile, dictionaryFile)
+    .map(File::removeIfExists)
 
 internal fun reserveTableFile(directory: File, preferredName: String): File {
     val extension = preferredName.substringAfterLast('.', missingDelimiterValue = "")

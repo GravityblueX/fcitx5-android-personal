@@ -27,3 +27,9 @@ fun errorArg(@StringRes messageTemplate: Int, messageArg: String? = null): Nothi
 
 fun errorRuntime(@StringRes messageTemplate: Int, messageArg: String? = null): Nothing =
     errorT(::RuntimeException, messageTemplate, messageArg)
+
+fun errorRuntime(
+    @StringRes messageTemplate: Int,
+    messageArg: String?,
+    cause: Throwable,
+): Nothing = errorT({ message -> RuntimeException(message, cause) }, messageTemplate, messageArg)
