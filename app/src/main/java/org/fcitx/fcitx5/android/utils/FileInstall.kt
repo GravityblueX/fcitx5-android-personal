@@ -48,6 +48,37 @@ internal fun installNewFileAtomically(
     }
 }
 
+internal fun replaceFileAtomically(
+    destination: File,
+    write: (File) -> Unit,
+): File = replaceFileAtomically(destination, write) { staged, target ->
+    Os.rename(staged.path, target.path)
+}
+
+internal fun replaceFileAtomically(
+    destination: File,
+    write: (File) -> Unit,
+    publish: (File, File) -> Unit,
+): File {
+    val directory = destination.parentFile
+        ?: error("Cannot resolve destination directory: ${destination.path}")
+    check(directory.mkdirs() || directory.isDirectory) {
+        "Cannot create destination directory: $directory"
+    }
+    val staged = File.createTempFile(
+        FILE_INSTALL_STAGING_PREFIX,
+        FILE_INSTALL_STAGING_SUFFIX,
+        directory,
+    )
+    try {
+        write(staged)
+        publish(staged, destination)
+        return destination
+    } finally {
+        staged.delete()
+    }
+}
+
 internal fun isFileInstallStagingFile(fileName: String): Boolean =
     fileName.startsWith(FILE_INSTALL_STAGING_PREFIX) &&
             fileName.endsWith(FILE_INSTALL_STAGING_SUFFIX)

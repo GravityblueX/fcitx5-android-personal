@@ -15,6 +15,7 @@ import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
 import org.fcitx.fcitx5.android.utils.errorRuntime
 import org.fcitx.fcitx5.android.utils.extract
 import org.fcitx.fcitx5.android.utils.installNewFileAtomically
+import org.fcitx.fcitx5.android.utils.replaceFileAtomically
 import org.fcitx.fcitx5.android.utils.withTempDir
 import java.io.File
 import java.io.InputStream
@@ -31,7 +32,10 @@ object TableManager {
 
     private val tableDicDir = File(
         appContext.externalFilesDirOrFilesDir, "data/table"
-    ).also { it.mkdirs() }
+    ).also { directory ->
+        directory.mkdirs()
+        cleanupStagedFileInstalls(directory)
+    }
 
     fun inputMethods(): List<TableBasedInputMethod> =
         inputMethodDir.listFiles()?.mapNotNull { confFile ->
@@ -139,16 +143,8 @@ object TableManager {
             runCatching {
                 dict.toLibIMEDictionary(File(tempDir, im.tableFileName))
             }.onSuccess { converted ->
-                val parent = destination.parentFile ?: error("Cannot resolve dictionary directory")
-                check(parent.mkdirs() || parent.isDirectory) {
-                    "Cannot create directory: $parent"
-                }
-                val staged = File.createTempFile("table-dict-", ".staged", parent)
-                try {
+                replaceFileAtomically(destination) { staged ->
                     converted.file.copyTo(staged, overwrite = true)
-                    Os.rename(staged.path, destination.path)
-                } finally {
-                    staged.delete()
                 }
             }.onFailure {
                 dictFile.delete()

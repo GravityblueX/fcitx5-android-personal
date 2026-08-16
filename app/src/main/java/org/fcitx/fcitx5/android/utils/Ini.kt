@@ -52,7 +52,11 @@ value class Ini(val core: RawConfig) {
 
         fun parseIniFromFile(file: File) = readFromIni(file.path)?.let { Ini(it) }
 
-        fun writeIniToFile(ini: Ini, file: File) = writeAsIni(file.path, ini.core)
+        fun writeIniToFile(ini: Ini, file: File) {
+            replaceFileAtomically(file) { staged ->
+                writeAsIni(staged.path, ini.core)
+            }
+        }
     }
 
 }

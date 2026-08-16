@@ -1305,7 +1305,11 @@ Java_org_fcitx_fcitx5_android_utils_Ini_writeAsIni(JNIEnv *env, jclass clazz, js
     }
     auto config = jobjectToRawConfig(env, value);
     fcitx::writeAsIni(config, fp);
-    std::fclose(fp);
+    const bool writeFailed = std::ferror(fp) != 0;
+    const bool closeFailed = std::fclose(fp) != 0;
+    if (writeFailed || closeFailed) {
+        throwJavaException(env, "Unable to write file");
+    }
 }
 
 #pragma GCC diagnostic pop

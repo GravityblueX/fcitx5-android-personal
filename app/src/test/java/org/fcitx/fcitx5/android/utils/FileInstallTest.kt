@@ -141,6 +141,84 @@ class FileInstallTest {
         }
     }
 
+    @Test
+    fun replacesExistingFileOnlyAfterStagingCompletes() {
+        val directory = Files.createTempDirectory("file-replace-").toFile()
+        try {
+            val destination = directory.resolve("target.conf").apply {
+                writeText("existing content")
+            }
+
+            val replaced = replaceFileAtomically(
+                destination,
+                write = { staged -> staged.writeText("replacement content") },
+                publish = { staged, target ->
+                    assertEquals("replacement content", staged.readText())
+                    assertEquals("existing content", target.readText())
+                    publishForTest(staged, target)
+                }
+            )
+
+            assertEquals(destination, replaced)
+            assertEquals("replacement content", destination.readText())
+            assertEquals(listOf("target.conf"), directory.list()?.sorted())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun preservesExistingFileWhenReplacementWriteFails() {
+        val directory = Files.createTempDirectory("file-replace-").toFile()
+        try {
+            val destination = directory.resolve("target.conf").apply {
+                writeText("existing content")
+            }
+            var publishCalled = false
+
+            assertThrows(IOException::class.java) {
+                replaceFileAtomically(
+                    destination,
+                    write = { throw IOException("write interrupted") },
+                    publish = { _, _ -> publishCalled = true }
+                )
+            }
+
+            assertFalse(publishCalled)
+            assertEquals("existing content", destination.readText())
+            assertEquals(listOf("target.conf"), directory.list()?.sorted())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun preservesExistingFileWhenReplacementPublishingFails() {
+        val directory = Files.createTempDirectory("file-replace-").toFile()
+        try {
+            val destination = directory.resolve("target.conf").apply {
+                writeText("existing content")
+            }
+
+            assertThrows(IOException::class.java) {
+                replaceFileAtomically(
+                    destination,
+                    write = { staged -> staged.writeText("replacement content") },
+                    publish = { staged, target ->
+                        assertEquals("replacement content", staged.readText())
+                        assertEquals("existing content", target.readText())
+                        throw IOException("publish interrupted")
+                    }
+                )
+            }
+
+            assertEquals("existing content", destination.readText())
+            assertEquals(listOf("target.conf"), directory.list()?.sorted())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
     private fun publishForTest(staged: File, destination: File) {
         Files.move(
             staged.toPath(),
