@@ -10,8 +10,8 @@ import java.io.File
 import java.nio.file.Files
 
 @PublishedApi
-internal fun createTempDir(parent: File): File {
-    return Files.createTempDirectory(parent.toPath(), "fcitx-").toFile()
+internal fun createTempDir(parent: File, prefix: String = "fcitx-"): File {
+    return Files.createTempDirectory(parent.toPath(), prefix).toFile()
 }
 
 inline fun <T> withTempDir(block: (File) -> T): T {

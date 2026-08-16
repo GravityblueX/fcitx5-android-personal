@@ -34,6 +34,11 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
+private const val USER_DATA_IMPORT_DIRECTORY_PREFIX = ".user-data-import-"
+private const val LEGACY_USER_DATA_IMPORT_DIRECTORY_PREFIX = "fcitx-"
+private const val USER_DATA_IMPORT_JOURNAL_STAGING_PREFIX = "user-data-import-"
+private const val USER_DATA_IMPORT_JOURNAL_STAGING_SUFFIX = ".journal"
+
 internal fun isSafeUserDataExportPath(file: File, sourceDir: File): Boolean {
     val relative = runCatching { file.relativeTo(sourceDir) }.getOrNull() ?: return false
     val canonicalSource = runCatching { sourceDir.canonicalFile }.getOrNull() ?: return false
@@ -101,6 +106,38 @@ internal fun determineImportRecoveryAction(
     else -> ImportRecoveryAction.NONE
 }
 
+internal fun isUserDataImportStagingDirectory(fileName: String): Boolean =
+    fileName.startsWith(USER_DATA_IMPORT_DIRECTORY_PREFIX) ||
+            fileName.startsWith(LEGACY_USER_DATA_IMPORT_DIRECTORY_PREFIX)
+
+internal fun isUserDataImportJournalStagingFile(fileName: String): Boolean =
+    fileName.startsWith(USER_DATA_IMPORT_JOURNAL_STAGING_PREFIX) &&
+            fileName.endsWith(USER_DATA_IMPORT_JOURNAL_STAGING_SUFFIX)
+
+internal fun cleanupAbandonedUserDataImport(
+    journal: File,
+    importDirectoryParents: Iterable<File>,
+    removeFile: (File) -> Result<Unit> = FileUtil::removeFile,
+): List<Result<Unit>> {
+    if (journal.exists()) return emptyList()
+    val abandoned = buildList {
+        journal.parentFile?.listFiles()
+            ?.filterTo(this) { file ->
+                file.isFile && isUserDataImportJournalStagingFile(file.name)
+            }
+        importDirectoryParents
+            .distinctBy { parent -> parent.absoluteFile.normalize().path }
+            .forEach { parent ->
+                parent.listFiles()
+                    ?.filterTo(this) { file ->
+                        file.isDirectory && isUserDataImportStagingDirectory(file.name)
+                    }
+            }
+    }
+    return abandoned.distinctBy { file -> file.absoluteFile.normalize().path }
+        .map(removeFile)
+}
+
 object UserDataManager {
 
     private const val PRODUCT_PACKAGE_NAME = "org.fcitx.fcitx17.android"
@@ -145,6 +182,9 @@ object UserDataManager {
     private val dataBasesDir = File(appContext.applicationInfo.dataDir, "databases")
     private val externalDir = appContext.externalFilesDirOrFilesDir
     private val recentlyUsedDir = appContext.filesDir.resolve(RecentlyUsed.DIR_NAME)
+    private val importDirectoryParents get() =
+        listOf(sharedPrefsDir, dataBasesDir, externalDir, recentlyUsedDir)
+            .mapNotNull(File::getParentFile)
 
     @OptIn(ExperimentalSerializationApi::class)
     fun export(dest: OutputStream, timestamp: Long = System.currentTimeMillis()) = runCatching {
@@ -188,7 +228,7 @@ object UserDataManager {
     }
 
     private fun createImportBackupPath(parent: File): File {
-        val backup = createTempDir(parent)
+        val backup = createTempDir(parent, USER_DATA_IMPORT_DIRECTORY_PREFIX)
         backup.removeIfExists().getOrThrow()
         return backup
     }
@@ -204,7 +244,7 @@ object UserDataManager {
         }
         val parent = target.parentFile ?: error("Cannot resolve import directory parent: ${target.path}")
         parent.ensureDirectory()
-        val staged = createTempDir(parent)
+        val staged = createTempDir(parent, USER_DATA_IMPORT_DIRECTORY_PREFIX)
         return runWithRollback(
             rollback = { listOf(FileUtil.removeFile(staged)) },
         ) {
@@ -266,7 +306,11 @@ object UserDataManager {
         val journal = importJournalFile
         val parent = journal.parentFile ?: error("Cannot resolve import journal parent")
         parent.ensureDirectory()
-        val staged = File.createTempFile("user-data-import-", ".journal", parent)
+        val staged = File.createTempFile(
+            USER_DATA_IMPORT_JOURNAL_STAGING_PREFIX,
+            USER_DATA_IMPORT_JOURNAL_STAGING_SUFFIX,
+            parent,
+        )
         runWithCleanup(
             cleanup = { staged.removeIfExists() },
             onCleanupFailure = ::reportImportCleanupFailure,
@@ -348,6 +392,11 @@ object UserDataManager {
 
     fun recoverPendingImport() {
         val journal = importJournalFile
+        if (!journal.exists()) {
+            cleanupAbandonedUserDataImport(journal, importDirectoryParents)
+                .forEach { it.onFailure(::reportImportCleanupFailure) }
+            return
+        }
         if (!journal.isFile) return
         val importJournal = runCatching {
             json.decodeFromString<ImportJournal>(journal.readText())

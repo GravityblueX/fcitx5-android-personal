@@ -16,6 +16,19 @@ import java.util.concurrent.Executors
 class TempDirTest {
 
     @Test
+    fun usesRequestedPrefix() {
+        val parent = Files.createTempDirectory("fcitx-temp-prefix-").toFile()
+        try {
+            val directory = createTempDir(parent, ".user-data-import-")
+
+            assertTrue(directory.name.startsWith(".user-data-import-"))
+            assertTrue(directory.isDirectory)
+        } finally {
+            parent.deleteRecursively()
+        }
+    }
+
+    @Test
     fun createsOnlyDistinctDirectoriesConcurrently() {
         val parent = Files.createTempDirectory("fcitx-temp-").toFile()
         val executor = Executors.newFixedThreadPool(4)

@@ -19,6 +19,69 @@ import java.util.zip.ZipOutputStream
 class UserDataManagerTest {
 
     @Test
+    fun cleansAbandonedImportArtifactsWithoutPublishedJournal() {
+        val root = Files.createTempDirectory("user-data-abandoned-").toFile()
+        try {
+            val journalParent = root.resolve("files").also(File::mkdir)
+            val dataParent = root.resolve("data").also(File::mkdir)
+            val journal = journalParent.resolve(".user-data-import")
+            val stagedJournal = journalParent.resolve("user-data-import-123.journal")
+                .apply { writeText("partial") }
+            val stagedDirectory = dataParent.resolve(".user-data-import-123")
+                .also(File::mkdir)
+            stagedDirectory.resolve("imported.txt").writeText("partial")
+            val legacyDirectory = dataParent.resolve("fcitx-123.tmp").also(File::mkdir)
+            val unrelated = dataParent.resolve("keep").also(File::mkdir)
+
+            val results = cleanupAbandonedUserDataImport(
+                journal,
+                listOf(dataParent, dataParent),
+                removeFile = { file ->
+                    runCatching {
+                        check(file.deleteRecursively()) { "Cannot delete ${file.path}" }
+                    }
+                },
+            )
+
+            assertTrue(
+                results.mapNotNull(Result<Unit>::exceptionOrNull)
+                    .joinToString("\n", transform = Throwable::stackTraceToString),
+                results.all(Result<Unit>::isSuccess),
+            )
+            assertFalse(stagedJournal.exists())
+            assertFalse(stagedDirectory.exists())
+            assertFalse(legacyDirectory.exists())
+            assertTrue(unrelated.isDirectory)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun preservesImportArtifactsWhilePublishedJournalExists() {
+        val root = Files.createTempDirectory("user-data-pending-").toFile()
+        try {
+            val journalParent = root.resolve("files").also(File::mkdir)
+            val dataParent = root.resolve("data").also(File::mkdir)
+            val journal = journalParent.resolve(".user-data-import").apply {
+                writeText("published")
+            }
+            val stagedJournal = journalParent.resolve("user-data-import-123.journal")
+                .apply { writeText("partial") }
+            val stagedDirectory = dataParent.resolve(".user-data-import-123")
+                .also(File::mkdir)
+
+            val results = cleanupAbandonedUserDataImport(journal, listOf(dataParent))
+
+            assertTrue(results.isEmpty())
+            assertTrue(stagedJournal.isFile)
+            assertTrue(stagedDirectory.isDirectory)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun transientModelPreferencesAreExcluded() {
         assertTrue(isTransientSharedPreferenceFile("handwriting_recognition.xml"))
         assertTrue(isTransientSharedPreferenceFile("handwriting_recognition.xml.bak"))
