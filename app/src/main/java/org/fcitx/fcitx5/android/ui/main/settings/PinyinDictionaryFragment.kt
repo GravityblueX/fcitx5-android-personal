@@ -44,7 +44,6 @@ import org.fcitx.fcitx5.android.utils.importErrorDialog
 import org.fcitx.fcitx5.android.utils.lazyRoute
 import org.fcitx.fcitx5.android.utils.notificationManager
 import org.fcitx.fcitx5.android.utils.queryFileName
-import org.fcitx.fcitx5.android.utils.removeIfExists
 import org.fcitx.fcitx5.android.utils.toast
 import timber.log.Timber
 
@@ -71,7 +70,7 @@ class PinyinDictionaryFragment : Fragment(), OnItemChangedListener<PinyinDiction
                 if (entry is LibIMEDictionary) {
                     isChecked = entry.isEnabled
                     setOnCheckedChangeListener { _, isChecked ->
-                        if (if (isChecked) entry.enable() else entry.disable()) {
+                        if (PinyinDictManager.setEnabled(entry, isChecked)) {
                             ui.updateItem(ui.indexItem(entry), entry)
                         } else {
                             this.isChecked = entry.isEnabled
@@ -210,6 +209,7 @@ class PinyinDictionaryFragment : Fragment(), OnItemChangedListener<PinyinDiction
                     PinyinDictManager.importFromInputStream(inputStream, importTarget.sourceFileName)
                         .getOrThrow()
                 }
+                if (!imported.file.isFile) return@launch
                 ui.addItem(item = imported)
             } catch (e: Exception) {
                 if (e is CancellationException) {
@@ -276,7 +276,7 @@ class PinyinDictionaryFragment : Fragment(), OnItemChangedListener<PinyinDiction
             indexed,
             remove = { item ->
                 check(item is LibIMEDictionary)
-                item.file.removeIfExists()
+                PinyinDictManager.delete(item)
             },
             onRemoved = { item -> dustman.remove(item.name) },
             restore = ui::addItem,

@@ -4,6 +4,7 @@
  */
 package org.fcitx.fcitx5.android.data.pinyin
 
+import android.system.Os
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.data.DataManager
 import org.fcitx.fcitx5.android.data.pinyin.dict.BuiltinDictionary
@@ -17,11 +18,19 @@ import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
 import org.fcitx.fcitx5.android.utils.errorArg
 import org.fcitx.fcitx5.android.utils.ensureDirectory
 import org.fcitx.fcitx5.android.utils.removeIfExists
-import org.fcitx.fcitx5.android.utils.replaceFileAtomically
+import org.fcitx.fcitx5.android.utils.resolveDirectChild
+import org.fcitx.fcitx5.android.utils.runWithCleanup
 import timber.log.Timber
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
+
+private val pinyinDictionaryOperationLock = ReentrantLock()
+
+internal fun <T> runPinyinDictionaryOperation(block: () -> T): T =
+    pinyinDictionaryOperationLock.withLock(block)
 
 object PinyinDictManager {
 
@@ -44,7 +53,7 @@ object PinyinDictManager {
 
     private val scel2org5 by lazy { File(nativeDir, scel2org5Name) }
 
-    fun listDictionaries(): List<PinyinDictionary> {
+    fun listDictionaries(): List<PinyinDictionary> = runPinyinDictionaryOperation {
         val builtin = mutableListOf<PinyinDictionary>()
         builtinPinyinDictDir.listFiles()?.forEach {
             if (it.extension == PinyinDictionary.Type.LibIME.ext) {
@@ -61,22 +70,46 @@ object PinyinDictManager {
             }
         }
         user.sortBy { it.name }
-        return builtin + user
+        builtin + user
     }
 
-    fun importFromFile(file: File, destinationName: String = file.name): Result<LibIMEDictionary> = runCatching {
-        val raw =
-            PinyinDictionary.new(file) ?: errorArg(R.string.exception_dict_filename, file.path)
+    fun importFromFile(
+        file: File,
+        destinationName: String = file.name,
+    ): Result<LibIMEDictionary> = runCatching {
+        val raw = PinyinDictionary.new(file)
+            ?: errorArg(R.string.exception_dict_filename, file.path)
         val target = pinyinDictionaryImportTarget(destinationName)
             ?: errorArg(R.string.exception_dict_filename, destinationName)
-        val destination = File(pinyinDicDir, target.destinationFileName)
+        val destination = pinyinDicDir.resolveDirectChild(target.destinationFileName)
         withTempDir { tempDir ->
             val converted = raw.toLibIMEDictionary(File(tempDir, destination.name))
-            replaceFileAtomically(destination) { staged ->
+            val staged = File.createTempFile(
+                IMPORT_STAGING_PREFIX,
+                IMPORT_STAGING_SUFFIX,
+                pinyinDicDir,
+            )
+            runWithCleanup(
+                cleanup = { staged.removeIfExists() },
+                onCleanupFailure = { failure ->
+                    Timber.w(failure, "Failed to remove staged pinyin dictionary: ${staged.path}")
+                },
+            ) {
                 converted.file.copyTo(staged, overwrite = true)
+                runPinyinDictionaryOperation {
+                    if (pinyinDictionaryEntryExists(
+                            pinyinDicDir,
+                            builtinPinyinDictDir,
+                            target.entryName,
+                        )
+                    ) {
+                        errorArg(R.string.dict_already_exists)
+                    }
+                    Os.rename(staged.path, destination.path)
+                    LibIMEDictionary(destination).also { Timber.d("Converted $raw to $it") }
+                }
             }
         }
-        LibIMEDictionary(destination).also { Timber.d("Converted $raw to $it") }
     }
 
     fun importFromInputStream(stream: InputStream, name: String): Result<LibIMEDictionary> =
@@ -93,6 +126,25 @@ object PinyinDictManager {
                 importFromFile(tempFile, target.sourceFileName).getOrThrow()
             }
         }
+
+    fun setEnabled(dictionary: LibIMEDictionary, enabled: Boolean): Boolean =
+        runPinyinDictionaryOperation {
+            runCatching {
+                val file = managedPinyinDictionaryFile(pinyinDicDir, dictionary.file)
+                check(file.isFile) { "Cannot find pinyin dictionary: ${file.path}" }
+                if (enabled) dictionary.enable() else dictionary.disable()
+            }.onFailure { failure ->
+                Timber.w(failure, "Failed to change pinyin dictionary state: ${dictionary.file.path}")
+            }.getOrDefault(false)
+        }
+
+    fun delete(dictionary: LibIMEDictionary): Result<Unit> = runPinyinDictionaryOperation {
+        runCatching {
+            managedPinyinDictionaryFile(pinyinDicDir, dictionary.file)
+                .removeIfExists()
+                .getOrThrow()
+        }
+    }
 
     fun sougouDictConv(src: String, dest: String) {
         val process = ProcessBuilder(scel2org5.absolutePath, "-o", dest, src)
@@ -144,6 +196,24 @@ internal fun pinyinDictionaryImportTarget(fileName: String): PinyinDictionaryImp
     val entryName = safeFileName.removeSuffix(suffix)
     if (entryName.isBlank() || entryName == "." || entryName == "..") return null
     return PinyinDictionaryImportTarget(safeFileName, entryName)
+}
+
+internal fun pinyinDictionaryEntryExists(
+    userDirectory: File,
+    builtinDirectory: File,
+    entryName: String,
+): Boolean {
+    val enabledFileName = "$entryName.${PinyinDictionary.Type.LibIME.ext}"
+    val disabledFileName = "$enabledFileName.${LibIMEDictionary.DISABLE}"
+    return userDirectory.resolveDirectChild(enabledFileName).exists() ||
+            userDirectory.resolveDirectChild(disabledFileName).exists() ||
+            builtinDirectory.resolveDirectChild(enabledFileName).exists()
+}
+
+internal fun managedPinyinDictionaryFile(directory: File, file: File): File {
+    val managed = directory.resolveDirectChild(file.name)
+    check(managed == file.canonicalFile) { "Unmanaged pinyin dictionary: ${file.path}" }
+    return managed
 }
 
 private const val MAX_PROCESS_OUTPUT_CHARS = 64 * 1024

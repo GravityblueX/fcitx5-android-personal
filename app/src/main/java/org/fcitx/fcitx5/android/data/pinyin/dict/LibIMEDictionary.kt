@@ -37,7 +37,7 @@ class LibIMEDictionary(file: File) : PinyinDictionary() {
         }
     }
 
-    fun enable(): Boolean {
+    internal fun enable(): Boolean {
         if (isEnabled) return true
         val newFile = file.resolveSibling(name + ".${type.ext}")
         if (!file.moveToWithoutReplacing(newFile)) return false
@@ -46,7 +46,7 @@ class LibIMEDictionary(file: File) : PinyinDictionary() {
         return true
     }
 
-    fun disable(): Boolean {
+    internal fun disable(): Boolean {
         if (!isEnabled) return true
         val newFile = file.resolveSibling(name + ".${type.ext}.$DISABLE")
         if (!file.moveToWithoutReplacing(newFile)) return false
