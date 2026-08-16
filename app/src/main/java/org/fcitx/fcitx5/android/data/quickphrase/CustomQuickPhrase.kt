@@ -4,11 +4,11 @@
  */
 package org.fcitx.fcitx5.android.data.quickphrase
 
-import android.system.Os
 import kotlinx.parcelize.Parcelize
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.utils.errorArg
 import org.fcitx.fcitx5.android.utils.moveToWithoutReplacing
+import org.fcitx.fcitx5.android.utils.replaceFileAtomically
 import java.io.File
 
 @Parcelize
@@ -67,16 +67,8 @@ class CustomQuickPhrase(
     }
 
     override fun saveData(data: QuickPhraseData) {
-        val parent = file.parentFile ?: error("Cannot resolve quick phrase directory: ${file.path}")
-        check(parent.mkdirs() || parent.isDirectory) {
-            "Cannot create quick phrase directory: ${parent}"
-        }
-        val staged = File.createTempFile("quickphrase-", ".staged", parent)
-        try {
+        replaceFileAtomically(file) { staged ->
             staged.writeText(data.serialize())
-            Os.rename(staged.path, file.path)
-        } finally {
-            staged.delete()
         }
     }
 

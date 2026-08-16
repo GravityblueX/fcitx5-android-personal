@@ -4,18 +4,20 @@
  */
 package org.fcitx.fcitx5.android.data.pinyin
 
-import android.system.Os
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.data.DataManager
 import org.fcitx.fcitx5.android.data.pinyin.dict.BuiltinDictionary
 import org.fcitx.fcitx5.android.data.pinyin.dict.LibIMEDictionary
 import org.fcitx.fcitx5.android.data.pinyin.dict.PinyinDictionary
+import org.fcitx.fcitx5.android.utils.cleanupStagedFileInstalls
 import org.fcitx.fcitx5.android.utils.safeFileName
 import org.fcitx.fcitx5.android.utils.withTempDir
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
 import org.fcitx.fcitx5.android.utils.errorArg
 import org.fcitx.fcitx5.android.utils.ensureDirectory
+import org.fcitx.fcitx5.android.utils.removeIfExists
+import org.fcitx.fcitx5.android.utils.replaceFileAtomically
 import timber.log.Timber
 import java.io.File
 import java.io.IOException
@@ -31,6 +33,7 @@ object PinyinDictManager {
     ).also { directory ->
         directory.ensureDirectory()
         cleanupStagedImports(directory)
+        cleanupStagedFileInstalls(directory)
     }
 
     private val builtinPinyinDictDir = File(
@@ -69,16 +72,8 @@ object PinyinDictManager {
         val destination = File(pinyinDicDir, target.destinationFileName)
         withTempDir { tempDir ->
             val converted = raw.toLibIMEDictionary(File(tempDir, destination.name))
-            val staged = File.createTempFile(
-                IMPORT_STAGING_PREFIX,
-                IMPORT_STAGING_SUFFIX,
-                pinyinDicDir
-            )
-            try {
+            replaceFileAtomically(destination) { staged ->
                 converted.file.copyTo(staged, overwrite = true)
-                Os.rename(staged.path, destination.path)
-            } finally {
-                staged.delete()
             }
         }
         LibIMEDictionary(destination).also { Timber.d("Converted $raw to $it") }
@@ -88,21 +83,14 @@ object PinyinDictManager {
         runCatching {
             val target = pinyinDictionaryImportTarget(name)
                 ?: errorArg(R.string.exception_dict_filename, name)
-            val suffix = target.sourceFileName.substringAfter('.', missingDelimiterValue = "")
-            val tempFile = File.createTempFile(
-                "pinyin-import-",
-                suffix.takeIf { it.isNotEmpty() }?.let { ".$it" },
-                appContext.cacheDir
-            )
-            try {
+            withTempDir { tempDir ->
+                val tempFile = tempDir.resolve(target.sourceFileName)
                 stream.use { input ->
                     tempFile.outputStream().use { output ->
                         input.copyTo(output)
                     }
                 }
                 importFromFile(tempFile, target.sourceFileName).getOrThrow()
-            } finally {
-                tempFile.delete()
             }
         }
 
@@ -130,7 +118,9 @@ object PinyinDictManager {
         directory.listFiles()
             ?.filter { isPinyinImportStagingFile(it.name) }
             ?.forEach { staged ->
-                if (!staged.delete()) Timber.w("Failed to remove stale pinyin import: ${staged.path}")
+                staged.removeIfExists().onFailure { failure ->
+                    Timber.w(failure, "Failed to remove stale pinyin import: ${staged.path}")
+                }
             }
     }
 }
