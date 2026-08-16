@@ -5,6 +5,7 @@
 
 package org.fcitx.fcitx5.android.utils
 
+import timber.log.Timber
 import java.io.File
 
 @PublishedApi
@@ -16,9 +17,11 @@ internal fun createTempDir(parent: File): File {
 
 inline fun <T> withTempDir(block: (File) -> T): T {
     val dir = createTempDir(appContext.cacheDir)
-    try {
-        return block(dir)
-    } finally {
-        dir.deleteRecursively()
-    }
+    return runWithCleanup(
+        cleanup = { FileUtil.removeFile(dir) },
+        onCleanupFailure = { failure ->
+            Timber.w(failure, "Failed to remove temporary directory: ${dir.path}")
+        },
+        block = { block(dir) },
+    )
 }

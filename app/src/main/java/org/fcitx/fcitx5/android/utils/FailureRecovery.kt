@@ -4,10 +4,38 @@
  */
 package org.fcitx.fcitx5.android.utils
 
+@PublishedApi
 internal fun Throwable.addSuppressedFailures(results: Iterable<Result<Unit>>) {
     results.mapNotNull(Result<Unit>::exceptionOrNull)
         .filterNot { it === this }
         .forEach(::addSuppressed)
+}
+
+@PublishedApi
+internal inline fun <T> runWithCleanup(
+    cleanup: () -> Result<Unit>,
+    onCleanupFailure: (Throwable) -> Unit,
+    block: () -> T,
+): T {
+    var primaryFailure: Throwable? = null
+    try {
+        return block()
+    } catch (failure: Throwable) {
+        primaryFailure = failure
+        throw failure
+    } finally {
+        val cleanupResult = try {
+            cleanup()
+        } catch (failure: Throwable) {
+            Result.failure(failure)
+        }
+        val primary = primaryFailure
+        if (primary == null) {
+            cleanupResult.onFailure(onCleanupFailure)
+        } else {
+            primary.addSuppressedFailures(listOf(cleanupResult))
+        }
+    }
 }
 
 internal inline fun <T> runWithRollback(
