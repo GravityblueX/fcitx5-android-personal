@@ -1,10 +1,11 @@
 package org.fcitx.fcitx5.android.data.theme
 
-import android.system.Os
 import kotlinx.serialization.json.Json
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.addSuppressedFailures
+import org.fcitx.fcitx5.android.utils.cleanupStagedFileInstalls
+import org.fcitx.fcitx5.android.utils.ensureDirectory
 import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
 import org.fcitx.fcitx5.android.utils.errorRuntime
 import org.fcitx.fcitx5.android.utils.extract
@@ -26,8 +27,10 @@ import java.util.zip.ZipOutputStream
 
 object ThemeFilesManager {
 
-    private val dir = File(appContext.externalFilesDirOrFilesDir, "theme").also {
-        check(it.mkdirs() || it.isDirectory) { "Cannot create theme directory: $it" }
+    private val dir = File(appContext.externalFilesDirOrFilesDir, "theme").also { directory ->
+        directory.ensureDirectory()
+        cleanupLegacyThemeMetadataStaging(directory)
+        cleanupStagedFileInstalls(directory)
     }
 
     private fun themeFile(name: String) = dir.resolveDirectChild("$name.json")
@@ -78,14 +81,8 @@ object ThemeFilesManager {
 
     private fun saveThemeMetadata(theme: Theme.Custom) {
         val file = themeFile(theme)
-        val staged = File.createTempFile("theme-", ".staged", dir)
-        try {
+        replaceFileAtomically(file) { staged ->
             staged.writeText(Json.encodeToString(CustomThemeSerializer, theme))
-            Os.rename(staged.path, file.path)
-        } finally {
-            staged.removeIfExists().onFailure {
-                Timber.w(it, "Failed to remove staged theme file: ${staged.path}")
-            }
         }
     }
 
@@ -288,4 +285,17 @@ object ThemeFilesManager {
             }
         }
 
+}
+
+internal fun isLegacyThemeMetadataStagingFile(fileName: String): Boolean =
+    fileName.startsWith("theme-") && fileName.endsWith(".staged")
+
+internal fun cleanupLegacyThemeMetadataStaging(directory: File) {
+    directory.listFiles()
+        ?.filter { file -> file.isFile && isLegacyThemeMetadataStagingFile(file.name) }
+        ?.forEach { staged ->
+            staged.removeIfExists().onFailure {
+                Timber.w(it, "Failed to remove stale theme metadata: ${staged.path}")
+            }
+        }
 }
