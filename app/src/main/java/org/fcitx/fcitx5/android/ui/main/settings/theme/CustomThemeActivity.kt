@@ -463,16 +463,15 @@ class CustomThemeActivity : AppCompatActivity() {
             try {
                 withContext(Dispatchers.IO) {
                     if (pendingCroppedImage == null) {
-                        ThemeFilesManager.saveThemeFiles(newTheme)
+                        ThemeManager.saveTheme(newTheme)
                     } else {
-                        ThemeFilesManager.saveThemeFiles(
+                        ThemeManager.saveTheme(
                             newTheme,
                             pendingCroppedImage,
                             replaceExistingImage = !newCreated,
                         )
                     }
                 }
-                ThemeManager.applyPersistedTheme(newTheme)
                 pendingCroppedImage?.removeIfExists()?.onFailure { failure ->
                     Timber.w(failure, "Failed to remove committed theme crop")
                 }

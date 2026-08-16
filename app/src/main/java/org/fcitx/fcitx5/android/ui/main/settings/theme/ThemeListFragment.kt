@@ -93,9 +93,8 @@ class ThemeListFragment : Fragment() {
                     try {
                         val (newCreated, theme, migrated) = withContext(Dispatchers.IO) {
                             val inputStream = cr.requireInputStream(uri)
-                            ThemeFilesManager.importTheme(inputStream).getOrThrow()
+                            ThemeManager.importTheme(inputStream).getOrThrow()
                         }
-                        ThemeManager.refreshThemes()
                         if (newCreated) {
                             themeListAdapter.prependTheme(theme)
                         } else {

@@ -6,6 +6,8 @@ package org.fcitx.fcitx5.android.data.theme
 
 import android.content.res.Configuration
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.annotation.Keep
 import androidx.annotation.RequiresApi
 import androidx.core.content.edit
@@ -16,6 +18,8 @@ import org.fcitx.fcitx5.android.data.theme.ThemeManager.activeTheme
 import org.fcitx.fcitx5.android.utils.WeakHashSet
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.isDarkMode
+import java.io.File
+import java.io.InputStream
 
 object ThemeManager {
 
@@ -37,39 +41,45 @@ object ThemeManager {
 
     val DefaultTheme = ThemePreset.PixelDark
 
-    private var monetThemes = listOf(ThemeMonet.getLight(), ThemeMonet.getDark())
-
-    private val customThemes: MutableList<Theme.Custom> = ThemeFilesManager.listThemes()
+    private val customThemes = ThemeCatalog<Theme>(
+        ThemeFilesManager.listThemes(),
+        Theme::name,
+        listOf(ThemeMonet.getLight(), ThemeMonet.getDark()),
+    )
 
     fun getTheme(name: String) =
-        customThemes.find { it.name == name } ?: BuiltinThemes.find { it.name == name }
+        customThemes.find(name) ?: BuiltinThemes.find { it.name == name }
 
-    fun getAllThemes() = customThemes + monetThemes + BuiltinThemes
+    fun getAllThemes() = customThemes.snapshot() + BuiltinThemes
 
     fun refreshThemes() {
-        customThemes.clear()
-        customThemes.addAll(ThemeFilesManager.listThemes())
-        activeTheme = evaluateActiveTheme()
+        val activeThemeChanged = runThemeManagerMutation {
+            customThemes.replaceAll(ThemeFilesManager.listThemes())
+            updateActiveTheme(evaluateActiveTheme())
+        }
+        if (activeThemeChanged) fireChange()
     }
 
     /**
      * [backing property](https://kotlinlang.org/docs/properties.html#backing-properties)
      * of [activeTheme]; holds the [Theme] object currently in use
      */
+    @Volatile
     private lateinit var _activeTheme: Theme
 
     var activeTheme: Theme
         get() = _activeTheme
         private set(value) {
-            if (_activeTheme == value) return
-            _activeTheme = value
-            fireChange()
+            val changed = runThemeManagerMutation { updateActiveTheme(value) }
+            if (changed) fireChange()
         }
 
+    @Volatile
     private var isDarkMode = false
 
     private val onChangeListeners = WeakHashSet<OnThemeChangeListener>()
     private val onChangeListenersLock = Any()
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     fun addOnChangedListener(listener: OnThemeChangeListener) {
         synchronized(onChangeListenersLock) { onChangeListeners.add(listener) }
@@ -80,34 +90,71 @@ object ThemeManager {
     }
 
     private fun fireChange() {
-        synchronized(onChangeListenersLock) { onChangeListeners.toList() }
-            .forEach { it.onThemeChange(_activeTheme) }
+        mainHandler.post {
+            val theme = activeTheme
+            synchronized(onChangeListenersLock) { onChangeListeners.toList() }
+                .forEach { it.onThemeChange(theme) }
+        }
     }
 
     val prefs = AppPrefs.getInstance().registerProvider(::ThemePrefs)
 
     fun saveTheme(theme: Theme.Custom) {
-        ThemeFilesManager.saveThemeFiles(theme)
-        applyPersistedTheme(theme)
+        saveTheme(theme) { ThemeFilesManager.saveThemeFiles(theme) }
     }
 
-    internal fun applyPersistedTheme(theme: Theme.Custom) {
-        customThemes.indexOfFirst { it.name == theme.name }.also {
-            if (it >= 0) customThemes[it] = theme else customThemes.add(0, theme)
+    fun saveTheme(
+        theme: Theme.Custom,
+        pendingCroppedImage: File,
+        replaceExistingImage: Boolean,
+    ) {
+        saveTheme(theme) {
+            ThemeFilesManager.saveThemeFiles(
+                theme,
+                pendingCroppedImage,
+                replaceExistingImage,
+            )
         }
-        if (activeTheme.name == theme.name) {
-            activeTheme = theme
+    }
+
+    private fun saveTheme(theme: Theme.Custom, persist: () -> Unit) {
+        val activeThemeChanged = runThemeManagerMutation {
+            persist()
+            applyPersistedTheme(theme)
         }
+        if (activeThemeChanged) fireChange()
+    }
+
+    fun importTheme(src: InputStream): Result<Triple<Boolean, Theme.Custom, Boolean>> {
+        var activeThemeChanged = false
+        val result = runThemeManagerMutation {
+            ThemeFilesManager.importTheme(src).onSuccess { (_, theme) ->
+                activeThemeChanged = applyPersistedTheme(theme)
+            }
+        }
+        if (activeThemeChanged) fireChange()
+        return result
+    }
+
+    private fun applyPersistedTheme(theme: Theme.Custom): Boolean {
+        customThemes.upsert(theme)
+        return updateActiveTheme(evaluateActiveTheme())
     }
 
     fun deleteTheme(name: String): Result<Unit> {
-        val theme = customThemes.find { it.name == name } ?: return Result.success(Unit)
-        return ThemeFilesManager.deleteThemeFiles(theme).onSuccess {
-            customThemes.remove(theme)
-            if (activeTheme.name == name) {
-                activeTheme = evaluateActiveTheme()
+        var activeThemeChanged = false
+        val result = runThemeManagerMutation {
+            val theme = customThemes.find(name) as? Theme.Custom
+                ?: return@runThemeManagerMutation Result.success(Unit)
+            ThemeFilesManager.deleteThemeFiles(theme).onSuccess {
+                customThemes.remove(name)
+                if (activeTheme.name == name) {
+                    activeThemeChanged = updateActiveTheme(evaluateActiveTheme())
+                }
             }
         }
+        if (activeThemeChanged) fireChange()
+        return result
     }
 
     fun setNormalModeTheme(theme: Theme) {
@@ -115,8 +162,16 @@ object ThemeManager {
         // which calls `fireChange()`.
         // `activateTheme`'s setter would also trigger `fireChange()` when theme actually changes.
         // write to backing property directly to avoid unnecessary `fireChange()`
+        runThemeManagerMutation {
+            _activeTheme = theme
+            prefs.normalModeTheme.setValue(theme)
+        }
+    }
+
+    private fun updateActiveTheme(theme: Theme): Boolean {
+        if (_activeTheme == theme) return false
         _activeTheme = theme
-        prefs.normalModeTheme.setValue(theme)
+        return true
     }
 
     private fun evaluateActiveTheme(): Theme {
@@ -137,18 +192,25 @@ object ThemeManager {
     }
 
     fun init(configuration: Configuration) {
-        isDarkMode = configuration.isDarkMode()
-        // fire all `OnThemeChangedListener`s on theme preferences change
-        prefs.registerOnChangeListener(onThemePrefsChange)
-        _activeTheme = evaluateActiveTheme()
+        runThemeManagerMutation {
+            isDarkMode = configuration.isDarkMode()
+            // fire all `OnThemeChangedListener`s on theme preferences change
+            prefs.registerOnChangeListener(onThemePrefsChange)
+            _activeTheme = evaluateActiveTheme()
+        }
     }
 
     fun onSystemPlatteChange(newConfig: Configuration) {
-        isDarkMode = newConfig.isDarkMode()
-        monetThemes = listOf(ThemeMonet.getLight(), ThemeMonet.getDark())
-        // `ManagedThemePreference` finds a theme with same name in `getAllThemes()`
-        // thus `evaluateActiveTheme()` should be called after updating `monetThemes`
-        activeTheme = evaluateActiveTheme()
+        val activeThemeChanged = runThemeManagerMutation {
+            isDarkMode = newConfig.isDarkMode()
+            customThemes.replaceSupplemental(
+                listOf(ThemeMonet.getLight(), ThemeMonet.getDark())
+            )
+            // `ManagedThemePreference` finds a theme with same name in `getAllThemes()`
+            // thus `evaluateActiveTheme()` should be called after updating `monetThemes`
+            updateActiveTheme(evaluateActiveTheme())
+        }
+        if (activeThemeChanged) fireChange()
     }
 
     @RequiresApi(Build.VERSION_CODES.N)
