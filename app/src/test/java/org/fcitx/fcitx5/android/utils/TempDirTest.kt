@@ -10,18 +10,25 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
 
 class TempDirTest {
 
     @Test
-    fun createsDistinctDirectories() {
+    fun createsOnlyDistinctDirectoriesConcurrently() {
         val parent = Files.createTempDirectory("fcitx-temp-").toFile()
+        val executor = Executors.newFixedThreadPool(4)
         try {
-            val directories = List(4) { createTempDir(parent) }
+            val directories = executor.invokeAll(
+                List(16) { Callable { createTempDir(parent) } }
+            ).map { it.get() }
 
             assertEquals(directories.size, directories.distinct().size)
             assertTrue(directories.all(File::isDirectory))
+            assertEquals(directories.toSet(), parent.listFiles()?.toSet())
         } finally {
+            executor.shutdownNow()
             parent.deleteRecursively()
         }
     }

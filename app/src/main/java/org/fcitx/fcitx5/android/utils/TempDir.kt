@@ -7,12 +7,11 @@ package org.fcitx.fcitx5.android.utils
 
 import timber.log.Timber
 import java.io.File
+import java.nio.file.Files
 
 @PublishedApi
 internal fun createTempDir(parent: File): File {
-    val dir = File.createTempFile("fcitx-", ".tmp", parent)
-    check(dir.delete() && dir.mkdir()) { "Cannot create temporary directory: $dir" }
-    return dir
+    return Files.createTempDirectory(parent.toPath(), "fcitx-").toFile()
 }
 
 inline fun <T> withTempDir(block: (File) -> T): T {
