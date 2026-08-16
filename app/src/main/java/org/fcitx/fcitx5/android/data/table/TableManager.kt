@@ -12,6 +12,7 @@ import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.table.dict.Dictionary
 import org.fcitx.fcitx5.android.data.table.dict.LibIMEDictionary
 import org.fcitx.fcitx5.android.utils.cleanupStagedFileInstalls
+import org.fcitx.fcitx5.android.utils.addSuppressedFailures
 import org.fcitx.fcitx5.android.utils.safeFileName
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
@@ -194,16 +195,20 @@ object TableManager {
     fun delete(im: TableBasedInputMethod): Result<Unit> = runTableOperation {
         runCatching {
             prepareForMutation()
-            val dictionaryFile = im.table?.file
-            im.file.removeIfExists().getOrThrow()
-            im.table = null
-            dictionaryFile?.removeIfExists()?.onFailure { failure ->
-                Timber.w(
-                    failure,
-                    "Failed to remove orphaned table dictionary: ${dictionaryFile.path}"
-                )
+            val configurationFile = inputMethodDir.resolveDirectChild(im.file.name)
+            check(configurationFile == im.file.canonicalFile) {
+                "Cannot delete an unmanaged table input method: ${im.file.path}"
             }
-            Unit
+            val dictionaryFile = tableDicDir.resolveDirectChild(im.tableFileName)
+            deleteTableInputMethodFiles(
+                importJournalFile,
+                configurationFile,
+                dictionaryFile,
+                publishJournal = { writeImportJournal(configurationFile, dictionaryFile) },
+                onCleanupFailure = ::reportImportCleanupFailure,
+            ).getOrThrow()
+        }.onSuccess {
+            im.table = null
         }
     }
 
@@ -245,7 +250,7 @@ object TableManager {
             .forEach { it.onFailure(::reportImportCleanupFailure) }
         recoverPendingImport()
         check(!importJournalFile.exists()) {
-            "Cannot modify table data while a previous import requires recovery"
+            "Cannot modify table data while a previous table operation requires recovery"
         }
     }
 
@@ -276,14 +281,14 @@ object TableManager {
         val pending = runCatching {
             json.decodeFromString<TableImportJournal>(importJournalFile.readText())
         }.getOrElse { failure ->
-            Timber.e(failure, "Failed to read table import journal")
+            Timber.e(failure, "Failed to read table transaction journal")
             return
         }
         val files = runCatching {
             inputMethodDir.resolveDirectChild(pending.configurationFileName) to
                 tableDicDir.resolveDirectChild(pending.dictionaryFileName)
         }.getOrElse { failure ->
-            Timber.e(failure, "Invalid table import journal")
+            Timber.e(failure, "Invalid table transaction journal")
             return
         }
         cleanupTableImportTransaction(importJournalFile, files.first, files.second)
@@ -306,7 +311,7 @@ object TableManager {
     }
 
     private fun reportImportCleanupFailure(failure: Throwable) {
-        Timber.w(failure, "Failed to clean table import artifact")
+        Timber.w(failure, "Failed to clean table transaction artifact")
     }
 
     @JvmStatic
@@ -337,6 +342,26 @@ internal fun cleanupTableImportTransaction(
             add(journalFile.removeIfExists())
         }
     }
+}
+
+internal fun deleteTableInputMethodFiles(
+    journalFile: File,
+    configurationFile: File,
+    dictionaryFile: File,
+    publishJournal: () -> Unit,
+    onCleanupFailure: (Throwable) -> Unit,
+): Result<Unit> = runCatching {
+    publishJournal()
+    val cleanupResults = cleanupTableImportTransaction(
+        journalFile,
+        configurationFile,
+        dictionaryFile,
+    )
+    cleanupResults.first().exceptionOrNull()?.let { failure ->
+        failure.addSuppressedFailures(cleanupResults)
+        throw failure
+    }
+    cleanupResults.forEach { it.onFailure(onCleanupFailure) }
 }
 
 internal fun isTableDictionaryStagingFile(fileName: String): Boolean =

@@ -6,6 +6,7 @@ package org.fcitx.fcitx5.android.data.table
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -159,6 +160,119 @@ class TableManagerTest {
             assertTrue(journal.isFile)
             assertTrue(configuration.isFile)
             assertFalse(dictionary.exists())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun publishesJournalBeforeDeletingTableInputMethodFiles() {
+        val directory = Files.createTempDirectory("table-delete-").toFile()
+        try {
+            val journal = directory.resolve(".table-import")
+            val configuration = directory.resolve("sample.conf").also { it.writeText("config") }
+            val dictionary = directory.resolve("sample.dict").also { it.writeText("dictionary") }
+            var journalPublishedBeforeCleanup = false
+
+            val result = deleteTableInputMethodFiles(
+                journal,
+                configuration,
+                dictionary,
+                publishJournal = {
+                    assertTrue(configuration.isFile)
+                    assertTrue(dictionary.isFile)
+                    journal.writeText("journal")
+                    journalPublishedBeforeCleanup = true
+                },
+                onCleanupFailure = { throw it },
+            )
+
+            assertTrue(result.isSuccess)
+            assertTrue(journalPublishedBeforeCleanup)
+            assertFalse(journal.exists())
+            assertFalse(configuration.exists())
+            assertFalse(dictionary.exists())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun preservesTableFilesWhenDeletionJournalCannotBePublished() {
+        val directory = Files.createTempDirectory("table-delete-").toFile()
+        try {
+            val journal = directory.resolve(".table-import")
+            val configuration = directory.resolve("sample.conf").also { it.writeText("config") }
+            val dictionary = directory.resolve("sample.dict").also { it.writeText("dictionary") }
+            val journalFailure = IllegalStateException("journal")
+
+            val result = deleteTableInputMethodFiles(
+                journal,
+                configuration,
+                dictionary,
+                publishJournal = { throw journalFailure },
+                onCleanupFailure = { throw it },
+            )
+
+            assertSame(journalFailure, result.exceptionOrNull())
+            assertTrue(configuration.isFile)
+            assertTrue(dictionary.isFile)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun commitsDeletionWhilePreservingJournalForDictionaryCleanup() {
+        val directory = Files.createTempDirectory("table-delete-").toFile()
+        try {
+            val journal = directory.resolve(".table-import")
+            val configuration = directory.resolve("sample.conf").also { it.writeText("config") }
+            val dictionary = UndeletableFile(directory.resolve("sample.dict").path)
+                .also { it.writeText("dictionary") }
+            var cleanupFailure: Throwable? = null
+
+            val result = deleteTableInputMethodFiles(
+                journal,
+                configuration,
+                dictionary,
+                publishJournal = { journal.writeText("journal") },
+                onCleanupFailure = { cleanupFailure = it },
+            )
+
+            assertTrue(result.isSuccess)
+            assertFalse(configuration.exists())
+            assertTrue(dictionary.isFile)
+            assertTrue(journal.isFile)
+            assertTrue(cleanupFailure != null)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun reportsConfigurationDeletionFailureAndPreservesJournalForRecovery() {
+        val directory = Files.createTempDirectory("table-delete-").toFile()
+        try {
+            val journal = directory.resolve(".table-import")
+            val configuration = UndeletableFile(directory.resolve("sample.conf").path)
+                .also { it.writeText("config") }
+            val dictionary = directory.resolve("sample.dict").also { it.writeText("dictionary") }
+            var cleanupFailureReported = false
+
+            val result = deleteTableInputMethodFiles(
+                journal,
+                configuration,
+                dictionary,
+                publishJournal = { journal.writeText("journal") },
+                onCleanupFailure = { cleanupFailureReported = true },
+            )
+
+            assertTrue(result.isFailure)
+            assertTrue(configuration.isFile)
+            assertFalse(dictionary.exists())
+            assertTrue(journal.isFile)
+            assertFalse(cleanupFailureReported)
         } finally {
             directory.deleteRecursively()
         }
