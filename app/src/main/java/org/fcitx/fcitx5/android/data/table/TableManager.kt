@@ -43,9 +43,19 @@ private data class TableImportJournal(
     val dictionaryFileName: String,
 )
 
+private val tableOperationLock = ReentrantLock()
+
+internal fun <T> runTableOperation(block: () -> T): T =
+    tableOperationLock.withLock(block)
+
+internal fun requireExistingTableInputMethod(configurationFile: File) {
+    check(configurationFile.isFile) {
+        "Cannot modify a removed table input method: ${configurationFile.path}"
+    }
+}
+
 object TableManager {
 
-    private val operationLock = ReentrantLock()
     private val json = Json { prettyPrint = true }
 
     private val inputMethodDir = File(
@@ -73,9 +83,9 @@ object TableManager {
         }
     }
 
-    fun inputMethods(): List<TableBasedInputMethod> = operationLock.withLock {
+    fun inputMethods(): List<TableBasedInputMethod> = runTableOperation {
         recoverPendingImport()
-        if (importJournalFile.exists()) return@withLock emptyList()
+        if (importJournalFile.exists()) return@runTableOperation emptyList()
         inputMethodDir.listFiles()?.mapNotNull { confFile ->
             runCatching {
                 TableBasedInputMethod.new(confFile).apply {
@@ -88,10 +98,10 @@ object TableManager {
     }
 
     fun importFromZip(src: InputStream): Result<TableBasedInputMethod> =
-        operationLock.withLock {
+        runTableOperation {
             runCatching {
                 ZipInputStream(src).use { zipStream ->
-                    prepareForImport()
+                    prepareForMutation()
                     withTempDir { tempDir ->
                         val extracted = zipStream.extract(tempDir)
                         val confFile = extracted.find { it.name.endsWith(".conf") }
@@ -111,11 +121,11 @@ object TableManager {
         confStream: InputStream,
         dictName: String,
         dictStream: InputStream
-    ): Result<TableBasedInputMethod> = operationLock.withLock {
+    ): Result<TableBasedInputMethod> = runTableOperation {
         runCatching {
             confStream.use { confInput ->
                 dictStream.use { dictInput ->
-                    prepareForImport()
+                    prepareForMutation()
                     withTempDir { tempDir ->
                         val confFile = File(tempDir, confName.safeFileName()).also {
                             it.outputStream().use(confInput::copyTo)
@@ -181,14 +191,31 @@ object TableManager {
         }
     }
 
+    fun delete(im: TableBasedInputMethod): Result<Unit> = runTableOperation {
+        runCatching {
+            prepareForMutation()
+            val dictionaryFile = im.table?.file
+            im.file.removeIfExists().getOrThrow()
+            im.table = null
+            dictionaryFile?.removeIfExists()?.onFailure { failure ->
+                Timber.w(
+                    failure,
+                    "Failed to remove orphaned table dictionary: ${dictionaryFile.path}"
+                )
+            }
+            Unit
+        }
+    }
+
     fun replaceTableDict(
         im: TableBasedInputMethod,
         dictName: String,
         dictStream: InputStream
-    ): Result<LibIMEDictionary> = operationLock.withLock {
+    ): Result<LibIMEDictionary> = runTableOperation {
         runCatching {
             dictStream.use { dictInput ->
-                prepareForImport()
+                prepareForMutation()
+                requireExistingTableInputMethod(im.file)
                 withTempDir { tempDir ->
                     val dictFile = File(tempDir, dictName.safeFileName()).also {
                         it.outputStream().use(dictInput::copyTo)
@@ -213,7 +240,7 @@ object TableManager {
         }
     }
 
-    private fun prepareForImport() {
+    private fun prepareForMutation() {
         cleanupTableImportJournalStaging(importJournalFile.parentFile)
             .forEach { it.onFailure(::reportImportCleanupFailure) }
         recoverPendingImport()

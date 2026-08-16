@@ -6,12 +6,72 @@ package org.fcitx.fcitx5.android.data.table
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
+import java.util.concurrent.Callable
+import java.util.concurrent.CyclicBarrier
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class TableManagerTest {
+
+    @Test
+    fun serializesTableOperations() {
+        val workerCount = 8
+        val barrier = CyclicBarrier(workerCount)
+        val activeOperations = AtomicInteger()
+        val maximumActiveOperations = AtomicInteger()
+        val executor = Executors.newFixedThreadPool(workerCount)
+        try {
+            val operations = List(workerCount) {
+                Callable {
+                    barrier.await(5, TimeUnit.SECONDS)
+                    runTableOperation {
+                        val active = activeOperations.incrementAndGet()
+                        try {
+                            maximumActiveOperations.updateAndGet { maximum ->
+                                maxOf(maximum, active)
+                            }
+                            Thread.sleep(25)
+                        } finally {
+                            activeOperations.decrementAndGet()
+                        }
+                    }
+                }
+            }
+
+            executor.invokeAll(operations).forEach { future ->
+                future.get(5, TimeUnit.SECONDS)
+            }
+
+            assertEquals(1, maximumActiveOperations.get())
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun rejectsMutationAfterTableInputMethodRemoval() {
+        val directory = Files.createTempDirectory("table-mutation-").toFile()
+        try {
+            val configuration = directory.resolve("sample.conf")
+            configuration.writeText("config")
+            requireExistingTableInputMethod(configuration)
+
+            configuration.delete()
+
+            val failure = assertThrows(IllegalStateException::class.java) {
+                requireExistingTableInputMethod(configuration)
+            }
+            assertTrue(failure.message.orEmpty().contains(configuration.path))
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
 
     @Test
     fun findsDistinctTableDictionaryNamesWithoutPublishingPlaceholder() {

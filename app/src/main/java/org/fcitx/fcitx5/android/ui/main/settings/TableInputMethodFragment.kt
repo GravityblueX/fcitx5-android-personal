@@ -395,8 +395,10 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
                     val dictStream = cr.requireInputStream(uri)
                     TableManager.replaceTableDict(im, dictName, dictStream).getOrThrow()
                 }
+                val index = ui.indexItem(im)
+                if (index == -1) return@launch
                 im.table = imported
-                ui.updateItem(ui.indexItem(im), im)
+                ui.updateItem(index, im)
                 dustman.forceDirty()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -452,7 +454,7 @@ class TableInputMethodFragment : Fragment(), OnItemChangedListener<TableBasedInp
     private fun removeItems(indexed: List<Pair<Int, TableBasedInputMethod>>) {
         applyFileBackedRemovals(
             indexed,
-            remove = TableBasedInputMethod::delete,
+            remove = TableManager::delete,
             onRemoved = { item -> dustman.remove(item.name) },
             restore = ui::addItem,
         )?.let(requireContext()::toast)
