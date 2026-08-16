@@ -73,6 +73,13 @@ constexpr AddonConfigFile AddonConfigFiles[] = {
         {"chttrans", "conf/chttrans.conf"},
         {"fullwidth", "conf/fullwidth.conf"},
         {"punctuation", "conf/punctuation.conf"},
+        {"anthy", "conf/anthy.conf"},
+        {"chewing", "conf/chewing.conf"},
+        {"hangul", "conf/hangul.conf"},
+        {"jyutping", "conf/jyutping.conf"},
+        {"rime", "conf/rime.conf"},
+        {"libthai", "conf/libthai.conf"},
+        {"unikey", "conf/unikey.conf"},
 };
 
 std::string_view addonConfigPath(std::string_view addonName) {
@@ -477,14 +484,12 @@ public:
 
         std::string path;
         std::string_view root;
-        if (entry->addon() == "androidkeyboard") {
-            path = "conf/androidkeyboard.conf";
-        } else if (entry->addon() == "pinyin") {
-            path = "conf/pinyin.conf";
-        } else if (entry->addon() == "table") {
+        if (entry->addon() == "table") {
             path = fcitx::stringutils::concat("table/", entry->uniqueName(),
                                               ".conf");
             root = "Table";
+        } else {
+            path = addonConfigPath(entry->addon());
         }
         if (path.empty()) {
             engine->setConfigForInputMethod(*entry, config);
