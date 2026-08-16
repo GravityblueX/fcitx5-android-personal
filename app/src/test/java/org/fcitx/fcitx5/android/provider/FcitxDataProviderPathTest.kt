@@ -158,23 +158,58 @@ class FcitxDataProviderPathTest {
     }
 
     @Test
-    fun identifiesOnlyDocumentCopyStagingNames() {
+    fun identifiesOnlyDocumentOperationStagingNames() {
         assertTrue(
-            isDocumentCopyStagingFileName(
+            isDocumentStagingFileName(
                 ".document-copy-123e4567-e89b-12d3-a456-426614174000.staged"
             )
         )
+        assertTrue(
+            isDocumentStagingFileName(
+                ".document-delete-123e4567-e89b-12d3-a456-426614174000.staged"
+            )
+        )
         assertFalse(
-            isDocumentCopyStagingFileName(
+            isDocumentStagingFileName(
                 "document-copy-123e4567-e89b-12d3-a456-426614174000.staged"
             )
         )
-        assertFalse(isDocumentCopyStagingFileName(".document-copy-not-a-uuid.staged"))
+        assertFalse(isDocumentStagingFileName(".document-copy-not-a-uuid.staged"))
+        assertFalse(isDocumentStagingFileName(".document-delete-not-a-uuid.staged"))
         assertFalse(
-            isDocumentCopyStagingFileName(
+            isDocumentStagingFileName(
                 ".document-copy-123e4567-e89b-12d3-a456-426614174000.tmp"
             )
         )
+    }
+
+    @Test
+    fun rejectsReservedDocumentOperationStagingNames() {
+        assertThrows(IllegalArgumentException::class.java) {
+            safeDocumentDisplayName(
+                ".document-copy-123e4567-e89b-12d3-a456-426614174000.staged"
+            )
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            safeDocumentDisplayName(
+                ".document-delete-123e4567-e89b-12d3-a456-426614174000.staged"
+            )
+        }
+        assertEquals("visible.txt", safeDocumentDisplayName("directory/visible.txt"))
+    }
+
+    @Test
+    fun identifiesStagingPathsAndTheirDescendants() {
+        val root = File("root")
+        val staging = root.resolve(
+            ".document-delete-123e4567-e89b-12d3-a456-426614174000.staged"
+        )
+
+        assertFalse(isDocumentStagingPath(root, root))
+        assertTrue(isDocumentStagingPath(staging, root))
+        assertTrue(isDocumentStagingPath(staging.resolve("child.txt"), root))
+        assertFalse(isDocumentStagingPath(root.resolve("ordinary/child.txt"), root))
+        assertFalse(isDocumentStagingPath(File("outside/child.txt"), root))
     }
 
     @Test
@@ -191,11 +226,11 @@ class FcitxDataProviderPathTest {
                 targetDirectory,
                 remove = removeRecursively,
             ) { input, staging ->
-                assertTrue(isDocumentCopyStagingFileName(staging.name))
+                assertTrue(isDocumentStagingFileName(staging.name))
                 assertEquals(
                     listOf("sample.txt"),
                     targetDirectory.list()
-                        ?.filterNot(::isDocumentCopyStagingFileName)
+                        ?.filterNot(::isDocumentStagingFileName)
                         ?.sorted(),
                 )
                 input.copyTo(staging, overwrite = true)
@@ -238,7 +273,60 @@ class FcitxDataProviderPathTest {
     }
 
     @Test
-    fun cleansOnlyStagedDocumentCopiesRecursively() {
+    fun stagesDocumentDeletionBeforeRecursiveCleanup() {
+        val root = Files.createTempDirectory("provider-delete-").toFile()
+        try {
+            val document = root.resolve("document").apply { mkdir() }
+            document.resolve("child.txt").writeText("content")
+            var stagedDeletion: File? = null
+
+            val cleanup = deleteDocumentAtomically(
+                document,
+                remove = { staging ->
+                    stagedDeletion = staging
+                    assertFalse(document.exists())
+                    assertTrue(isDocumentStagingFileName(staging.name))
+                    assertEquals("content", staging.resolve("child.txt").readText())
+                    removeRecursively(staging)
+                },
+            )
+
+            assertTrue(cleanup.isSuccess)
+            assertFalse(document.exists())
+            assertFalse(requireNotNull(stagedDeletion).exists())
+            assertTrue(root.listFiles().orEmpty().isEmpty())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun keepsFailedDocumentDeletionCleanupHiddenForRecovery() {
+        val root = Files.createTempDirectory("provider-delete-").toFile()
+        try {
+            val document = root.resolve("document.txt").apply { writeText("content") }
+            val failure = IOException("cleanup failed")
+            var stagedDeletion: File? = null
+
+            val cleanup = deleteDocumentAtomically(
+                document,
+                remove = { staging ->
+                    stagedDeletion = staging
+                    Result.failure(failure)
+                },
+            )
+
+            assertSame(failure, cleanup.exceptionOrNull())
+            assertFalse(document.exists())
+            assertTrue(requireNotNull(stagedDeletion).isFile)
+            assertTrue(isDocumentStagingFileName(requireNotNull(stagedDeletion).name))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun cleansOnlyStagedDocumentOperationsRecursively() {
         val root = Files.createTempDirectory("provider-copy-").toFile()
         try {
             val stagedFile = createDocumentCopyStaging(root, isDirectory = false)
@@ -248,15 +336,21 @@ class FcitxDataProviderPathTest {
                 isDirectory = true,
             )
             stagedDirectory.resolve("partial.txt").writeText("partial")
+            val deletedDocument = regularDirectory.resolve("deleted.txt").apply {
+                writeText("delete")
+            }
+            val stagedDeletion = stageDocumentDeletion(deletedDocument)
             val unrelated = root.resolve(".document-copy-not-a-uuid.staged").apply {
                 writeText("keep")
             }
 
-            val results = cleanupStagedDocumentCopies(root, removeRecursively)
+            val results = cleanupStagedDocuments(root, removeRecursively)
 
             assertTrue(results.all(Result<Unit>::isSuccess))
             assertFalse(stagedFile.exists())
             assertFalse(stagedDirectory.exists())
+            assertFalse(deletedDocument.exists())
+            assertFalse(stagedDeletion.exists())
             assertTrue(regularDirectory.isDirectory)
             assertTrue(unrelated.isFile)
         } finally {

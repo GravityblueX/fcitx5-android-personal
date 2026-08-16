@@ -25,7 +25,8 @@ import java.io.IOException
 import java.util.UUID
 
 private const val DOCUMENT_COPY_STAGING_PREFIX = ".document-copy-"
-private const val DOCUMENT_COPY_STAGING_SUFFIX = ".staged"
+private const val DOCUMENT_DELETE_STAGING_PREFIX = ".document-delete-"
+private const val DOCUMENT_STAGING_SUFFIX = ".staged"
 
 internal fun isSameOrDescendant(file: File, directory: File): Boolean =
     file == directory || file.path.startsWith("${directory.path}${File.separator}")
@@ -44,7 +45,7 @@ internal fun claimDocumentDestination(
     claim: (File) -> Boolean,
 ): File {
     require(parent.isDirectory) { "Document parent is not a directory: ${parent.path}" }
-    val safeName = displayName.safeFileName()
+    val safeName = safeDocumentDisplayName(displayName)
     var conflictId = 1
     while (true) {
         val destinationName = if (conflictId == 1) {
@@ -64,24 +65,42 @@ internal fun claimDocumentDestination(
     }
 }
 
-internal fun isDocumentCopyStagingFileName(fileName: String): Boolean {
-    if (!fileName.startsWith(DOCUMENT_COPY_STAGING_PREFIX) ||
-        !fileName.endsWith(DOCUMENT_COPY_STAGING_SUFFIX)
-    ) {
-        return false
+internal fun isDocumentStagingFileName(fileName: String): Boolean {
+    val prefix = when {
+        fileName.startsWith(DOCUMENT_COPY_STAGING_PREFIX) -> DOCUMENT_COPY_STAGING_PREFIX
+        fileName.startsWith(DOCUMENT_DELETE_STAGING_PREFIX) -> DOCUMENT_DELETE_STAGING_PREFIX
+        else -> return false
     }
+    if (!fileName.endsWith(DOCUMENT_STAGING_SUFFIX)) return false
     val id = fileName
-        .removePrefix(DOCUMENT_COPY_STAGING_PREFIX)
-        .removeSuffix(DOCUMENT_COPY_STAGING_SUFFIX)
+        .removePrefix(prefix)
+        .removeSuffix(DOCUMENT_STAGING_SUFFIX)
     val uuid = runCatching { UUID.fromString(id) }.getOrNull() ?: return false
     return uuid.toString().equals(id, ignoreCase = true)
+}
+
+internal fun safeDocumentDisplayName(displayName: String): String =
+    displayName.safeFileName().also { safeName ->
+        require(!isDocumentStagingFileName(safeName)) {
+            "Document name is reserved for internal staging: $safeName"
+        }
+    }
+
+internal fun isDocumentStagingPath(file: File, root: File): Boolean {
+    var current = file
+    while (current != root) {
+        if (!isSameOrDescendant(current, root)) return false
+        if (isDocumentStagingFileName(current.name)) return true
+        current = current.parentFile ?: return false
+    }
+    return false
 }
 
 internal fun createDocumentCopyStaging(parent: File, isDirectory: Boolean): File {
     require(parent.isDirectory) { "Document copy parent is not a directory: ${parent.path}" }
     while (true) {
         val staging = parent.resolve(
-            "$DOCUMENT_COPY_STAGING_PREFIX${UUID.randomUUID()}$DOCUMENT_COPY_STAGING_SUFFIX"
+            "$DOCUMENT_COPY_STAGING_PREFIX${UUID.randomUUID()}$DOCUMENT_STAGING_SUFFIX"
         )
         if (reserveDocumentDestination(staging, isDirectory)) return staging
         if (!staging.exists()) {
@@ -119,7 +138,38 @@ internal fun copyDocumentAtomically(
     }
 }
 
-internal fun cleanupStagedDocumentCopies(
+internal fun stageDocumentDeletion(
+    document: File,
+    move: (File, File) -> Boolean = { source, destination ->
+        source.moveToWithoutReplacing(destination)
+    },
+): File {
+    val parent = document.parentFile
+        ?: throw IOException("Document has no parent: ${document.path}")
+    require(parent.isDirectory) { "Document parent is not a directory: ${parent.path}" }
+    while (true) {
+        val staging = parent.resolve(
+            "$DOCUMENT_DELETE_STAGING_PREFIX${UUID.randomUUID()}$DOCUMENT_STAGING_SUFFIX"
+        )
+        if (move(document, staging)) return staging
+        if (!staging.exists()) {
+            throw IOException("Cannot stage document deletion: ${document.path}")
+        }
+    }
+}
+
+internal fun deleteDocumentAtomically(
+    document: File,
+    move: (File, File) -> Boolean = { source, destination ->
+        source.moveToWithoutReplacing(destination)
+    },
+    remove: (File) -> Result<Unit> = FileUtil::removeFile,
+): Result<Unit> {
+    val staging = stageDocumentDeletion(document, move)
+    return runCatching { remove(staging).getOrThrow() }
+}
+
+internal fun cleanupStagedDocuments(
     directory: File,
     remove: (File) -> Result<Unit> = FileUtil::removeFile,
 ): List<Result<Unit>> {
@@ -127,7 +177,7 @@ internal fun cleanupStagedDocumentCopies(
     val results = mutableListOf<Result<Unit>>()
     fun cleanup(current: File) {
         current.listFiles()?.forEach { child ->
-            if (isDocumentCopyStagingFileName(child.name)) {
+            if (isDocumentStagingFileName(child.name)) {
                 results += remove(child)
             } else if (child.isDirectory &&
                 isUnredirectedPath(child) &&
@@ -215,12 +265,12 @@ class FcitxDataProvider : DocumentsProvider() {
     private val File.docId
         get() = absolutePath.removePrefix(docIdPrefix)
 
-    private fun isWithinBaseDir(file: File): Boolean = runCatching {
-        isSameOrDescendant(file.canonicalFile, baseDir)
+    private fun isSafeDocumentPath(file: File): Boolean = runCatching {
+        val canonical = file.canonicalFile
+        canonical == file.absoluteFile.normalize() &&
+                isSameOrDescendant(canonical, baseDir) &&
+                !isDocumentStagingPath(canonical, baseDir)
     }.getOrDefault(false)
-
-    private fun isSafeDocumentPath(file: File): Boolean =
-        isUnredirectedPath(file) && isWithinBaseDir(file)
 
     @Throws(FileNotFoundException::class)
     private fun requireNonRootDocument(file: File, documentId: String) {
@@ -232,12 +282,18 @@ class FcitxDataProvider : DocumentsProvider() {
     @Throws(FileNotFoundException::class)
     private fun fileFromDocId(docId: String): File {
         val requested = File(docIdPrefix, docId)
-        if (!isUnredirectedPath(requested)) {
+        val file = runCatching { requested.canonicalFile }.getOrElse { failure ->
+            throw FileNotFoundException("documentId=$docId cannot be resolved: ${failure.message}")
+                .apply { initCause(failure) }
+        }
+        if (file != requested.absoluteFile.normalize()) {
             throw FileNotFoundException("documentId=$docId redirects through a symbolic link")
         }
-        val file = requested.canonicalFile
-        if (!isWithinBaseDir(file)) {
+        if (!isSameOrDescendant(file, baseDir)) {
             throw FileNotFoundException("documentId=$docId is outside the data directory")
+        }
+        if (isDocumentStagingPath(file, baseDir)) {
+            throw FileNotFoundException("documentId=$docId is an internal staging path")
         }
         return file
     }
@@ -246,9 +302,9 @@ class FcitxDataProvider : DocumentsProvider() {
         baseDir = (context!!.getExternalFilesDir(null) ?: return false).canonicalFile
         docIdPrefix = "${baseDir.parent}${File.separator}"
         textFilePaths = Array(TEXT_FILES.size) { baseDir.resolve(TEXT_FILES[it]).absolutePath }
-        cleanupStagedDocumentCopies(baseDir).forEach { result ->
+        cleanupStagedDocuments(baseDir).forEach { result ->
             result.onFailure { failure ->
-                Timber.w(failure, "Failed to clean staged document copy")
+                Timber.w(failure, "Failed to clean staged document operation")
             }
         }
         return true
@@ -281,7 +337,7 @@ class FcitxDataProvider : DocumentsProvider() {
     ) = MatrixCursor(projection ?: DEFAULT_DOCUMENT_PROJECTION).apply {
         fileFromDocId(parentDocumentId).listFiles()
             ?.filter { file ->
-                isSafeDocumentPath(file) && !isDocumentCopyStagingFileName(file.name)
+                isSafeDocumentPath(file) && !isDocumentStagingFileName(file.name)
             }
             ?.forEach { newRowFromFile(it) }
     }
@@ -335,9 +391,14 @@ class FcitxDataProvider : DocumentsProvider() {
         if (!file.exists()) {
             throw FileNotFoundException("deleteDocument id=$documentId failed: file not found")
         }
-        FileUtil.removeFile(file).getOrElse { error ->
-            throw FileNotFoundException("deleteDocument id=$documentId failed: ${error.message}")
-                .apply { initCause(error) }
+        val cleanup = try {
+            deleteDocumentAtomically(file)
+        } catch (e: Exception) {
+            throw FileNotFoundException("deleteDocument id=$documentId failed: ${e.message}")
+                .apply { initCause(e) }
+        }
+        cleanup.onFailure { failure ->
+            Timber.w(failure, "Failed to clean staged document deletion: $documentId")
         }
     }
 
@@ -365,7 +426,7 @@ class FcitxDataProvider : DocumentsProvider() {
             ?: throw IOException("Cannot list source directory: ${source.path}")
         children
             .filter { child ->
-                isSafeDocumentPath(child) && !isDocumentCopyStagingFileName(child.name)
+                isSafeDocumentPath(child) && !isDocumentStagingFileName(child.name)
             }
             .forEach { child ->
                 val childDestination = destination.resolve(child.name)
@@ -402,7 +463,7 @@ class FcitxDataProvider : DocumentsProvider() {
     override fun renameDocument(documentId: String, displayName: String): String {
         val oldFile = fileFromDocId(documentId)
         requireNonRootDocument(oldFile, documentId)
-        val newFile = oldFile.resolveSibling(displayName.safeFileName())
+        val newFile = oldFile.resolveSibling(safeDocumentDisplayName(displayName))
         if (newFile.exists()) {
             throw FileNotFoundException("renameDocument id=$documentId to $displayName failed: target exists")
         }
@@ -452,11 +513,11 @@ class FcitxDataProvider : DocumentsProvider() {
         val q = query.lowercase()
         fileFromDocId(rootId).walkTopDown()
             .onEnter { file ->
-                isSafeDocumentPath(file) && !isDocumentCopyStagingFileName(file.name)
+                isSafeDocumentPath(file) && !isDocumentStagingFileName(file.name)
             }
             .filter { file ->
                 isSafeDocumentPath(file) &&
-                        !isDocumentCopyStagingFileName(file.name) &&
+                        !isDocumentStagingFileName(file.name) &&
                         file.name.lowercase().contains(q)
             }
             .take(SEARCH_RESULTS_LIMIT)
