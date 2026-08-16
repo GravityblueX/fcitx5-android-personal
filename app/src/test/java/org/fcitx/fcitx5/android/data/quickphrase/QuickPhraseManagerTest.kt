@@ -131,11 +131,34 @@ class QuickPhraseManagerTest {
                     source,
                     directory,
                     "custom.mb",
-                    publish = { _, _ -> error("Unexpected publish") },
                 )
             }
 
             assertEquals("existing", existing.readText())
+            assertEquals(listOf("custom.mb"), directory.list()?.sorted())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun doesNotReplaceQuickPhraseCreatedAfterValidation() {
+        val root = Files.createTempDirectory("quickphrase-publish-").toFile()
+        try {
+            val source = root.resolve("source.mb").also { it.writeText("new content") }
+            val directory = root.resolve("destination").also(File::mkdir)
+            val destination = directory.resolve("custom.mb")
+
+            assertThrows(FileAlreadyExistsException::class.java) {
+                publishNewQuickPhraseFile(
+                    source,
+                    directory,
+                    "custom.mb",
+                    validate = { destination.writeText("concurrent content") },
+                )
+            }
+
+            assertEquals("concurrent content", destination.readText())
             assertEquals(listOf("custom.mb"), directory.list()?.sorted())
         } finally {
             root.deleteRecursively()

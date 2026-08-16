@@ -4,7 +4,6 @@
  */
 package org.fcitx.fcitx5.android.data.quickphrase
 
-import android.system.Os
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.data.DataManager
 import org.fcitx.fcitx5.android.utils.cleanupStagedFileInstalls
@@ -14,12 +13,14 @@ import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
 import org.fcitx.fcitx5.android.utils.errorArg
 import org.fcitx.fcitx5.android.utils.errorRuntime
 import org.fcitx.fcitx5.android.utils.ensureDirectory
+import org.fcitx.fcitx5.android.utils.moveToWithoutReplacing
 import org.fcitx.fcitx5.android.utils.removeIfExists
 import org.fcitx.fcitx5.android.utils.resolveDirectChild
 import org.fcitx.fcitx5.android.utils.runWithCleanup
 import org.fcitx.fcitx5.android.utils.withTempDir
 import timber.log.Timber
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -209,7 +210,10 @@ internal fun publishNewQuickPhraseFile(
     fileName: String,
     validate: () -> Unit = {},
     publish: (File, File) -> Unit = { staged, destination ->
-        Os.rename(staged.path, destination.path)
+        if (!staged.moveToWithoutReplacing(destination)) {
+            if (destination.exists()) throw FileAlreadyExistsException(destination)
+            throw IOException("Cannot publish quick phrase: ${destination.path}")
+        }
     },
 ): File {
     directory.ensureDirectory()
@@ -228,7 +232,6 @@ internal fun publishNewQuickPhraseFile(
         source.copyTo(staged, overwrite = true)
         runQuickPhraseOperation {
             validate()
-            if (destination.exists()) throw FileAlreadyExistsException(destination)
             publish(staged, destination)
             check(destination.isFile) { "Failed to publish quick phrase: ${destination.path}" }
             destination
