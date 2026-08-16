@@ -9,6 +9,7 @@
 #include <memory>
 #include <future>
 #include <fstream>
+#include <stdexcept>
 #include <string_view>
 
 #include <android/log.h>
@@ -126,6 +127,17 @@ bool writeAll(int fd, std::string_view data) {
         data.remove_prefix(static_cast<size_t>(written));
     }
     return true;
+}
+
+void finishFileWrite(std::ofstream &out) {
+    out.flush();
+    if (!out) {
+        throw std::runtime_error("Failed to write dictionary output");
+    }
+    out.close();
+    if (!out) {
+        throw std::runtime_error("Failed to close dictionary output");
+    }
 }
 
 std::string serializePunctuationProfile(const fcitx::RawConfig &config) {
@@ -1400,10 +1412,14 @@ Java_org_fcitx_fcitx5_android_data_pinyin_PinyinDictManager_pinyinDictConv(JNIEn
     try {
         dict.load(PinyinDictionary::SystemDict, *CString(env, src),
                   mode == JNI_TRUE ? PinyinDictFormat::Binary : PinyinDictFormat::Text);
-        std::ofstream out;
-        out.open(*CString(env, dest), std::ios::out | std::ios::binary);
+        std::ofstream out(*CString(env, dest),
+                          std::ios::out | std::ios::binary);
+        if (!out.is_open()) {
+            throw std::runtime_error("Failed to open dictionary output");
+        }
         dict.save(PinyinDictionary::SystemDict, out,
                   mode == JNI_TRUE ? PinyinDictFormat::Text : PinyinDictFormat::Binary);
+        finishFileWrite(out);
     } catch (const std::exception &e) {
         throwJavaException(env, e.what());
     }
@@ -1416,9 +1432,13 @@ Java_org_fcitx_fcitx5_android_data_table_TableManager_tableDictConv(JNIEnv *env,
     TableBasedDictionary dict;
     try {
         dict.load(*CString(env, src), mode == JNI_TRUE ? TableFormat::Binary : TableFormat::Text);
-        std::ofstream out;
-        out.open(*CString(env, dest), std::ios::out | std::ios::binary);
+        std::ofstream out(*CString(env, dest),
+                          std::ios::out | std::ios::binary);
+        if (!out.is_open()) {
+            throw std::runtime_error("Failed to open dictionary output");
+        }
         dict.save(out, mode == JNI_TRUE ? TableFormat::Text : TableFormat::Binary);
+        finishFileWrite(out);
     } catch (const std::exception &e) {
         throwJavaException(env, e.what());
     }
