@@ -5,7 +5,6 @@
 package org.fcitx.fcitx5.android.data.quickphrase
 
 import kotlinx.parcelize.Parcelize
-import org.fcitx.fcitx5.android.utils.installNewFileAtomically
 import org.fcitx.fcitx5.android.utils.removeIfExists
 import java.io.File
 
@@ -43,9 +42,15 @@ class BuiltinQuickPhrase(
         val directory = overrideFile.parentFile
             ?: error("Cannot resolve quick phrase directory: ${overrideFile.path}")
         val created = try {
-            file.inputStream().use { input ->
-                installNewFileAtomically(input, directory, overrideFile.name)
-            }
+            publishNewQuickPhraseFile(
+                file,
+                directory,
+                overrideFile.name,
+                validate = {
+                    evaluateOverride()
+                    override?.let { throw FileAlreadyExistsException(it.file) }
+                },
+            )
         } catch (e: FileAlreadyExistsException) {
             evaluateOverride()
             if (override != null) return

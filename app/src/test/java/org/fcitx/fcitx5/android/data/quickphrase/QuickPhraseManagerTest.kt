@@ -64,6 +64,85 @@ class QuickPhraseManagerTest {
     }
 
     @Test
+    fun publishesCompleteQuickPhraseWithoutPlaceholder() {
+        val root = Files.createTempDirectory("quickphrase-publish-").toFile()
+        try {
+            val source = root.resolve("source.mb").also { it.writeText("key phrase") }
+            val directory = root.resolve("destination")
+
+            val published = publishNewQuickPhraseFile(
+                source,
+                directory,
+                "custom.mb",
+                publish = { staged, destination ->
+                    assertFalse(destination.exists())
+                    assertEquals("key phrase", staged.readText())
+                    assertTrue(staged.renameTo(destination))
+                },
+            )
+
+            assertEquals(directory.resolve("custom.mb").canonicalFile, published)
+            assertEquals("key phrase", published.readText())
+            assertEquals(listOf("custom.mb"), directory.list()?.sorted())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun cleansStagingWhenQuickPhrasePublishFails() {
+        val root = Files.createTempDirectory("quickphrase-publish-").toFile()
+        try {
+            val source = root.resolve("source.mb").also { it.writeText("key phrase") }
+            val directory = root.resolve("destination")
+            val failure = IllegalStateException("publish failed")
+
+            val thrown = assertThrows(IllegalStateException::class.java) {
+                publishNewQuickPhraseFile(
+                    source,
+                    directory,
+                    "custom.mb",
+                    publish = { staged, destination ->
+                        assertEquals("key phrase", staged.readText())
+                        assertFalse(destination.exists())
+                        throw failure
+                    },
+                )
+            }
+
+            assertTrue(thrown === failure)
+            assertFalse(directory.resolve("custom.mb").exists())
+            assertTrue(directory.list()?.isEmpty() == true)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun doesNotReplaceExistingQuickPhraseDuringPublish() {
+        val root = Files.createTempDirectory("quickphrase-publish-").toFile()
+        try {
+            val source = root.resolve("source.mb").also { it.writeText("new content") }
+            val directory = root.resolve("destination").also(File::mkdir)
+            val existing = directory.resolve("custom.mb").also { it.writeText("existing") }
+
+            assertThrows(FileAlreadyExistsException::class.java) {
+                publishNewQuickPhraseFile(
+                    source,
+                    directory,
+                    "custom.mb",
+                    publish = { _, _ -> error("Unexpected publish") },
+                )
+            }
+
+            assertEquals("existing", existing.readText())
+            assertEquals(listOf("custom.mb"), directory.list()?.sorted())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun normalizesImportedQuickPhraseNames() {
         val target = quickPhraseImportTarget("..\\..\\custom.name.mb")!!
 

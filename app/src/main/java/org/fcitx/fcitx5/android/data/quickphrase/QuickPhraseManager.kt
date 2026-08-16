@@ -24,15 +24,15 @@ import java.io.InputStream
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
+private const val IMPORT_STAGING_PREFIX = ".quickphrase-import-"
+private const val IMPORT_STAGING_SUFFIX = ".staged"
+
 private val quickPhraseOperationLock = ReentrantLock()
 
 internal fun <T> runQuickPhraseOperation(block: () -> T): T =
     quickPhraseOperationLock.withLock(block)
 
 object QuickPhraseManager {
-
-    private const val IMPORT_STAGING_PREFIX = ".quickphrase-import-"
-    private const val IMPORT_STAGING_SUFFIX = ".staged"
 
     private val builtinQuickPhraseDir = File(
         DataManager.dataDir, "usr/share/fcitx5/data/quickphrase.d"
@@ -76,25 +76,13 @@ object QuickPhraseManager {
                     errorRuntime(R.string.exception_quickphrase_parse, "\n(${idx + 1}) $line")
                 }
             }
-            val destination = customQuickPhraseDir.resolveDirectChild(target.fileName)
-            val staged = File.createTempFile(
-                IMPORT_STAGING_PREFIX,
-                IMPORT_STAGING_SUFFIX,
+            val destination = publishNewQuickPhraseFile(
+                file,
                 customQuickPhraseDir,
+                target.fileName,
+                validate = { requireAvailableQuickPhraseEntry(target) },
             )
-            runWithCleanup(
-                cleanup = { staged.removeIfExists() },
-                onCleanupFailure = { failure ->
-                    Timber.w(failure, "Failed to remove staged quick phrase: ${staged.path}")
-                },
-            ) {
-                file.copyTo(staged, overwrite = true)
-                runQuickPhraseOperation {
-                    requireAvailableQuickPhraseEntry(target)
-                    Os.rename(staged.path, destination.path)
-                    CustomQuickPhrase(destination)
-                }
-            }
+            CustomQuickPhrase(destination)
         }
     }
 
@@ -214,6 +202,39 @@ object QuickPhraseManager {
 
 internal fun isQuickPhraseImportStagingFile(fileName: String): Boolean =
     fileName.startsWith(".quickphrase-import-") && fileName.endsWith(".staged")
+
+internal fun publishNewQuickPhraseFile(
+    source: File,
+    directory: File,
+    fileName: String,
+    validate: () -> Unit = {},
+    publish: (File, File) -> Unit = { staged, destination ->
+        Os.rename(staged.path, destination.path)
+    },
+): File {
+    directory.ensureDirectory()
+    val destination = directory.resolveDirectChild(fileName)
+    val staged = File.createTempFile(
+        IMPORT_STAGING_PREFIX,
+        IMPORT_STAGING_SUFFIX,
+        directory,
+    )
+    return runWithCleanup(
+        cleanup = { staged.removeIfExists() },
+        onCleanupFailure = { failure ->
+            Timber.w(failure, "Failed to remove staged quick phrase: ${staged.path}")
+        },
+    ) {
+        source.copyTo(staged, overwrite = true)
+        runQuickPhraseOperation {
+            validate()
+            if (destination.exists()) throw FileAlreadyExistsException(destination)
+            publish(staged, destination)
+            check(destination.isFile) { "Failed to publish quick phrase: ${destination.path}" }
+            destination
+        }
+    }
+}
 
 internal fun reserveQuickPhraseFile(directory: File, fileName: String): File {
     val file = directory.resolveDirectChild(fileName)
