@@ -81,6 +81,31 @@ class SequentialSaveRunnerTest {
     }
 
     @Test
+    fun queuedSnapshotRunsAfterEarlierFailure() = runBlocking {
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val firstStarted = CompletableDeferred<Unit>()
+        val releaseFirst = CompletableDeferred<Unit>()
+        val saved = mutableListOf<Int>()
+        val runner = SequentialSaveRunner<Int>(scope, save = { value ->
+            if (value == 1) {
+                firstStarted.complete(Unit)
+                releaseFirst.await()
+                throw IllegalStateException("save failed")
+            }
+            saved += value
+        })
+
+        runner.submit(1)
+        firstStarted.await()
+        runner.submit(2)
+        releaseFirst.complete(Unit)
+
+        assertTrue(runner.awaitIdle().isSuccess)
+        assertEquals(listOf(2), saved)
+        scope.cancel()
+    }
+
+    @Test
     fun cancellationIsNotReportedAsSaveFailure() = runBlocking {
         val scope = CoroutineScope(coroutineContext + SupervisorJob())
         val cancellation = CancellationException("cancelled")
@@ -95,6 +120,37 @@ class SequentialSaveRunnerTest {
         val result = runner.awaitIdle()
 
         assertSame(cancellation, result.exceptionOrNull())
+        assertFalse(observedFailures.isNotEmpty())
+        scope.cancel()
+    }
+
+    @Test
+    fun queuedSnapshotRunsAfterEarlierCancellation() = runBlocking {
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        val firstStarted = CompletableDeferred<Unit>()
+        val releaseFirst = CompletableDeferred<Unit>()
+        val observedFailures = mutableListOf<Throwable>()
+        val saved = mutableListOf<Int>()
+        val runner = SequentialSaveRunner<Int>(
+            scope,
+            save = { value ->
+                if (value == 1) {
+                    firstStarted.complete(Unit)
+                    releaseFirst.await()
+                    throw CancellationException("cancelled")
+                }
+                saved += value
+            },
+            onFailure = observedFailures::add
+        )
+
+        runner.submit(1)
+        firstStarted.await()
+        runner.submit(2)
+        releaseFirst.complete(Unit)
+
+        assertTrue(runner.awaitIdle().isSuccess)
+        assertEquals(listOf(2), saved)
         assertFalse(observedFailures.isNotEmpty())
         scope.cancel()
     }

@@ -44,6 +44,8 @@ import org.fcitx.fcitx5.android.utils.importErrorDialog
 import org.fcitx.fcitx5.android.utils.lazyRoute
 import org.fcitx.fcitx5.android.utils.notificationManager
 import org.fcitx.fcitx5.android.utils.queryFileName
+import org.fcitx.fcitx5.android.utils.toast
+import timber.log.Timber
 
 class PinyinDictionaryFragment : Fragment(), OnItemChangedListener<PinyinDictionary> {
 
@@ -239,16 +241,21 @@ class PinyinDictionaryFragment : Fragment(), OnItemChangedListener<PinyinDiction
             .build()
         val connection = viewModel.fcitx
         viewModel.viewModelScope.launch {
-            reloadMutex.withLock {
-                val id = RELOAD_ID++
-                try {
-                    nm.notify(id, notification)
-                    connection.runOnReady {
-                        reloadPinyinDict()
+            dustman.runCatchingSave {
+                reloadMutex.withLock {
+                    val id = RELOAD_ID++
+                    try {
+                        nm.notify(id, notification)
+                        connection.runOnReady {
+                            reloadPinyinDict()
+                        }
+                    } finally {
+                        nm.cancel(id)
                     }
-                } finally {
-                    nm.cancel(id)
                 }
+            }.onFailure {
+                Timber.e(it, "Failed to reload pinyin dictionaries")
+                context.toast(it)
             }
         }
     }

@@ -53,6 +53,7 @@ import org.fcitx.fcitx5.android.utils.onPositiveButtonClick
 import org.fcitx.fcitx5.android.utils.parcelable
 import org.fcitx.fcitx5.android.utils.queryFileName
 import org.fcitx.fcitx5.android.utils.str
+import org.fcitx.fcitx5.android.utils.toast
 import splitties.resources.drawable
 import splitties.views.dsl.core.add
 import splitties.views.dsl.core.lParams
@@ -60,6 +61,7 @@ import splitties.views.dsl.core.matchParent
 import splitties.views.dsl.core.verticalLayout
 import splitties.views.imageDrawable
 import splitties.views.setPaddingDp
+import timber.log.Timber
 
 class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
 
@@ -315,16 +317,21 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
             .build()
         val connection = viewModel.fcitx
         viewModel.viewModelScope.launch {
-            reloadMutex.withLock {
-                val id = RELOAD_ID++
-                try {
-                    nm.notify(id, notification)
-                    connection.runOnReady {
-                        reloadQuickPhrase()
+            dustman.runCatchingSave {
+                reloadMutex.withLock {
+                    val id = RELOAD_ID++
+                    try {
+                        nm.notify(id, notification)
+                        connection.runOnReady {
+                            reloadQuickPhrase()
+                        }
+                    } finally {
+                        nm.cancel(id)
                     }
-                } finally {
-                    nm.cancel(id)
                 }
+            }.onFailure {
+                Timber.e(it, "Failed to reload quick phrases")
+                context.toast(it)
             }
         }
     }

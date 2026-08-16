@@ -8,7 +8,6 @@ import android.os.Build
 import android.view.View
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.fcitx.fcitx5.android.core.InputMethodEntry
@@ -20,25 +19,39 @@ import org.fcitx.fcitx5.android.ui.common.OnItemChangedListener
 import org.fcitx.fcitx5.android.ui.main.EditDeleteMenuProvider
 import org.fcitx.fcitx5.android.ui.main.MainViewModel.ButtonMode
 import org.fcitx.fcitx5.android.ui.main.settings.ProgressFragment
+import org.fcitx.fcitx5.android.ui.main.settings.SequentialSaveRunner
 import org.fcitx.fcitx5.android.ui.main.settings.SettingsRoute
+import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.navigateWithAnim
+import org.fcitx.fcitx5.android.utils.toast
+import timber.log.Timber
 
 class InputMethodListFragment : ProgressFragment(), OnItemChangedListener<InputMethodEntry> {
 
-    private fun updateIMState() {
-        if (!isInitialized) return
-        val enabledInputMethods = ui.entries.map { it.uniqueName }.toTypedArray()
+    private val stateSaver by lazy {
         val connection = fcitx
-        viewModel.viewModelScope.launch {
-            updateMutex.withLock {
-                connection.runOnReady {
-                    setEnabledIme(enabledInputMethods)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                        SubtypeManager.syncWith(enabledIme())
+        SequentialSaveRunner<Array<String>>(
+            scope = viewModel.viewModelScope,
+            save = { enabledInputMethods ->
+                updateMutex.withLock {
+                    connection.runOnReady {
+                        setEnabledIme(enabledInputMethods)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                            SubtypeManager.syncWith(enabledIme())
+                        }
                     }
                 }
+            },
+            onFailure = {
+                Timber.e(it, "Failed to save enabled input methods")
+                appContext.toast(it)
             }
-        }
+        )
+    }
+
+    private fun updateIMState() {
+        if (!isInitialized) return
+        stateSaver.submit(ui.entries.map { it.uniqueName }.toTypedArray())
     }
 
     private lateinit var ui: BaseDynamicListUi<InputMethodEntry>
