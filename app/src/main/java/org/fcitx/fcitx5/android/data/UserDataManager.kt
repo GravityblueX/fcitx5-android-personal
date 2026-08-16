@@ -30,14 +30,27 @@ import timber.log.Timber
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.concurrent.locks.ReentrantLock
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import kotlin.concurrent.withLock
 
 private const val USER_DATA_IMPORT_DIRECTORY_PREFIX = ".user-data-import-"
 private const val LEGACY_USER_DATA_IMPORT_DIRECTORY_PREFIX = "fcitx-"
 private const val USER_DATA_IMPORT_JOURNAL_STAGING_PREFIX = "user-data-import-"
 private const val USER_DATA_IMPORT_JOURNAL_STAGING_SUFFIX = ".journal"
+
+private val userDataOperationLock = ReentrantLock()
+
+internal fun <T> runUserDataOperation(block: () -> T): T =
+    userDataOperationLock.withLock(block)
+
+internal fun requireNoPendingUserDataImport(journal: File) {
+    check(!journal.exists()) {
+        "Cannot import user data while a previous import requires recovery: ${journal.path}"
+    }
+}
 
 internal fun isSafeUserDataExportPath(file: File, sourceDir: File): Boolean {
     val relative = runCatching { file.relativeTo(sourceDir) }.getOrNull() ?: return false
@@ -187,30 +200,33 @@ object UserDataManager {
             .mapNotNull(File::getParentFile)
 
     @OptIn(ExperimentalSerializationApi::class)
-    fun export(dest: OutputStream, timestamp: Long = System.currentTimeMillis()) = runCatching {
-        ZipOutputStream(dest.buffered()).use { zipStream ->
-            // shared_prefs
-            writeUserDataFileTree(sharedPrefsDir, "shared_prefs", zipStream) { file ->
-                file.isDirectory || !isTransientSharedPreferenceFile(file.name)
+    fun export(dest: OutputStream, timestamp: Long = System.currentTimeMillis()) =
+        runUserDataOperation {
+            runCatching {
+                ZipOutputStream(dest.buffered()).use { zipStream ->
+                    // shared_prefs
+                    writeUserDataFileTree(sharedPrefsDir, "shared_prefs", zipStream) { file ->
+                        file.isDirectory || !isTransientSharedPreferenceFile(file.name)
+                    }
+                    // databases
+                    writeUserDataFileTree(dataBasesDir, "databases", zipStream)
+                    // external
+                    writeUserDataFileTree(externalDir, "external", zipStream)
+                    // recently_used moved to SharedPreference and shoud not be exported
+                    // metadata
+                    zipStream.putNextEntry(ZipEntry("metadata.json"))
+                    val pkgInfo = appContext.packageManager.getPackageInfo(appContext.packageName, 0)
+                    val metadata = Metadata(
+                        pkgInfo.packageName,
+                        pkgInfo.versionCodeCompat,
+                        Const.versionName,
+                        timestamp
+                    )
+                    json.encodeToStream(metadata, zipStream)
+                    zipStream.closeEntry()
+                }
             }
-            // databases
-            writeUserDataFileTree(dataBasesDir, "databases", zipStream)
-            // external
-            writeUserDataFileTree(externalDir, "external", zipStream)
-            // recently_used moved to SharedPreference and shoud not be exported
-            // metadata
-            zipStream.putNextEntry(ZipEntry("metadata.json"))
-            val pkgInfo = appContext.packageManager.getPackageInfo(appContext.packageName, 0)
-            val metadata = Metadata(
-                pkgInfo.packageName,
-                pkgInfo.versionCodeCompat,
-                Const.versionName,
-                timestamp
-            )
-            json.encodeToStream(metadata, zipStream)
-            zipStream.closeEntry()
         }
-    }
 
     private data class ImportDirectory(
         val source: File,
@@ -390,7 +406,9 @@ object UserDataManager {
         return recovered
     }
 
-    fun recoverPendingImport() {
+    fun recoverPendingImport() = runUserDataOperation(::recoverPendingImportLocked)
+
+    private fun recoverPendingImportLocked() {
         val journal = importJournalFile
         if (!journal.exists()) {
             cleanupAbandonedUserDataImport(journal, importDirectoryParents)
@@ -463,38 +481,42 @@ object UserDataManager {
         }
     }
 
-    fun import(src: InputStream) = runCatching {
-        ZipInputStream(src).use { zipStream ->
-            withTempDir { tempDir ->
-                val extracted = zipStream.extract(tempDir)
-                val metadataFile = extracted.find { it.name == "metadata.json" }
-                    ?: errorRuntime(R.string.exception_user_data_metadata)
-                val metadata = json.decodeFromString<Metadata>(metadataFile.readText())
-                if (metadata.packageName !in compatiblePackageNames)
-                    errorRuntime(R.string.exception_user_data_package_name_mismatch)
-                if (!hasRequiredUserDataDirectories(tempDir))
-                    errorRuntime(R.string.exception_user_data_metadata)
-                val importedSharedPrefsDir = File(tempDir, "shared_prefs")
-                importedSharedPrefsDir.listFiles()
-                    ?.filter { isTransientSharedPreferenceFile(it.name) }
-                    ?.forEach { transientFile ->
-                        transientFile.removeIfExists().onFailure(::reportImportCleanupFailure)
-                    }
-                migrateDefaultSharedPreferences(importedSharedPrefsDir, metadata.packageName)
-                importDirectories(
-                    listOf(
-                        ImportDirectory(
-                            importedSharedPrefsDir,
-                            sharedPrefsDir,
-                            ::preserveTransientSharedPreferenceFiles,
-                        ),
-                        ImportDirectory(File(tempDir, "databases"), dataBasesDir),
-                        ImportDirectory(File(tempDir, "external"), externalDir),
-                        // keep importing recently_used for backwords compatibility
-                        ImportDirectory(File(tempDir, "recently_used"), recentlyUsedDir),
+    fun import(src: InputStream) = runUserDataOperation {
+        runCatching {
+            recoverPendingImportLocked()
+            requireNoPendingUserDataImport(importJournalFile)
+            ZipInputStream(src).use { zipStream ->
+                withTempDir { tempDir ->
+                    val extracted = zipStream.extract(tempDir)
+                    val metadataFile = extracted.find { it.name == "metadata.json" }
+                        ?: errorRuntime(R.string.exception_user_data_metadata)
+                    val metadata = json.decodeFromString<Metadata>(metadataFile.readText())
+                    if (metadata.packageName !in compatiblePackageNames)
+                        errorRuntime(R.string.exception_user_data_package_name_mismatch)
+                    if (!hasRequiredUserDataDirectories(tempDir))
+                        errorRuntime(R.string.exception_user_data_metadata)
+                    val importedSharedPrefsDir = File(tempDir, "shared_prefs")
+                    importedSharedPrefsDir.listFiles()
+                        ?.filter { isTransientSharedPreferenceFile(it.name) }
+                        ?.forEach { transientFile ->
+                            transientFile.removeIfExists().onFailure(::reportImportCleanupFailure)
+                        }
+                    migrateDefaultSharedPreferences(importedSharedPrefsDir, metadata.packageName)
+                    importDirectories(
+                        listOf(
+                            ImportDirectory(
+                                importedSharedPrefsDir,
+                                sharedPrefsDir,
+                                ::preserveTransientSharedPreferenceFiles,
+                            ),
+                            ImportDirectory(File(tempDir, "databases"), dataBasesDir),
+                            ImportDirectory(File(tempDir, "external"), externalDir),
+                            // keep importing recently_used for backwords compatibility
+                            ImportDirectory(File(tempDir, "recently_used"), recentlyUsedDir),
+                        )
                     )
-                )
-                metadata
+                    metadata
+                }
             }
         }
     }

@@ -6,6 +6,7 @@ package org.fcitx.fcitx5.android.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeNoException
 import org.junit.Test
@@ -13,10 +14,69 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.file.Files
+import java.util.concurrent.Callable
+import java.util.concurrent.CyclicBarrier
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 class UserDataManagerTest {
+
+    @Test
+    fun serializesUserDataOperations() {
+        val workerCount = 8
+        val barrier = CyclicBarrier(workerCount)
+        val activeOperations = AtomicInteger()
+        val maximumActiveOperations = AtomicInteger()
+        val executor = Executors.newFixedThreadPool(workerCount)
+        try {
+            val operations = List(workerCount) {
+                Callable {
+                    barrier.await(5, TimeUnit.SECONDS)
+                    runUserDataOperation {
+                        val active = activeOperations.incrementAndGet()
+                        try {
+                            maximumActiveOperations.updateAndGet { maximum ->
+                                maxOf(maximum, active)
+                            }
+                            Thread.sleep(25)
+                        } finally {
+                            activeOperations.decrementAndGet()
+                        }
+                    }
+                }
+            }
+
+            executor.invokeAll(operations).forEach { future ->
+                future.get(5, TimeUnit.SECONDS)
+            }
+
+            assertEquals(1, maximumActiveOperations.get())
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun rejectsNewImportWhileJournalRequiresRecovery() {
+        val root = Files.createTempDirectory("user-data-pending-").toFile()
+        try {
+            val journal = root.resolve(".user-data-import").apply {
+                writeText("pending")
+            }
+
+            val failure = assertThrows(IllegalStateException::class.java) {
+                requireNoPendingUserDataImport(journal)
+            }
+
+            assertTrue(failure.message.orEmpty().contains(journal.path))
+            assertTrue(journal.isFile)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
 
     @Test
     fun cleansAbandonedImportArtifactsWithoutPublishedJournal() {
