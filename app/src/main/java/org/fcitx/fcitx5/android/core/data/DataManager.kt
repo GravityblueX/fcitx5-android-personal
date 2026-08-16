@@ -18,7 +18,10 @@ import org.fcitx.fcitx5.android.BuildConfig
 import org.fcitx.fcitx5.android.core.data.DataManager.dataDir
 import org.fcitx.fcitx5.android.utils.FileUtil
 import org.fcitx.fcitx5.android.utils.appContext
+import org.fcitx.fcitx5.android.utils.ensureDirectory
 import org.fcitx.fcitx5.android.utils.isJavaIdentifier
+import org.fcitx.fcitx5.android.utils.removeIfExists
+import org.fcitx.fcitx5.android.utils.runWithCleanup
 import org.xmlpull.v1.XmlPullParser
 import timber.log.Timber
 import java.io.File
@@ -321,22 +324,31 @@ object DataManager {
         }
         // save the new hierarchy as the data descriptor to be used in the next run
         val stagedDescriptor = File.createTempFile("data-descriptor-", ".staged", dataDir)
-        try {
+        runWithCleanup(
+            cleanup = { stagedDescriptor.removeIfExists() },
+            onCleanupFailure = { failure ->
+                Timber.w(failure, "Failed to remove staged data descriptor: ${stagedDescriptor.path}")
+            },
+        ) {
             stagedDescriptor.bufferedWriter().use {
                 it.write(serializeDataDescriptor(newHierarchy.downToDataDescriptor()))
             }
             Os.rename(stagedDescriptor.path, destDescriptorFile.path)
-        } finally {
-            stagedDescriptor.delete()
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             // remove old assets from credential encrypted storage
             val oldDataDir = appContext.dataDir
             val oldDataDescriptor = oldDataDir.resolve(BuildConfig.DATA_DESCRIPTOR_NAME)
             if (oldDataDescriptor.exists()) {
-                oldDataDescriptor.delete()
-                oldDataDir.resolve("README.md").delete()
-                oldDataDir.resolve("usr").deleteRecursively()
+                listOf(
+                    oldDataDescriptor,
+                    oldDataDir.resolve("README.md"),
+                    oldDataDir.resolve("usr"),
+                ).forEach { obsolete ->
+                    FileUtil.removeFile(obsolete).onFailure { failure ->
+                        Timber.w(failure, "Failed to remove old data path: ${obsolete.path}")
+                    }
+                }
             }
         }
         synced = true
@@ -353,17 +365,18 @@ object DataManager {
     private fun AssetManager.copyFile(filename: String) {
         val destination = File(dataDir, filename)
         val parent = destination.parentFile ?: error("Cannot resolve parent for '${filename}'")
-        check(parent.mkdirs() || parent.isDirectory) {
-            "Cannot create directory: $parent"
-        }
+        parent.ensureDirectory()
         val staged = File.createTempFile("data-file-", ".staged", parent)
-        try {
+        runWithCleanup(
+            cleanup = { staged.removeIfExists() },
+            onCleanupFailure = { failure ->
+                Timber.w(failure, "Failed to remove staged data file: ${staged.path}")
+            },
+        ) {
             open(filename).use { input ->
                 staged.outputStream().use { output -> input.copyTo(output) }
             }
             Os.rename(staged.path, destination.path)
-        } finally {
-            staged.delete()
         }
     }
 
