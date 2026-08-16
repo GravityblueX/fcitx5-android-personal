@@ -23,7 +23,21 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 internal fun Throwable.addSuppressedFailures(results: Iterable<Result<Unit>>) {
-    results.mapNotNull(Result<Unit>::exceptionOrNull).forEach(::addSuppressed)
+    results.mapNotNull(Result<Unit>::exceptionOrNull)
+        .filterNot { it === this }
+        .forEach(::addSuppressed)
+}
+
+internal inline fun <T> runWithRollback(
+    rollback: () -> Iterable<Result<Unit>>,
+    block: () -> T,
+): T = try {
+    block()
+} catch (primary: Exception) {
+    val rollbackResults = runCatching(rollback)
+        .getOrElse { listOf(Result.failure(it)) }
+    primary.addSuppressedFailures(rollbackResults)
+    throw primary
 }
 
 object ThemeFilesManager {
@@ -78,7 +92,7 @@ object ThemeFilesManager {
         return Triple(themeName, croppedImageFile, srcImageFile)
     }
 
-    fun saveThemeFiles(theme: Theme.Custom) {
+    private fun saveThemeMetadata(theme: Theme.Custom) {
         val file = themeFile(theme)
         val staged = File.createTempFile("theme-", ".staged", dir)
         try {
@@ -87,6 +101,39 @@ object ThemeFilesManager {
         } finally {
             staged.removeIfExists().onFailure {
                 Timber.w(it, "Failed to remove staged theme file: ${staged.path}")
+            }
+        }
+    }
+
+    fun saveThemeFiles(theme: Theme.Custom) = saveThemeMetadata(theme)
+
+    fun saveThemeFiles(
+        theme: Theme.Custom,
+        pendingCroppedImage: File,
+        replaceExistingImage: Boolean,
+    ) {
+        require(pendingCroppedImage.isFile) {
+            "Cannot find pending cropped theme image: $pendingCroppedImage"
+        }
+        val background = requireNotNull(theme.backgroundImage)
+        val croppedImage = File(background.croppedFilePath)
+        require(isThemeFile(croppedImage)) {
+            "Invalid cropped theme image path: $croppedImage"
+        }
+        require(pendingCroppedImage.canonicalFile != croppedImage.canonicalFile) {
+            "Pending cropped theme image must not be the destination"
+        }
+        withTempDir { tempDir ->
+            val croppedBackup = backup(croppedImage, tempDir)
+            runWithRollback(
+                rollback = { listOf(restore(croppedImage, croppedBackup)) },
+            ) {
+                installImportedFile(
+                    pendingCroppedImage,
+                    croppedImage,
+                    replaceExistingImage,
+                )
+                saveThemeMetadata(theme)
             }
         }
     }

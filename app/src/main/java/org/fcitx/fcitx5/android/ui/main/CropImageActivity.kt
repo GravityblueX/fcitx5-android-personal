@@ -95,7 +95,6 @@ class CropImageActivity : AppCompatActivity() {
                     _bitmap?.let { return it }
                     return BitmapFactory.decodeFile(file.path).also {
                         _bitmap = it
-                        file.delete()
                     }
                 }
         }

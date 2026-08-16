@@ -22,7 +22,6 @@ import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.data.theme.ThemeFilesManager
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
-import org.fcitx.fcitx5.android.data.theme.addSuppressedFailures
 import org.fcitx.fcitx5.android.ui.common.withLoadingDialog
 import org.fcitx.fcitx5.android.utils.requireOutputStream
 import org.fcitx.fcitx5.android.utils.requireInputStream
@@ -63,19 +62,10 @@ class ThemeListFragment : Fragment() {
             when (result) {
                 is CustomThemeActivity.BackgroundResult.Created -> {
                     val theme = result.theme
-                    runCatching { ThemeManager.saveTheme(theme) }
-                        .onSuccess {
-                            themeListAdapter.prependTheme(theme)
-                            if (!followSystemDayNightTheme) {
-                                ThemeManager.setNormalModeTheme(theme)
-                            }
-                        }
-                        .onFailure { failure ->
-                            failure.addSuppressedFailures(
-                                listOf(ThemeFilesManager.deleteThemeFiles(theme))
-                            )
-                            requireContext().toast(failure)
-                        }
+                    themeListAdapter.prependTheme(theme)
+                    if (!followSystemDayNightTheme) {
+                        ThemeManager.setNormalModeTheme(theme)
+                    }
                 }
                 is CustomThemeActivity.BackgroundResult.Deleted -> {
                     val name = result.name
@@ -84,10 +74,7 @@ class ThemeListFragment : Fragment() {
                         .onFailure(requireContext()::toast)
                 }
                 is CustomThemeActivity.BackgroundResult.Updated -> {
-                    val theme = result.theme
-                    runCatching { ThemeManager.saveTheme(theme) }
-                        .onSuccess { themeListAdapter.replaceTheme(theme) }
-                        .onFailure(requireContext()::toast)
+                    themeListAdapter.replaceTheme(result.theme)
                 }
             }
         }

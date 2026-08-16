@@ -34,12 +34,14 @@ import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.parcelize.Parcelize
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.data.theme.ThemeFilesManager
+import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.data.theme.ThemePreset
 import org.fcitx.fcitx5.android.ui.common.withLoadingDialog
 import org.fcitx.fcitx5.android.ui.main.CropImageActivity.CropContract
@@ -48,8 +50,10 @@ import org.fcitx.fcitx5.android.ui.main.CropImageActivity.CropResult
 import org.fcitx.fcitx5.android.utils.toast
 import org.fcitx.fcitx5.android.utils.requireInputStream
 import org.fcitx.fcitx5.android.utils.DarkenColorFilter
+import org.fcitx.fcitx5.android.utils.installNewFileAtomically
 import org.fcitx.fcitx5.android.utils.item
 import org.fcitx.fcitx5.android.utils.parcelable
+import org.fcitx.fcitx5.android.utils.removeIfExists
 import splitties.dimensions.dp
 import splitties.resources.color
 import splitties.resources.resolveThemeAttribute
@@ -79,6 +83,7 @@ import splitties.views.gravityVerticalCenter
 import splitties.views.horizontalPadding
 import splitties.views.textAppearance
 import splitties.views.topPadding
+import timber.log.Timber
 import java.io.File
 
 class CustomThemeActivity : AppCompatActivity() {
@@ -230,6 +235,7 @@ class CustomThemeActivity : AppCompatActivity() {
         lateinit var filteredDrawable: BitmapDrawable
         lateinit var srcImageFile: File
         lateinit var croppedImageFile: File
+        var pendingCroppedImageFile: File? = null
     }
 
     private val backgroundStates by lazy { BackgroundStates() }
@@ -319,6 +325,12 @@ class CustomThemeActivity : AppCompatActivity() {
                     }
                     is CropResult.Success -> {
                         val cropResultFile = it.file
+                        val croppedBitmap = runCatching { it.bitmap }.getOrElse { failure ->
+                            cropResultFile.removeIfExists().onFailure(failure::addSuppressed)
+                            toast(failure)
+                            if (newCreated) cancel()
+                            return@registerForActivityResult
+                        }
                         if (newCreated) {
                             MimeTypeMap.getSingleton()
                                 .getExtensionFromMimeType(contentResolver.getType(it.srcUri))
@@ -332,18 +344,29 @@ class CustomThemeActivity : AppCompatActivity() {
                                 }
                             runCatching {
                                 contentResolver.requireInputStream(it.srcUri).use { input ->
-                                    srcImageFile.outputStream().use(input::copyTo)
+                                    installNewFileAtomically(
+                                        input,
+                                        checkNotNull(srcImageFile.parentFile),
+                                        srcImageFile.name,
+                                    )
                                 }
-                            }.getOrElse {
-                                cropResultFile.delete()
+                            }.getOrElse { failure ->
+                                cropResultFile.removeIfExists().onFailure(failure::addSuppressed)
                                 toast(R.string.exception_document_unavailable)
                                 cancel()
                                 return@registerForActivityResult
                             }
                         }
+                        pendingCroppedImageFile
+                            ?.takeIf { pending -> pending != cropResultFile }
+                            ?.removeIfExists()
+                            ?.onFailure { failure ->
+                                Timber.w(failure, "Failed to remove superseded theme crop")
+                            }
+                        pendingCroppedImageFile = cropResultFile
                         cropRect = it.rect
                         cropRotation = it.rotation
-                        croppedBitmap = it.bitmap
+                        this.croppedBitmap = croppedBitmap
                         filteredDrawable = BitmapDrawable(resources, croppedBitmap)
                         updateState()
                     }
@@ -407,10 +430,18 @@ class CustomThemeActivity : AppCompatActivity() {
     }
 
     private fun cancel() {
-        if (newCreated) {
-            backgroundStates.run {
-                croppedImageFile.delete()
-                srcImageFile.delete()
+        backgroundStates.run {
+            val files = buildList {
+                pendingCroppedImageFile?.let(::add)
+                if (newCreated) {
+                    add(croppedImageFile)
+                    add(srcImageFile)
+                }
+            }
+            files.distinct().forEach { file ->
+                file.removeIfExists().onFailure { failure ->
+                    Timber.w(failure, "Failed to remove abandoned theme image: ${file.path}")
+                }
             }
         }
         setResult(
@@ -422,38 +453,52 @@ class CustomThemeActivity : AppCompatActivity() {
 
     private fun done() {
         lifecycleScope.withLoadingDialog(this) {
+            var newTheme = theme
             whenHasBackground {
-                withContext(Dispatchers.IO) {
-                    croppedImageFile.delete()
-                    croppedImageFile.outputStream().use {
-                        check(croppedBitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) {
-                            "Failed to compress cropped theme image"
-                        }
-                    }
-                }
+                newTheme = theme.copy(
+                    backgroundImage = it.copy(
+                        brightness = brightnessSeekBar.value.toInt(),
+                        cropRect = cropRect,
+                        cropRotation = cropRotation
+                    )
+                )
             }
-            setResult(
-                RESULT_OK,
-                Intent().apply {
-                    var newTheme = theme
-                    whenHasBackground {
-                        newTheme = theme.copy(
-                            backgroundImage = it.copy(
-                                brightness = brightnessSeekBar.value.toInt(),
-                                cropRect = cropRect,
-                                cropRotation = cropRotation
-                            )
+            val pendingCroppedImage = backgroundStates.pendingCroppedImageFile
+            try {
+                withContext(Dispatchers.IO) {
+                    if (pendingCroppedImage == null) {
+                        ThemeFilesManager.saveThemeFiles(newTheme)
+                    } else {
+                        ThemeFilesManager.saveThemeFiles(
+                            newTheme,
+                            pendingCroppedImage,
+                            replaceExistingImage = !newCreated,
                         )
                     }
-                    putExtra(
-                        RESULT,
-                        if (newCreated)
-                            BackgroundResult.Created(newTheme)
-                        else
-                            BackgroundResult.Updated(newTheme)
-                    )
-                })
-            finish()
+                }
+                ThemeManager.applyPersistedTheme(newTheme)
+                pendingCroppedImage?.removeIfExists()?.onFailure { failure ->
+                    Timber.w(failure, "Failed to remove committed theme crop")
+                }
+                backgroundStates.pendingCroppedImageFile = null
+                setResult(
+                    RESULT_OK,
+                    Intent().apply {
+                        putExtra(
+                            RESULT,
+                            if (newCreated)
+                                BackgroundResult.Created(newTheme)
+                            else
+                                BackgroundResult.Updated(newTheme)
+                        )
+                    }
+                )
+                finish()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                toast(e)
+            }
         }
     }
 

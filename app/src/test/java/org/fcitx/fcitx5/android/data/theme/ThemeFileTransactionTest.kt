@@ -5,6 +5,8 @@
 package org.fcitx.fcitx5.android.data.theme
 
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class ThemeFileTransactionTest {
@@ -15,14 +17,38 @@ class ThemeFileTransactionTest {
         val firstRollback = IllegalStateException("first rollback")
         val secondRollback = IllegalStateException("second rollback")
 
-        primary.addSuppressedFailures(
-            listOf(
-                Result.failure(firstRollback),
-                Result.success(Unit),
-                Result.failure(secondRollback),
-            )
-        )
+        val thrown = assertThrows(IllegalStateException::class.java) {
+            runWithRollback(
+                rollback = {
+                    listOf(
+                        Result.failure(firstRollback),
+                        Result.success(Unit),
+                        Result.failure(secondRollback),
+                    )
+                },
+            ) {
+                throw primary
+            }
+        }
 
+        assertSame(primary, thrown)
         assertArrayEquals(arrayOf(firstRollback, secondRollback), primary.suppressed)
+    }
+
+    @Test
+    fun preservesPrimaryFailureWhenRollbackItselfThrows() {
+        val primary = IllegalStateException("primary")
+        val rollback = IllegalStateException("rollback")
+
+        val thrown = assertThrows(IllegalStateException::class.java) {
+            runWithRollback(
+                rollback = { throw rollback },
+            ) {
+                throw primary
+            }
+        }
+
+        assertSame(primary, thrown)
+        assertArrayEquals(arrayOf(rollback), primary.suppressed)
     }
 }

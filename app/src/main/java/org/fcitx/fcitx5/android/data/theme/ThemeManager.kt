@@ -88,6 +88,10 @@ object ThemeManager {
 
     fun saveTheme(theme: Theme.Custom) {
         ThemeFilesManager.saveThemeFiles(theme)
+        applyPersistedTheme(theme)
+    }
+
+    internal fun applyPersistedTheme(theme: Theme.Custom) {
         customThemes.indexOfFirst { it.name == theme.name }.also {
             if (it >= 0) customThemes[it] = theme else customThemes.add(0, theme)
         }
