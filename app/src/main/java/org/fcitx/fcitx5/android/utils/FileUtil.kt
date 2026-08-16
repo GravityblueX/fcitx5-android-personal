@@ -8,6 +8,14 @@ import android.system.Os
 import android.system.OsConstants
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+
+internal fun File.moveToWithoutReplacing(destination: File): Boolean = try {
+    Files.move(toPath(), destination.toPath())
+    true
+} catch (_: IOException) {
+    false
+}
 
 object FileUtil {
 

@@ -8,6 +8,7 @@ import android.system.Os
 import kotlinx.parcelize.Parcelize
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.utils.errorArg
+import org.fcitx.fcitx5.android.utils.moveToWithoutReplacing
 import java.io.File
 
 @Parcelize
@@ -50,7 +51,7 @@ class CustomQuickPhrase(
     override fun enable(): Boolean {
         if (isEnabled) return true
         val newFile = file.resolveSibling("$name.$EXT")
-        if (!file.renameTo(newFile)) return false
+        if (!file.moveToWithoutReplacing(newFile)) return false
         file = newFile
         isEnabled = true
         return true
@@ -59,7 +60,7 @@ class CustomQuickPhrase(
     override fun disable(): Boolean {
         if (!isEnabled) return true
         val newFile = file.resolveSibling("$name.$EXT.$DISABLE")
-        if (!file.renameTo(newFile)) return false
+        if (!file.moveToWithoutReplacing(newFile)) return false
         file = newFile
         isEnabled = false
         return true

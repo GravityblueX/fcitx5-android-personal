@@ -8,6 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 import java.nio.file.Files
 
 class CustomQuickPhraseTest {
@@ -34,6 +35,52 @@ class CustomQuickPhraseTest {
             assertEquals("custom.mb.disable.name", quickPhrase.name)
         } finally {
             root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun enablingDoesNotReplaceExistingFile() {
+        val root = Files.createTempDirectory("custom-quickphrase-").toFile()
+        try {
+            val disabledFile = ReplacingRenameFile(root.resolve("custom.mb.disable").path)
+                .also { it.writeText("disabled content") }
+            val enabledFile = root.resolve("custom.mb").also { it.writeText("enabled content") }
+            val quickPhrase = CustomQuickPhrase(disabledFile)
+
+            assertFalse(quickPhrase.enable())
+            assertFalse(quickPhrase.isEnabled)
+            assertEquals(disabledFile, quickPhrase.file)
+            assertEquals("disabled content", disabledFile.readText())
+            assertEquals("enabled content", enabledFile.readText())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun disablingDoesNotReplaceExistingFile() {
+        val root = Files.createTempDirectory("custom-quickphrase-").toFile()
+        try {
+            val enabledFile = ReplacingRenameFile(root.resolve("custom.mb").path)
+                .also { it.writeText("enabled content") }
+            val disabledFile =
+                root.resolve("custom.mb.disable").also { it.writeText("disabled content") }
+            val quickPhrase = CustomQuickPhrase(enabledFile)
+
+            assertFalse(quickPhrase.disable())
+            assertTrue(quickPhrase.isEnabled)
+            assertEquals(enabledFile, quickPhrase.file)
+            assertEquals("enabled content", enabledFile.readText())
+            assertEquals("disabled content", disabledFile.readText())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    private class ReplacingRenameFile(path: String) : File(path) {
+        override fun renameTo(destination: File): Boolean {
+            copyTo(destination, overwrite = true)
+            return delete()
         }
     }
 }
