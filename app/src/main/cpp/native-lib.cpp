@@ -9,6 +9,7 @@
 #include <memory>
 #include <future>
 #include <fstream>
+#include <string_view>
 
 #include <android/log.h>
 
@@ -25,8 +26,10 @@
 #include <fcitx-utils/i18n.h>
 #include <fcitx-utils/event.h>
 #include <fcitx-utils/eventdispatcher.h>
+#include <fcitx-utils/fs.h>
 #include <fcitx-utils/standardpath.h>
 #include <fcitx-utils/stringutils.h>
+#include <fcitx-utils/utf8.h>
 #include <fcitx-config/iniparser.h>
 
 #include <quickphrase_public.h>
@@ -46,6 +49,58 @@
 #include "nativestreambuf.h"
 #include "helper-types.h"
 #include "object-conversion.h"
+
+
+namespace {
+
+constexpr std::string_view PunctuationSubConfigPrefix = "punctuationmap/";
+
+bool writeAll(int fd, std::string_view data) {
+    while (!data.empty()) {
+        const auto written = fcitx::fs::safeWrite(fd, data.data(), data.size());
+        if (written <= 0) {
+            return false;
+        }
+        data.remove_prefix(static_cast<size_t>(written));
+    }
+    return true;
+}
+
+std::string serializePunctuationProfile(const fcitx::RawConfig &config) {
+    const auto entries = config.get("Entries");
+    if (!entries) {
+        return {};
+    }
+
+    std::string content;
+    for (size_t index = 0;; index++) {
+        const auto entry = entries->get(std::to_string(index));
+        if (!entry) {
+            break;
+        }
+        const auto *key = entry->valueByPath("Key");
+        const auto *mapping = entry->valueByPath("Mapping");
+        const auto *altMapping = entry->valueByPath("AltMapping");
+        if (!key || !mapping || key->empty() || mapping->empty() ||
+            fcitx::utf8::lengthValidated(*key) != 1) {
+            continue;
+        }
+        content.append(*key).append(" ").append(*mapping);
+        if (altMapping && !altMapping->empty()) {
+            content.append(" ").append(*altMapping);
+        }
+        content.push_back('\n');
+    }
+    return content;
+}
+
+bool isPunctuationSubConfig(const std::string &addonName,
+                            const std::string &path) {
+    return addonName == "punctuation" &&
+           path.starts_with(PunctuationSubConfigPrefix);
+}
+
+} // namespace
 
 
 class Fcitx {
@@ -254,12 +309,27 @@ public:
         return std::make_unique<fcitx::RawConfig>(mergeConfigDesc(*configuration));
     }
 
-    void setAddonSubConfig(const std::string &addonName, const std::string &path, const fcitx::RawConfig &config) {
+    bool setAddonSubConfig(const std::string &addonName, const std::string &path, const fcitx::RawConfig &config) {
         auto addonInstance = getAddonInstance(addonName);
         if (!addonInstance) {
-            return;
+            return false;
+        }
+        if (isPunctuationSubConfig(addonName, path)) {
+            if (!addonInstance->getSubConfig(path)) {
+                return false;
+            }
+            const auto language = path.substr(PunctuationSubConfigPrefix.size());
+            const auto content = serializePunctuationProfile(config);
+            const auto saved = fcitx::StandardPaths::global().safeSave(
+                    fcitx::StandardPathsType::PkgData,
+                    fcitx::stringutils::concat("punctuation/punc.mb.", language),
+                    [&content](int fd) { return writeAll(fd, content); });
+            if (!saved) {
+                return false;
+            }
         }
         addonInstance->setSubConfig(path, config);
+        return true;
     }
 
     std::unique_ptr<fcitx::RawConfig> getInputMethodConfig(const std::string &imName) {
@@ -946,7 +1016,9 @@ JNIEXPORT void JNICALL
 Java_org_fcitx_fcitx5_android_core_Fcitx_setFcitxAddonSubConfig(JNIEnv *env, jclass clazz, jstring addon, jstring path, jobject config) {
     RETURN_IF_NOT_RUNNING
     auto rawConfig = jobjectToRawConfig(env, config);
-    Fcitx::Instance().setAddonSubConfig(CString(env, addon), CString(env, path), rawConfig);
+    if (!Fcitx::Instance().setAddonSubConfig(CString(env, addon), CString(env, path), rawConfig)) {
+        throwJavaException(env, "Failed to save addon subconfiguration");
+    }
 }
 
 extern "C"

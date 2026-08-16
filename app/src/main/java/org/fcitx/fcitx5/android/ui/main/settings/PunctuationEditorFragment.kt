@@ -25,6 +25,7 @@ import org.fcitx.fcitx5.android.utils.lazyRoute
 import org.fcitx.fcitx5.android.utils.materialTextInput
 import org.fcitx.fcitx5.android.utils.onPositiveButtonClick
 import org.fcitx.fcitx5.android.utils.str
+import org.fcitx.fcitx5.android.utils.toast
 import splitties.views.dsl.core.add
 import splitties.views.dsl.core.lParams
 import splitties.views.dsl.core.matchParent
@@ -65,6 +66,7 @@ class PunctuationEditorFragment : ProgressFragment(), OnItemChangedListener<Punc
         val entries = ui.entries.toList()
         val targetLang = lang
         val connection = fcitx
+        val context = requireContext().applicationContext
         resetDustman()
         viewModel.viewModelScope.launch {
             dustman.runCatchingSave {
@@ -75,6 +77,7 @@ class PunctuationEditorFragment : ProgressFragment(), OnItemChangedListener<Punc
                 }
             }.onFailure {
                 Timber.e(it, "Failed to save punctuation mappings")
+                context.toast(it)
             }
         }
     }
