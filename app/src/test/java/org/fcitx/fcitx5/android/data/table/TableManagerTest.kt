@@ -14,15 +14,15 @@ import java.nio.file.Files
 class TableManagerTest {
 
     @Test
-    fun reservesDistinctTableDictionaryNames() {
+    fun findsDistinctTableDictionaryNamesWithoutPublishingPlaceholder() {
         val directory = Files.createTempDirectory("table-dict-").toFile()
         try {
             directory.resolve("sample.main.dict").writeText("existing")
 
-            val reserved = reserveTableFile(directory, "sample.main.dict")
+            val available = findAvailableTableFile(directory, "sample.main.dict")
 
-            assertEquals("sample.main (2).dict", reserved.name)
-            assertTrue(reserved.isFile)
+            assertEquals("sample.main (2).dict", available.name)
+            assertFalse(available.exists())
         } finally {
             directory.deleteRecursively()
         }
@@ -59,6 +59,86 @@ class TableManagerTest {
             assertTrue(results.last().isSuccess)
             assertTrue(configuration.exists())
             assertFalse(dictionary.exists())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun deletesJournalAfterRecoveringEveryPublishedFile() {
+        val directory = Files.createTempDirectory("table-recovery-").toFile()
+        try {
+            val journal = directory.resolve(".table-import").also { it.writeText("journal") }
+            val configuration = directory.resolve("sample.conf").also { it.writeText("config") }
+            val dictionary = directory.resolve("sample.dict").also { it.writeText("dictionary") }
+
+            val results = cleanupTableImportTransaction(journal, configuration, dictionary)
+
+            assertTrue(results.all(Result<Unit>::isSuccess))
+            assertFalse(journal.exists())
+            assertFalse(configuration.exists())
+            assertFalse(dictionary.exists())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun preservesJournalWhenPublishedFileCleanupFails() {
+        val directory = Files.createTempDirectory("table-recovery-").toFile()
+        try {
+            val journal = directory.resolve(".table-import").also { it.writeText("journal") }
+            val configuration = UndeletableFile(directory.resolve("sample.conf").path)
+                .also { it.writeText("config") }
+            val dictionary = directory.resolve("sample.dict").also { it.writeText("dictionary") }
+
+            val results = cleanupTableImportTransaction(journal, configuration, dictionary)
+
+            assertTrue(results.first().isFailure)
+            assertTrue(results.last().isSuccess)
+            assertTrue(journal.isFile)
+            assertTrue(configuration.isFile)
+            assertFalse(dictionary.exists())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun cleansLegacyStagingAndUnreferencedEmptyReservations() {
+        val directory = Files.createTempDirectory("table-recovery-").toFile()
+        try {
+            val stagedDictionary = directory.resolve("table-dict-123.dict")
+                .also { it.writeText("partial") }
+            val stagedJournal = directory.resolve("table-import-123.journal")
+                .also { it.writeText("partial") }
+            val emptyOrphan = directory.resolve("orphan.main.dict").also(File::createNewFile)
+            val referencedEmpty = directory.resolve("referenced.main.dict").also(File::createNewFile)
+            val referencedStaging = directory.resolve("table-dict-custom.main.dict")
+                .also { it.writeText("referenced") }
+            val emptyUnrelated = directory.resolve("empty-notes.txt").also(File::createNewFile)
+            val unrelated = directory.resolve("notes.txt").also { it.writeText("keep") }
+            val referenced = setOf(referencedEmpty.name, referencedStaging.name)
+
+            val results = buildList {
+                addAll(cleanupTableDictionaryStaging(directory, referenced))
+                addAll(cleanupTableImportJournalStaging(directory))
+                addAll(
+                    cleanupUnreferencedEmptyTableFiles(
+                        directory,
+                        referenced,
+                    )
+                )
+            }
+
+            assertTrue(results.all(Result<Unit>::isSuccess))
+            assertFalse(stagedDictionary.exists())
+            assertFalse(stagedJournal.exists())
+            assertFalse(emptyOrphan.exists())
+            assertTrue(referencedEmpty.isFile)
+            assertTrue(referencedStaging.isFile)
+            assertTrue(emptyUnrelated.isFile)
+            assertTrue(unrelated.isFile)
         } finally {
             directory.deleteRecursively()
         }

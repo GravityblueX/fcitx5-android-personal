@@ -5,6 +5,9 @@
 package org.fcitx.fcitx5.android.data.table
 
 import android.system.Os
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.table.dict.Dictionary
 import org.fcitx.fcitx5.android.data.table.dict.LibIMEDictionary
@@ -18,15 +21,32 @@ import org.fcitx.fcitx5.android.utils.extract
 import org.fcitx.fcitx5.android.utils.installNewFileAtomically
 import org.fcitx.fcitx5.android.utils.removeIfExists
 import org.fcitx.fcitx5.android.utils.replaceFileAtomically
+import org.fcitx.fcitx5.android.utils.resolveDirectChild
 import org.fcitx.fcitx5.android.utils.runWithCleanup
 import org.fcitx.fcitx5.android.utils.runWithRollback
 import org.fcitx.fcitx5.android.utils.withTempDir
 import timber.log.Timber
 import java.io.File
 import java.io.InputStream
+import java.util.concurrent.locks.ReentrantLock
 import java.util.zip.ZipInputStream
+import kotlin.concurrent.withLock
+
+private const val TABLE_DICTIONARY_STAGING_PREFIX = "table-dict-"
+private const val TABLE_DICTIONARY_STAGING_SUFFIX = ".dict"
+private const val TABLE_IMPORT_JOURNAL_STAGING_PREFIX = "table-import-"
+private const val TABLE_IMPORT_JOURNAL_STAGING_SUFFIX = ".journal"
+
+@Serializable
+private data class TableImportJournal(
+    val configurationFileName: String,
+    val dictionaryFileName: String,
+)
 
 object TableManager {
+
+    private val operationLock = ReentrantLock()
+    private val json = Json { prettyPrint = true }
 
     private val inputMethodDir = File(
         appContext.externalFilesDirOrFilesDir, "data/inputmethod"
@@ -42,7 +62,20 @@ object TableManager {
         cleanupStagedFileInstalls(directory)
     }
 
-    fun inputMethods(): List<TableBasedInputMethod> =
+    private val importJournalFile = appContext.filesDir.resolve(".table-import")
+
+    init {
+        cleanupTableImportJournalStaging(importJournalFile.parentFile)
+            .forEach { it.onFailure(::reportImportCleanupFailure) }
+        recoverPendingImport()
+        if (!importJournalFile.exists()) {
+            cleanupLegacyTableArtifacts()
+        }
+    }
+
+    fun inputMethods(): List<TableBasedInputMethod> = operationLock.withLock {
+        recoverPendingImport()
+        if (importJournalFile.exists()) return@withLock emptyList()
         inputMethodDir.listFiles()?.mapNotNull { confFile ->
             runCatching {
                 TableBasedInputMethod.new(confFile).apply {
@@ -52,19 +85,23 @@ object TableManager {
                 }
             }.getOrNull()
         } ?: emptyList()
+    }
 
     fun importFromZip(src: InputStream): Result<TableBasedInputMethod> =
-        runCatching {
-            ZipInputStream(src).use { zipStream ->
-                withTempDir { tempDir ->
-                    val extracted = zipStream.extract(tempDir)
-                    val confFile = extracted.find { it.name.endsWith(".conf") }
-                        ?: extracted.find { it.name.endsWith(".conf.in") }
-                        ?: errorRuntime(R.string.exception_table_im)
-                    val dictFile = extracted.find { it.name.endsWith(".dict") }
-                        ?: extracted.find { it.name.endsWith(".txt") }
-                        ?: errorRuntime(R.string.exception_table)
-                    importFiles(confFile, dictFile)
+        operationLock.withLock {
+            runCatching {
+                ZipInputStream(src).use { zipStream ->
+                    prepareForImport()
+                    withTempDir { tempDir ->
+                        val extracted = zipStream.extract(tempDir)
+                        val confFile = extracted.find { it.name.endsWith(".conf") }
+                            ?: extracted.find { it.name.endsWith(".conf.in") }
+                            ?: errorRuntime(R.string.exception_table_im)
+                        val dictFile = extracted.find { it.name.endsWith(".dict") }
+                            ?: extracted.find { it.name.endsWith(".txt") }
+                            ?: errorRuntime(R.string.exception_table)
+                        importFiles(confFile, dictFile)
+                    }
                 }
             }
         }
@@ -74,59 +111,72 @@ object TableManager {
         confStream: InputStream,
         dictName: String,
         dictStream: InputStream
-    ): Result<TableBasedInputMethod> = runCatching {
-        withTempDir { tempDir ->
-            val confFile = File(tempDir, confName.safeFileName()).also {
-                it.outputStream().use { o -> confStream.use { i -> i.copyTo(o) } }
+    ): Result<TableBasedInputMethod> = operationLock.withLock {
+        runCatching {
+            confStream.use { confInput ->
+                dictStream.use { dictInput ->
+                    prepareForImport()
+                    withTempDir { tempDir ->
+                        val confFile = File(tempDir, confName.safeFileName()).also {
+                            it.outputStream().use(confInput::copyTo)
+                        }
+                        val dictFile = File(tempDir, dictName.safeFileName()).also {
+                            it.outputStream().use(dictInput::copyTo)
+                        }
+                        importFiles(confFile, dictFile)
+                    }
+                }
             }
-            val dictFile = File(tempDir, dictName.safeFileName()).also {
-                it.outputStream().use { o -> dictStream.use { i -> i.copyTo(o) } }
-            }
-            importFiles(confFile, dictFile)
         }
     }
 
     private fun importFiles(confFile: File, dictFile: File): TableBasedInputMethod {
         val importedConfName = confFile.name.removeSuffix(".in")
-        val importedConfFile = try {
-            confFile.inputStream().use { input ->
-                installNewFileAtomically(input, inputMethodDir, importedConfName)
-            }
-        } catch (_: FileAlreadyExistsException) {
+        val importedConfFile = inputMethodDir.resolveDirectChild(importedConfName)
+        if (importedConfFile.exists()) {
             errorRuntime(R.string.table_already_exists, importedConfName)
         }
-        var tableFile: File? = null
-        return runWithRollback(
-            rollback = { cleanupTableImportFiles(importedConfFile, tableFile) },
-        ) {
-            val im = TableBasedInputMethod.new(importedConfFile)
-            val table = Dictionary.new(dictFile)
-                ?: errorRuntime(
-                    R.string.invalid_table_dict,
-                    "Unsupported dictionary file: ${dictFile.name}"
-                )
-            val reservedTableFile = reserveTableFile(
-                tableDicDir,
-                TableBasedInputMethod.fixedTableFileName(table.name)
+        TableBasedInputMethod.new(confFile)
+        val table = Dictionary.new(dictFile)
+            ?: errorRuntime(
+                R.string.invalid_table_dict,
+                "Unsupported dictionary file: ${dictFile.name}"
             )
-            tableFile = reservedTableFile
-            im.tableFileName = reservedTableFile.name
-            val staged = File.createTempFile("table-dict-", ".dict", tableDicDir)
+        val converted = try {
+            val convertedFile = File.createTempFile(
+                "table-converted-",
+                ".dict",
+                dictFile.parentFile,
+            )
+            table.toLibIMEDictionary(convertedFile)
+        } catch (failure: Throwable) {
+            errorRuntime(R.string.invalid_table_dict, failure.message, failure)
+        }
+        val tableFile = findAvailableTableFile(
+            tableDicDir,
+            TableBasedInputMethod.fixedTableFileName(table.name),
+        )
+        writeImportJournal(importedConfFile, tableFile)
+        return runWithRollback(
+            rollback = {
+                cleanupTableImportTransaction(importJournalFile, importedConfFile, tableFile)
+            },
+        ) {
             try {
-                runWithCleanup(
-                    cleanup = { staged.removeIfExists() },
-                    onCleanupFailure = { failure ->
-                        Timber.w(failure, "Failed to remove staged table dictionary: ${staged.path}")
-                    },
-                ) {
-                    table.toLibIMEDictionary(staged)
-                    Os.rename(staged.path, reservedTableFile.path)
-                    im.table = LibIMEDictionary(reservedTableFile)
+                confFile.inputStream().use { input ->
+                    installNewFileAtomically(input, inputMethodDir, importedConfName)
                 }
-            } catch (failure: Throwable) {
-                errorRuntime(R.string.invalid_table_dict, failure.message, failure)
+            } catch (_: FileAlreadyExistsException) {
+                errorRuntime(R.string.table_already_exists, importedConfName)
             }
+            converted.file.inputStream().use { input ->
+                installNewFileAtomically(input, tableDicDir, tableFile.name)
+            }
+            val im = TableBasedInputMethod.new(importedConfFile)
+            im.tableFileName = tableFile.name
+            im.table = LibIMEDictionary(tableFile)
             im.save()
+            importJournalFile.removeIfExists().getOrThrow()
             im
         }
     }
@@ -135,24 +185,101 @@ object TableManager {
         im: TableBasedInputMethod,
         dictName: String,
         dictStream: InputStream
-    ): Result<LibIMEDictionary> = runCatching {
-        withTempDir { tempDir ->
-            val dictFile = File(tempDir, dictName.safeFileName()).also {
-                it.outputStream().use { o -> dictStream.use { i -> i.copyTo(o) } }
-            }
-            val dict = Dictionary.new(dictFile)
-                ?: errorRuntime(R.string.invalid_table_dict, "Unsupported dictionary file: ${dictFile.name}")
-            val destination = File(tableDicDir, im.tableFileName)
-            try {
-                val converted = dict.toLibIMEDictionary(File(tempDir, im.tableFileName))
-                replaceFileAtomically(destination) { staged ->
-                    converted.file.copyTo(staged, overwrite = true)
+    ): Result<LibIMEDictionary> = operationLock.withLock {
+        runCatching {
+            dictStream.use { dictInput ->
+                prepareForImport()
+                withTempDir { tempDir ->
+                    val dictFile = File(tempDir, dictName.safeFileName()).also {
+                        it.outputStream().use(dictInput::copyTo)
+                    }
+                    val dict = Dictionary.new(dictFile)
+                        ?: errorRuntime(
+                            R.string.invalid_table_dict,
+                            "Unsupported dictionary file: ${dictFile.name}"
+                        )
+                    val destination = File(tableDicDir, im.tableFileName)
+                    try {
+                        val converted = dict.toLibIMEDictionary(File(tempDir, im.tableFileName))
+                        replaceFileAtomically(destination) { staged ->
+                            converted.file.copyTo(staged, overwrite = true)
+                        }
+                    } catch (failure: Throwable) {
+                        errorRuntime(R.string.invalid_table_dict, failure.message, failure)
+                    }
+                    LibIMEDictionary(destination)
                 }
-            } catch (failure: Throwable) {
-                errorRuntime(R.string.invalid_table_dict, failure.message, failure)
             }
-            LibIMEDictionary(destination)
         }
+    }
+
+    private fun prepareForImport() {
+        cleanupTableImportJournalStaging(importJournalFile.parentFile)
+            .forEach { it.onFailure(::reportImportCleanupFailure) }
+        recoverPendingImport()
+        check(!importJournalFile.exists()) {
+            "Cannot modify table data while a previous import requires recovery"
+        }
+    }
+
+    private fun writeImportJournal(configurationFile: File, dictionaryFile: File) {
+        val parent = importJournalFile.parentFile
+            ?: error("Cannot resolve table import journal parent")
+        parent.ensureDirectory()
+        val staged = File.createTempFile(
+            TABLE_IMPORT_JOURNAL_STAGING_PREFIX,
+            TABLE_IMPORT_JOURNAL_STAGING_SUFFIX,
+            parent,
+        )
+        runWithCleanup(
+            cleanup = { staged.removeIfExists() },
+            onCleanupFailure = ::reportImportCleanupFailure,
+        ) {
+            staged.writeText(
+                json.encodeToString(
+                    TableImportJournal(configurationFile.name, dictionaryFile.name)
+                )
+            )
+            Os.rename(staged.path, importJournalFile.path)
+        }
+    }
+
+    private fun recoverPendingImport() {
+        if (!importJournalFile.exists() || !importJournalFile.isFile) return
+        val pending = runCatching {
+            json.decodeFromString<TableImportJournal>(importJournalFile.readText())
+        }.getOrElse { failure ->
+            Timber.e(failure, "Failed to read table import journal")
+            return
+        }
+        val files = runCatching {
+            inputMethodDir.resolveDirectChild(pending.configurationFileName) to
+                tableDicDir.resolveDirectChild(pending.dictionaryFileName)
+        }.getOrElse { failure ->
+            Timber.e(failure, "Invalid table import journal")
+            return
+        }
+        cleanupTableImportTransaction(importJournalFile, files.first, files.second)
+            .forEach { it.onFailure(::reportImportCleanupFailure) }
+    }
+
+    private fun cleanupLegacyTableArtifacts() {
+        val referenced = inputMethodDir.listFiles()
+            ?.mapNotNull { configurationFile ->
+                runCatching {
+                    TableBasedInputMethod.new(configurationFile).tableFileName
+                }.getOrNull()
+            }
+            ?.toSet()
+            .orEmpty()
+        cleanupTableDictionaryStaging(tableDicDir, referenced)
+            .forEach { it.onFailure(::reportImportCleanupFailure) }
+        cleanupUnreferencedEmptyTableFiles(tableDicDir, referenced)
+            .forEach { it.onFailure(::reportImportCleanupFailure) }
+    }
+
+    private fun reportImportCleanupFailure(failure: Throwable) {
+        Timber.w(failure, "Failed to clean table import artifact")
     }
 
     @JvmStatic
@@ -166,21 +293,74 @@ object TableManager {
 }
 
 internal fun cleanupTableImportFiles(
-    configurationFile: File,
+    configurationFile: File?,
     dictionaryFile: File?,
 ): List<Result<Unit>> = listOfNotNull(configurationFile, dictionaryFile)
     .map(File::removeIfExists)
 
-internal fun reserveTableFile(directory: File, preferredName: String): File {
+internal fun cleanupTableImportTransaction(
+    journalFile: File,
+    configurationFile: File?,
+    dictionaryFile: File?,
+): List<Result<Unit>> {
+    val publishedResults = cleanupTableImportFiles(configurationFile, dictionaryFile)
+    return buildList {
+        addAll(publishedResults)
+        if (publishedResults.all(Result<Unit>::isSuccess)) {
+            add(journalFile.removeIfExists())
+        }
+    }
+}
+
+internal fun isTableDictionaryStagingFile(fileName: String): Boolean =
+    fileName.startsWith(TABLE_DICTIONARY_STAGING_PREFIX) &&
+            fileName.endsWith(TABLE_DICTIONARY_STAGING_SUFFIX)
+
+internal fun isTableImportJournalStagingFile(fileName: String): Boolean =
+    fileName.startsWith(TABLE_IMPORT_JOURNAL_STAGING_PREFIX) &&
+            fileName.endsWith(TABLE_IMPORT_JOURNAL_STAGING_SUFFIX)
+
+internal fun cleanupTableDictionaryStaging(
+    directory: File,
+    referencedFileNames: Set<String> = emptySet(),
+): List<Result<Unit>> =
+    directory.listFiles()
+        ?.filter { file ->
+            file.isFile &&
+                    file.name !in referencedFileNames &&
+                    isTableDictionaryStagingFile(file.name)
+        }
+        ?.map(File::removeIfExists)
+        .orEmpty()
+
+internal fun cleanupTableImportJournalStaging(directory: File?): List<Result<Unit>> =
+    directory?.listFiles()
+        ?.filter { file -> file.isFile && isTableImportJournalStagingFile(file.name) }
+        ?.map(File::removeIfExists)
+        .orEmpty()
+
+internal fun cleanupUnreferencedEmptyTableFiles(
+    directory: File,
+    referencedFileNames: Set<String>,
+): List<Result<Unit>> = directory.listFiles()
+    ?.filter { file ->
+        file.isFile &&
+                file.name.endsWith(TABLE_DICTIONARY_STAGING_SUFFIX) &&
+                file.length() == 0L &&
+                file.name !in referencedFileNames
+    }
+    ?.map(File::removeIfExists)
+    .orEmpty()
+
+internal fun findAvailableTableFile(directory: File, preferredName: String): File {
     val extension = preferredName.substringAfterLast('.', missingDelimiterValue = "")
     check(extension.isNotEmpty()) { "Dictionary file name must have an extension: ${preferredName}" }
     val baseName = preferredName.removeSuffix(".${extension}")
     var suffix = 1
     while (true) {
         val fileName = if (suffix == 1) preferredName else "${baseName} (${suffix}).${extension}"
-        val candidate = directory.resolve(fileName)
-        if (candidate.createNewFile()) return candidate
-        check(candidate.exists()) { "Cannot reserve dictionary file: ${candidate.path}" }
+        val candidate = directory.resolveDirectChild(fileName)
+        if (!candidate.exists()) return candidate
         suffix += 1
     }
 }
