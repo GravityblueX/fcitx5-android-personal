@@ -55,6 +55,61 @@ namespace {
 
 constexpr std::string_view PunctuationSubConfigPrefix = "punctuationmap/";
 
+struct AddonConfigFile {
+    std::string_view addon;
+    std::string_view path;
+};
+
+constexpr AddonConfigFile AddonConfigFiles[] = {
+        {"androidkeyboard", "conf/androidkeyboard.conf"},
+        {"notifications", "conf/androidnotification.conf"},
+        {"clipboard", "conf/clipboard.conf"},
+        {"imselector", "conf/imselector.conf"},
+        {"quickphrase", "conf/quickphrase.conf"},
+        {"spell", "conf/spell.conf"},
+        {"unicode", "conf/unicode.conf"},
+        {"pinyin", "conf/pinyin.conf"},
+        {"table", "conf/table.conf"},
+        {"chttrans", "conf/chttrans.conf"},
+        {"fullwidth", "conf/fullwidth.conf"},
+        {"punctuation", "conf/punctuation.conf"},
+};
+
+std::string_view addonConfigPath(std::string_view addonName) {
+    for (const auto &[addon, path]: AddonConfigFiles) {
+        if (addon == addonName) {
+            return path;
+        }
+    }
+    return {};
+}
+
+bool normalizeAndSaveConfig(const fcitx::Configuration &configuration,
+                            const fcitx::RawConfig &config,
+                            const std::string &path,
+                            fcitx::RawConfig &normalized,
+                            std::string_view root = {}) {
+    fcitx::RawConfig previous;
+    configuration.save(previous);
+    auto &mutableConfiguration =
+            const_cast<fcitx::Configuration &>(configuration);
+    try {
+        mutableConfiguration.load(config, true);
+        mutableConfiguration.save(normalized);
+    } catch (...) {
+        mutableConfiguration.load(previous, true);
+        return false;
+    }
+    mutableConfiguration.load(previous, true);
+
+    if (root.empty()) {
+        return fcitx::safeSaveAsIni(normalized, path);
+    }
+    fcitx::RawConfig rooted;
+    *rooted.get(std::string(root), true) = normalized;
+    return fcitx::safeSaveAsIni(rooted, path);
+}
+
 bool writeAll(int fd, std::string_view data) {
     while (!data.empty()) {
         const auto written = fcitx::fs::safeWrite(fd, data.data(), data.size());
@@ -330,12 +385,28 @@ public:
         return std::make_unique<fcitx::RawConfig>(mergeConfigDesc(*configuration));
     }
 
-    void setAddonConfig(const std::string &addonName, const fcitx::RawConfig &config) {
+    bool setAddonConfig(const std::string &addonName,
+                        const fcitx::RawConfig &config) {
         auto addonInstance = getAddonInstance(addonName);
         if (!addonInstance) {
-            return;
+            return false;
         }
-        addonInstance->setConfig(config);
+        const auto *configuration = addonInstance->getConfig();
+        if (!configuration) {
+            return false;
+        }
+        const auto path = addonConfigPath(addonName);
+        if (path.empty()) {
+            addonInstance->setConfig(config);
+            return true;
+        }
+        fcitx::RawConfig normalized;
+        if (!normalizeAndSaveConfig(*configuration, config, std::string(path),
+                                    normalized)) {
+            return false;
+        }
+        addonInstance->setConfig(normalized);
+        return true;
     }
 
     std::unique_ptr<fcitx::RawConfig> getAddonSubConfig(const std::string &addonName, const std::string &path) {
@@ -389,16 +460,44 @@ public:
         return std::make_unique<fcitx::RawConfig>(mergeConfigDesc(*configuration));
     }
 
-    void setInputMethodConfig(const std::string &imName, const fcitx::RawConfig &config) {
+    bool setInputMethodConfig(const std::string &imName,
+                              const fcitx::RawConfig &config) {
         const auto *entry = p_instance->inputMethodManager().entry(imName);
         if (!entry || !entry->isConfigurable()) {
-            return;
+            return false;
         }
         auto *engine = p_instance->inputMethodEngine(imName);
         if (!engine) {
-            return;
+            return false;
         }
-        engine->setConfigForInputMethod(*entry, config);
+        const auto *configuration = engine->getConfigForInputMethod(*entry);
+        if (!configuration) {
+            return false;
+        }
+
+        std::string path;
+        std::string_view root;
+        if (entry->addon() == "androidkeyboard") {
+            path = "conf/androidkeyboard.conf";
+        } else if (entry->addon() == "pinyin") {
+            path = "conf/pinyin.conf";
+        } else if (entry->addon() == "table") {
+            path = fcitx::stringutils::concat("table/", entry->uniqueName(),
+                                              ".conf");
+            root = "Table";
+        }
+        if (path.empty()) {
+            engine->setConfigForInputMethod(*entry, config);
+            return true;
+        }
+
+        fcitx::RawConfig normalized;
+        if (!normalizeAndSaveConfig(*configuration, config, path, normalized,
+                                    root)) {
+            return false;
+        }
+        engine->setConfigForInputMethod(*entry, normalized);
+        return true;
     }
 
     std::vector<AddonStatus> getAddons() {
@@ -1051,7 +1150,9 @@ JNIEXPORT void JNICALL
 Java_org_fcitx_fcitx5_android_core_Fcitx_setFcitxAddonConfig(JNIEnv *env, jclass clazz, jstring addon, jobject config) {
     RETURN_IF_NOT_RUNNING
     auto rawConfig = jobjectToRawConfig(env, config);
-    Fcitx::Instance().setAddonConfig(CString(env, addon), rawConfig);
+    if (!Fcitx::Instance().setAddonConfig(CString(env, addon), rawConfig)) {
+        throwJavaException(env, "Failed to save addon configuration");
+    }
 }
 
 extern "C"
@@ -1069,7 +1170,9 @@ JNIEXPORT void JNICALL
 Java_org_fcitx_fcitx5_android_core_Fcitx_setFcitxInputMethodConfig(JNIEnv *env, jclass clazz, jstring im, jobject config) {
     RETURN_IF_NOT_RUNNING
     auto rawConfig = jobjectToRawConfig(env, config);
-    Fcitx::Instance().setInputMethodConfig(CString(env, im), rawConfig);
+    if (!Fcitx::Instance().setInputMethodConfig(CString(env, im), rawConfig)) {
+        throwJavaException(env, "Failed to save input method configuration");
+    }
 }
 
 extern "C"
