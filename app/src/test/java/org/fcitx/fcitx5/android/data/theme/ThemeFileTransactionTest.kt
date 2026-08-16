@@ -4,6 +4,7 @@
  */
 package org.fcitx.fcitx5.android.data.theme
 
+import org.fcitx.fcitx5.android.utils.runWithRollback
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows

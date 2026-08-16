@@ -70,6 +70,45 @@ class FileInstallTest {
     }
 
     @Test
+    fun createsMissingDestinationDirectory() {
+        val root = Files.createTempDirectory("file-install-parent-").toFile()
+        try {
+            val directory = root.resolve("missing")
+
+            val installed = installNewFileAtomically(
+                ByteArrayInputStream("content".toByteArray()),
+                directory,
+                "target.conf",
+                ::publishForTest,
+            )
+
+            assertTrue(directory.isDirectory)
+            assertEquals("content", installed.readText())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun cleansStagingWhenPublisherLeavesItBehind() {
+        val directory = Files.createTempDirectory("file-install-").toFile()
+        try {
+            val installed = installNewFileAtomically(
+                ByteArrayInputStream("content".toByteArray()),
+                directory,
+                "target.conf",
+            ) { staged, destination ->
+                staged.copyTo(destination, overwrite = true)
+            }
+
+            assertEquals("content", installed.readText())
+            assertEquals(listOf("target.conf"), directory.list()?.sorted())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun cleansStagingFileWhenCopyFails() {
         val directory = Files.createTempDirectory("file-install-").toFile()
         try {

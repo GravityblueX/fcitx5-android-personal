@@ -4,6 +4,7 @@ import android.system.Os
 import kotlinx.serialization.json.Json
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.utils.appContext
+import org.fcitx.fcitx5.android.utils.addSuppressedFailures
 import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
 import org.fcitx.fcitx5.android.utils.errorRuntime
 import org.fcitx.fcitx5.android.utils.extract
@@ -11,6 +12,7 @@ import org.fcitx.fcitx5.android.utils.installNewFileAtomically
 import org.fcitx.fcitx5.android.utils.removeIfExists
 import org.fcitx.fcitx5.android.utils.replaceFileAtomically
 import org.fcitx.fcitx5.android.utils.resolveDirectChild
+import org.fcitx.fcitx5.android.utils.runWithRollback
 import org.fcitx.fcitx5.android.utils.withTempDir
 import timber.log.Timber
 import java.io.File
@@ -21,24 +23,6 @@ import java.util.UUID
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
-
-internal fun Throwable.addSuppressedFailures(results: Iterable<Result<Unit>>) {
-    results.mapNotNull(Result<Unit>::exceptionOrNull)
-        .filterNot { it === this }
-        .forEach(::addSuppressed)
-}
-
-internal inline fun <T> runWithRollback(
-    rollback: () -> Iterable<Result<Unit>>,
-    block: () -> T,
-): T = try {
-    block()
-} catch (primary: Exception) {
-    val rollbackResults = runCatching(rollback)
-        .getOrElse { listOf(Result.failure(it)) }
-    primary.addSuppressedFailures(rollbackResults)
-    throw primary
-}
 
 object ThemeFilesManager {
 

@@ -26,6 +26,9 @@ internal fun installNewFileAtomically(
     fileName: String,
     publish: (File, File) -> Unit,
 ): File {
+    check(directory.mkdirs() || directory.isDirectory) {
+        "Cannot create destination directory: $directory"
+    }
     val destination = directory.resolveDirectChild(fileName)
     if (destination.exists()) throw FileAlreadyExistsException(destination)
     val staged = File.createTempFile(
@@ -36,15 +39,27 @@ internal fun installNewFileAtomically(
     var reserved = false
     var published = false
     try {
-        staged.outputStream().use { output -> stream.copyTo(output) }
-        if (!destination.createNewFile()) throw FileAlreadyExistsException(destination)
-        reserved = true
-        publish(staged, destination)
-        published = true
-        return destination
+        return runWithRollback(
+            rollback = {
+                buildList {
+                    if (reserved) add(destination.removeIfExists())
+                    add(staged.removeIfExists())
+                }
+            },
+        ) {
+            staged.outputStream().use { output -> stream.copyTo(output) }
+            if (!destination.createNewFile()) throw FileAlreadyExistsException(destination)
+            reserved = true
+            publish(staged, destination)
+            published = true
+            destination
+        }
     } finally {
-        if (reserved && !published) destination.delete()
-        staged.delete()
+        if (published) {
+            staged.removeIfExists().onFailure {
+                Timber.w(it, "Failed to remove committed file staging: ${staged.path}")
+            }
+        }
     }
 }
 
@@ -70,12 +85,22 @@ internal fun replaceFileAtomically(
         FILE_INSTALL_STAGING_SUFFIX,
         directory,
     )
+    var published = false
     try {
-        write(staged)
-        publish(staged, destination)
-        return destination
+        return runWithRollback(
+            rollback = { listOf(staged.removeIfExists()) },
+        ) {
+            write(staged)
+            publish(staged, destination)
+            published = true
+            destination
+        }
     } finally {
-        staged.delete()
+        if (published) {
+            staged.removeIfExists().onFailure {
+                Timber.w(it, "Failed to remove committed file staging: ${staged.path}")
+            }
+        }
     }
 }
 
@@ -87,6 +112,8 @@ internal fun cleanupStagedFileInstalls(directory: File) {
     directory.listFiles()
         ?.filter { file -> file.isFile && isFileInstallStagingFile(file.name) }
         ?.forEach { staged ->
-            if (!staged.delete()) Timber.w("Failed to remove stale file install: ${staged.path}")
+            staged.removeIfExists().onFailure {
+                Timber.w(it, "Failed to remove stale file install: ${staged.path}")
+            }
         }
 }
