@@ -10,7 +10,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import android.content.res.AssetManager
-import android.system.Os
 import android.os.Build
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -18,10 +17,11 @@ import org.fcitx.fcitx5.android.BuildConfig
 import org.fcitx.fcitx5.android.core.data.DataManager.dataDir
 import org.fcitx.fcitx5.android.utils.FileUtil
 import org.fcitx.fcitx5.android.utils.appContext
+import org.fcitx.fcitx5.android.utils.cleanupStagedFileInstalls
 import org.fcitx.fcitx5.android.utils.ensureDirectory
 import org.fcitx.fcitx5.android.utils.isJavaIdentifier
 import org.fcitx.fcitx5.android.utils.removeIfExists
-import org.fcitx.fcitx5.android.utils.runWithCleanup
+import org.fcitx.fcitx5.android.utils.replaceFileAtomically
 import org.xmlpull.v1.XmlPullParser
 import timber.log.Timber
 import java.io.File
@@ -243,6 +243,8 @@ object DataManager {
         loadedPlugins.clear()
         failedPlugins.clear()
 
+        dataDir.ensureDirectory()
+        cleanupStagedDataWrites(dataDir)
         val destDescriptorFile = File(dataDir, BuildConfig.DATA_DESCRIPTOR_NAME)
 
         // load last run's data descriptor
@@ -323,17 +325,10 @@ object DataManager {
             }
         }
         // save the new hierarchy as the data descriptor to be used in the next run
-        val stagedDescriptor = File.createTempFile("data-descriptor-", ".staged", dataDir)
-        runWithCleanup(
-            cleanup = { stagedDescriptor.removeIfExists() },
-            onCleanupFailure = { failure ->
-                Timber.w(failure, "Failed to remove staged data descriptor: ${stagedDescriptor.path}")
-            },
-        ) {
-            stagedDescriptor.bufferedWriter().use {
+        replaceFileAtomically(destDescriptorFile) { staged ->
+            staged.bufferedWriter().use {
                 it.write(serializeDataDescriptor(newHierarchy.downToDataDescriptor()))
             }
-            Os.rename(stagedDescriptor.path, destDescriptorFile.path)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             // remove old assets from credential encrypted storage
@@ -366,17 +361,11 @@ object DataManager {
         val destination = File(dataDir, filename)
         val parent = destination.parentFile ?: error("Cannot resolve parent for '${filename}'")
         parent.ensureDirectory()
-        val staged = File.createTempFile("data-file-", ".staged", parent)
-        runWithCleanup(
-            cleanup = { staged.removeIfExists() },
-            onCleanupFailure = { failure ->
-                Timber.w(failure, "Failed to remove staged data file: ${staged.path}")
-            },
-        ) {
+        cleanupStagedDataWrites(parent)
+        replaceFileAtomically(destination) { staged ->
             open(filename).use { input ->
                 staged.outputStream().use { output -> input.copyTo(output) }
             }
-            Os.rename(staged.path, destination.path)
         }
     }
 
@@ -391,4 +380,19 @@ object DataManager {
         sync()
     }
 
+}
+
+internal fun isLegacyDataWriteStagingFile(fileName: String): Boolean =
+    (fileName.startsWith("data-descriptor-") || fileName.startsWith("data-file-")) &&
+            fileName.endsWith(".staged")
+
+internal fun cleanupStagedDataWrites(directory: File) {
+    directory.listFiles()
+        ?.filter { file -> file.isFile && isLegacyDataWriteStagingFile(file.name) }
+        ?.forEach { staged ->
+            staged.removeIfExists().onFailure {
+                Timber.w(it, "Failed to remove stale data write: ${staged.path}")
+            }
+        }
+    cleanupStagedFileInstalls(directory)
 }
