@@ -15,6 +15,7 @@ import org.fcitx.fcitx5.android.utils.withTempDir
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
 import org.fcitx.fcitx5.android.utils.errorArg
+import org.fcitx.fcitx5.android.utils.ensureDirectory
 import timber.log.Timber
 import java.io.File
 import java.io.IOException
@@ -28,7 +29,7 @@ object PinyinDictManager {
     private val pinyinDicDir = File(
         appContext.externalFilesDirOrFilesDir, "data/pinyin/dictionaries"
     ).also { directory ->
-        directory.mkdirs()
+        directory.ensureDirectory()
         cleanupStagedImports(directory)
     }
 

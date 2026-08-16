@@ -14,6 +14,10 @@ internal fun File.removeIfExists(): Result<Unit> = runCatching {
     if (!delete() && exists()) throw IOException("Cannot delete '$path'")
 }
 
+internal fun File.ensureDirectory(): File = apply {
+    check(mkdirs() || isDirectory) { "Cannot create directory: $path" }
+}
+
 internal fun File.moveToWithoutReplacing(destination: File): Boolean = try {
     Files.move(toPath(), destination.toPath())
     true
@@ -64,7 +68,7 @@ object FileUtil {
     }
 
     fun symlink(source: File, target: File) = runCatching {
-        target.parentFile?.mkdirs()
+        target.parentFile?.ensureDirectory()
         Os.symlink(source.path, target.path)
     }
 }

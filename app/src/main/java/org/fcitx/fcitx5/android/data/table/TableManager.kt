@@ -13,6 +13,7 @@ import org.fcitx.fcitx5.android.utils.safeFileName
 import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
 import org.fcitx.fcitx5.android.utils.errorRuntime
+import org.fcitx.fcitx5.android.utils.ensureDirectory
 import org.fcitx.fcitx5.android.utils.extract
 import org.fcitx.fcitx5.android.utils.installNewFileAtomically
 import org.fcitx.fcitx5.android.utils.replaceFileAtomically
@@ -26,14 +27,14 @@ object TableManager {
     private val inputMethodDir = File(
         appContext.externalFilesDirOrFilesDir, "data/inputmethod"
     ).also { directory ->
-        directory.mkdirs()
+        directory.ensureDirectory()
         cleanupStagedFileInstalls(directory)
     }
 
     private val tableDicDir = File(
         appContext.externalFilesDirOrFilesDir, "data/table"
     ).also { directory ->
-        directory.mkdirs()
+        directory.ensureDirectory()
         cleanupStagedFileInstalls(directory)
     }
 

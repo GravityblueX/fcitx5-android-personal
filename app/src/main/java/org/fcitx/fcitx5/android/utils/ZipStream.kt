@@ -25,8 +25,7 @@ fun ZipInputStream.extract(
     require(maxEntryBytes > 0) { "maxEntryBytes must be positive" }
     require(maxTotalBytes > 0) { "maxTotalBytes must be positive" }
 
-    val canonicalDest = destDir.canonicalFile
-    canonicalDest.mkdirs()
+    val canonicalDest = destDir.canonicalFile.ensureDirectory()
     val canonicalDestPrefix = canonicalDest.path + File.separator
     var entryCount = 0
     var extractedBytes = 0L
@@ -40,14 +39,9 @@ fun ZipInputStream.extract(
             throw SecurityException("Zip entry escapes destination: ${entry.name}")
         }
         if (entry.isDirectory) {
-            if (!target.mkdirs() && !target.isDirectory) {
-                throw IllegalStateException("Cannot create directory: $target")
-            }
+            target.ensureDirectory()
         } else {
-            val parent = target.parentFile
-            if (parent != null && !parent.mkdirs() && !parent.isDirectory) {
-                throw IllegalStateException("Cannot create directory: $parent")
-            }
+            target.parentFile?.ensureDirectory()
             try {
                 target.outputStream().use { output ->
                     val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
@@ -68,9 +62,9 @@ fun ZipInputStream.extract(
                         extractedBytes = nextTotalBytes
                     }
                 }
-            } catch (e: Exception) {
-                target.delete()
-                throw e
+            } catch (primary: Exception) {
+                primary.addSuppressedFailures(listOf(target.removeIfExists()))
+                throw primary
             }
         }
         closeEntry()
