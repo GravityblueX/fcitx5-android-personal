@@ -52,7 +52,6 @@ import org.fcitx.fcitx5.android.utils.notificationManager
 import org.fcitx.fcitx5.android.utils.onPositiveButtonClick
 import org.fcitx.fcitx5.android.utils.parcelable
 import org.fcitx.fcitx5.android.utils.queryFileName
-import org.fcitx.fcitx5.android.utils.removeIfExists
 import org.fcitx.fcitx5.android.utils.str
 import org.fcitx.fcitx5.android.utils.toast
 import splitties.resources.drawable
@@ -83,7 +82,7 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
                 isEnabled = true
                 isChecked = entry.isEnabled
                 setOnCheckedChangeListener { _, isChecked ->
-                    if (if (isChecked) entry.enable() else entry.disable()) {
+                    if (QuickPhraseManager.setEnabled(entry, isChecked)) {
                         ui.updateItem(ui.indexItem(entry), entry)
                     } else {
                         this.isChecked = entry.isEnabled
@@ -99,7 +98,9 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
                         this@QuickPhraseListFragment
                     ) listener@{ requestKey, result ->
                         val newItem = result.parcelable<QuickPhrase>(requestKey) ?: return@listener
-                        ui.updateItem(ui.indexItem(entry), newItem)
+                        val index = ui.indexItem(entry)
+                        if (index == -1 || !newItem.file.isFile) return@listener
+                        ui.updateItem(index, newItem)
                         // editor changed file content
                         dustman.forceDirty()
                     }
@@ -114,7 +115,8 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
                                 PopupMenu(requireContext(), this).apply {
                                     menu.item(R.string.edit) { edit() }
                                     menu.item(R.string.reset) {
-                                        entry.deleteOverride().onFailure(requireContext()::toast)
+                                        QuickPhraseManager.reset(entry)
+                                            .onFailure(requireContext()::toast)
                                         ui.updateItem(ui.indexItem(entry), entry)
                                         // not sure if the content changes
                                         dustman.forceDirty()
@@ -289,6 +291,7 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
                     QuickPhraseManager.importFromInputStream(inputStream, importTarget.fileName)
                         .getOrThrow()
                 }
+                if (!imported.file.isFile) return@launch
                 ui.addItem(item = imported)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -377,7 +380,7 @@ class QuickPhraseListFragment : Fragment(), OnItemChangedListener<QuickPhrase> {
             indexed,
             remove = { item ->
                 check(item is CustomQuickPhrase)
-                item.file.removeIfExists()
+                QuickPhraseManager.delete(item)
             },
             onRemoved = { item -> dustman.remove(item.name) },
             restore = ui::addItem,

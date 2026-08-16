@@ -19,6 +19,7 @@ import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.data.quickphrase.QuickPhrase
 import org.fcitx.fcitx5.android.data.quickphrase.QuickPhraseData
 import org.fcitx.fcitx5.android.data.quickphrase.QuickPhraseEntry
+import org.fcitx.fcitx5.android.data.quickphrase.QuickPhraseManager
 import org.fcitx.fcitx5.android.ui.common.BaseDynamicListUi
 import org.fcitx.fcitx5.android.ui.common.OnItemChangedListener
 import org.fcitx.fcitx5.android.ui.main.EditDeleteMenuProvider
@@ -48,7 +49,7 @@ class QuickPhraseEditFragment : ProgressFragment(), OnItemChangedListener<QuickP
 
     override suspend fun initialize(): View {
         val initialEntries = withContext(Dispatchers.IO) {
-            quickPhrase.loadData()
+            QuickPhraseManager.loadData(quickPhrase)
         }
         ui = object : BaseDynamicListUi<QuickPhraseEntry>(
             requireContext(),
@@ -169,7 +170,7 @@ class QuickPhraseEditFragment : ProgressFragment(), OnItemChangedListener<QuickP
             dustman.runCatchingSave {
                 saveMutex.withLock {
                     withContext(Dispatchers.IO) {
-                        target.saveData(data)
+                        QuickPhraseManager.saveData(target, data)
                     }
                     // tell parent that we need to reload
                     if (!resultManager.isDestroyed) {

@@ -78,7 +78,7 @@ class BuiltinQuickPhrase(
         return override!!.disable()
     }
 
-    fun deleteOverride(): Result<Unit> {
+    internal fun deleteOverride(): Result<Unit> {
         var firstFailure: Throwable? = null
         listOf(overrideFile, File(overrideFile.path + ".$DISABLE")).forEach { file ->
             file.removeIfExists().onFailure { failure ->
