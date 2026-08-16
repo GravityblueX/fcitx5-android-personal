@@ -352,6 +352,7 @@ class FcitxDataProvider : DocumentsProvider() {
             ?.forEach { newRowFromFile(it) }
     }
 
+    @Synchronized
     override fun openDocument(
         documentId: String,
         mode: String,
@@ -363,6 +364,7 @@ class FcitxDataProvider : DocumentsProvider() {
         )
     }
 
+    @Synchronized
     @Throws(FileNotFoundException::class)
     override fun openDocumentThumbnail(
         documentId: String,
@@ -374,6 +376,7 @@ class FcitxDataProvider : DocumentsProvider() {
         return AssetFileDescriptor(pfd, 0, file.length())
     }
 
+    @Synchronized
     @Throws(FileNotFoundException::class)
     override fun createDocument(
         parentDocumentId: String,
@@ -394,6 +397,7 @@ class FcitxDataProvider : DocumentsProvider() {
         return newFile.docId
     }
 
+    @Synchronized
     @Throws(FileNotFoundException::class)
     override fun deleteDocument(documentId: String) {
         val file = fileFromDocId(documentId)
@@ -447,6 +451,7 @@ class FcitxDataProvider : DocumentsProvider() {
             }
     }
 
+    @Synchronized
     @Throws(FileNotFoundException::class)
     override fun copyDocument(sourceDocumentId: String, targetParentDocumentId: String): String {
         val oldFile = fileFromDocId(sourceDocumentId)
@@ -469,6 +474,7 @@ class FcitxDataProvider : DocumentsProvider() {
         return newFile.docId
     }
 
+    @Synchronized
     @Throws(FileNotFoundException::class)
     override fun renameDocument(documentId: String, displayName: String): String {
         val oldFile = fileFromDocId(documentId)
@@ -483,6 +489,7 @@ class FcitxDataProvider : DocumentsProvider() {
         return newFile.docId
     }
 
+    @Synchronized
     @Throws(FileNotFoundException::class)
     override fun moveDocument(
         sourceDocumentId: String,

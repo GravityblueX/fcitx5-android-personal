@@ -13,6 +13,7 @@ import org.junit.Test
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
+import java.lang.reflect.Modifier
 import java.nio.file.Files
 
 class FcitxDataProviderPathTest {
@@ -22,6 +23,29 @@ class FcitxDataProviderPathTest {
             check(file.deleteRecursively() || !file.exists()) {
                 "Cannot delete '${file.path}'"
             }
+        }
+    }
+
+    @Test
+    fun serializesPathMutationsAndDescriptorAcquisition() {
+        val guardedMethods = setOf(
+            "openDocument",
+            "openDocumentThumbnail",
+            "createDocument",
+            "deleteDocument",
+            "copyDocument",
+            "renameDocument",
+            "moveDocument",
+        )
+
+        guardedMethods.forEach { methodName ->
+            val methods = FcitxDataProvider::class.java.declaredMethods
+                .filter { method -> method.name == methodName }
+            assertTrue("Missing provider method $methodName", methods.isNotEmpty())
+            assertTrue(
+                "Provider method $methodName must be synchronized",
+                methods.all { method -> Modifier.isSynchronized(method.modifiers) },
+            )
         }
     }
 
