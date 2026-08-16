@@ -13,7 +13,6 @@ import org.fcitx.fcitx5.android.utils.removeIfExists
 import org.fcitx.fcitx5.android.utils.replaceFileAtomically
 import org.fcitx.fcitx5.android.utils.resolveDirectChild
 import org.fcitx.fcitx5.android.utils.runWithCleanup
-import org.fcitx.fcitx5.android.utils.runWithRollback
 import org.fcitx.fcitx5.android.utils.withTempDir
 import timber.log.Timber
 import java.io.File
@@ -89,33 +88,6 @@ object ThemeFilesManager {
 
     private fun isValidThemeName(name: String) = runCatching { themeFile(name) }.isSuccess
 
-    private fun backup(file: File, tempDir: File): File? =
-        file.takeIf(File::exists)?.let { source ->
-            File.createTempFile("theme-import-", ".backup", tempDir).also { source.copyTo(it) }
-        }
-
-    private fun restore(file: File, backup: File?): Result<Unit> = runCatching {
-        if (backup == null) {
-            file.removeIfExists().getOrThrow()
-        } else {
-            replaceFileAtomically(file) { staged ->
-                backup.copyTo(staged, overwrite = true)
-            }
-        }
-    }
-
-    private fun installImportedFile(source: File, destination: File, replace: Boolean) {
-        if (replace) {
-            replaceFileAtomically(destination) { staged ->
-                source.copyTo(staged, overwrite = true)
-            }
-        } else {
-            source.inputStream().use { input ->
-                publishNewThemeFile(input, dir, destination.name)
-            }
-        }
-    }
-
     fun newCustomBackgroundImages(): Triple<String, File, File> {
         val themeName = UUID.randomUUID().toString()
         val croppedImageFile = File(dir, "$themeName-cropped.png")
@@ -139,6 +111,11 @@ object ThemeFilesManager {
         }
     }
 
+    private fun createThemeMetadataSource(theme: Theme.Custom, tempDir: File): File =
+        File.createTempFile("theme-import-", ".json", tempDir).also { metadata ->
+            metadata.writeText(Json.encodeToString(CustomThemeSerializer, theme))
+        }
+
     fun saveThemeFiles(theme: Theme.Custom) = runThemeFileOperation {
         requireRecoveredThemeImports()
         saveThemeMetadata(theme)
@@ -154,25 +131,37 @@ object ThemeFilesManager {
             "Cannot find pending cropped theme image: $pendingCroppedImage"
         }
         val background = requireNotNull(theme.backgroundImage)
+        val metadata = themeFile(theme)
+        val sourceImage = File(background.srcFilePath)
         val croppedImage = File(background.croppedFilePath)
+        require(isThemeFile(sourceImage) && sourceImage.isFile) {
+            "Invalid source theme image: $sourceImage"
+        }
         require(isThemeFile(croppedImage)) {
             "Invalid cropped theme image path: $croppedImage"
+        }
+        require(setOf(sourceImage.canonicalFile, croppedImage.canonicalFile, metadata).size == 3) {
+            "Theme image and metadata paths must be distinct"
         }
         require(pendingCroppedImage.canonicalFile != croppedImage.canonicalFile) {
             "Pending cropped theme image must not be the destination"
         }
         withTempDir { tempDir ->
-            val croppedBackup = backup(croppedImage, tempDir)
-            runWithRollback(
-                rollback = { listOf(restore(croppedImage, croppedBackup)) },
-            ) {
-                installImportedFile(
-                    pendingCroppedImage,
-                    croppedImage,
-                    replaceExistingImage,
-                )
-                saveThemeMetadata(theme)
-            }
+            executeThemeImportTransaction(
+                dir,
+                listOf(
+                    ThemeImportMutation(
+                        croppedImage,
+                        pendingCroppedImage,
+                        replaceExisting = replaceExistingImage,
+                    ),
+                    ThemeImportMutation(
+                        metadata,
+                        createThemeMetadataSource(theme, tempDir),
+                        replaceExisting = true,
+                    ),
+                ),
+            )
         }
     }
 
@@ -318,13 +307,7 @@ object ThemeFilesManager {
                             )
                         )
                     } ?: decoded
-                    val importedMetadata = File.createTempFile(
-                        "theme-import-",
-                        ".json",
-                        tempDir,
-                    ).also { metadata ->
-                        metadata.writeText(Json.encodeToString(CustomThemeSerializer, newTheme))
-                    }
+                    val importedMetadata = createThemeMetadataSource(newTheme, tempDir)
                     mutations += ThemeImportMutation(
                         themeFile,
                         importedMetadata,
