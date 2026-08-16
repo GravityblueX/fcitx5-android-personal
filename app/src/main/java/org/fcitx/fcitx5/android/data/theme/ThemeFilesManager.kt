@@ -167,16 +167,16 @@ object ThemeFilesManager {
 
     fun deleteThemeFiles(theme: Theme.Custom): Result<Unit> = runThemeFileResultOperation {
         requireRecoveredThemeImports()
-        themeFile(theme).removeIfExists().getOrThrow()
-        theme.backgroundImage?.let { background ->
-            listOf(File(background.croppedFilePath), File(background.srcFilePath))
-                .filter(::isThemeFile)
-                .forEach { file ->
-                    file.removeIfExists().onFailure {
-                        Timber.w(it, "Failed to remove orphaned theme image: ${file.path}")
-                    }
-                }
+        val files = buildList {
+            add(themeFile(theme))
+            theme.backgroundImage?.let { background ->
+                addAll(
+                    listOf(File(background.croppedFilePath), File(background.srcFilePath))
+                        .filter(::isThemeFile)
+                )
+            }
         }
+        deleteThemeFilesTransactionally(dir, files)
     }
 
     fun listThemes(): MutableList<Theme.Custom> = runThemeFileOperation {
@@ -333,6 +333,28 @@ object ThemeFilesManager {
             }
         }
 
+}
+
+internal fun deleteThemeFilesTransactionally(
+    directory: File,
+    files: List<File>,
+    execute: (File, List<ThemeImportMutation>) -> Unit = { transactionDirectory, mutations ->
+        executeThemeImportTransaction(transactionDirectory, mutations)
+    },
+) {
+    val canonicalDirectory = directory.canonicalFile
+    val targets = files.map { file ->
+        file.canonicalFile.also { target ->
+            require(target.parentFile == canonicalDirectory) {
+                "Unmanaged theme deletion target: ${file.path}"
+            }
+        }
+    }.distinct()
+    if (targets.isEmpty()) return
+    execute(
+        canonicalDirectory,
+        targets.map { target -> ThemeImportMutation(target, source = null) },
+    )
 }
 
 internal fun isThemeInstallStagingFile(fileName: String): Boolean =

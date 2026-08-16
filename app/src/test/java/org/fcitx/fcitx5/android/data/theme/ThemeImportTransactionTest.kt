@@ -118,6 +118,90 @@ class ThemeImportTransactionTest {
     }
 
     @Test
+    fun deletesEveryThemeFileInOneTransaction() {
+        val root = Files.createTempDirectory("theme-delete-").toFile()
+        try {
+            val directory = root.resolve("theme").apply { mkdir() }
+            val metadata = directory.resolve("custom.json").apply { writeText("metadata") }
+            val sourceImage = directory.resolve("background-src").apply {
+                writeText("source")
+            }
+            val croppedImage = directory.resolve("background-cropped.png").apply {
+                writeText("cropped")
+            }
+
+            deleteThemeFilesTransactionally(
+                directory,
+                listOf(metadata, sourceImage, croppedImage, sourceImage),
+            ) { transactionDirectory, mutations ->
+                executeThemeImportTransaction(
+                    transactionDirectory,
+                    mutations,
+                    rename = renameFile,
+                    removeTarget = removeTarget,
+                    removeTransaction = removeTransaction,
+                    onCleanupFailure = { throw it },
+                )
+            }
+
+            assertTrue(directory.listFiles().orEmpty().isEmpty())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun rollsBackThemeDeletionWhenAFileCannotBeRemoved() {
+        val root = Files.createTempDirectory("theme-delete-").toFile()
+        try {
+            val directory = root.resolve("theme").apply { mkdir() }
+            val metadata = directory.resolve("custom.json").apply { writeText("metadata") }
+            val sourceImage = directory.resolve("background-src").apply {
+                writeText("source")
+            }
+            val croppedImage = directory.resolve("background-cropped.png").apply {
+                writeText("cropped")
+            }
+            val failure = IllegalStateException("cannot remove cropped image")
+            var deletionFailed = false
+
+            val thrown = assertThrows(IllegalStateException::class.java) {
+                deleteThemeFilesTransactionally(
+                    directory,
+                    listOf(metadata, sourceImage, croppedImage),
+                ) { transactionDirectory, mutations ->
+                    executeThemeImportTransaction(
+                        transactionDirectory,
+                        mutations,
+                        rename = renameFile,
+                        removeTarget = { target ->
+                            if (target == croppedImage && !deletionFailed) {
+                                deletionFailed = true
+                                Result.failure(failure)
+                            } else {
+                                removeTarget(target)
+                            }
+                        },
+                        removeTransaction = removeTransaction,
+                        onCleanupFailure = { throw it },
+                    )
+                }
+            }
+
+            assertSame(failure, thrown)
+            assertEquals("metadata", metadata.readText())
+            assertEquals("source", sourceImage.readText())
+            assertEquals("cropped", croppedImage.readText())
+            assertEquals(
+                listOf("background-cropped.png", "background-src", "custom.json"),
+                directory.list()?.sorted(),
+            )
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun rollsBackPublishedFilesWhenThemeImportFails() {
         val root = Files.createTempDirectory("theme-import-").toFile()
         try {
@@ -215,6 +299,40 @@ class ThemeImportTransactionTest {
     }
 
     @Test
+    fun rollsBackInterruptedThemeDeletionFromJournal() {
+        val root = Files.createTempDirectory("theme-delete-").toFile()
+        try {
+            val directory = root.resolve("theme").apply { mkdir() }
+            val transaction = createTransactionDirectory(directory, "interrupted-delete")
+            transaction.resolve("mutation-0.backup").writeText("metadata")
+            transaction.resolve("mutation-1.backup").writeText("source")
+            transaction.resolve("mutation-2.backup").writeText("cropped")
+            writeJournal(
+                transaction,
+                listOf(
+                    ThemeImportJournalMutation("custom.json", null, "mutation-0.backup"),
+                    ThemeImportJournalMutation("background-src", null, "mutation-1.backup"),
+                    ThemeImportJournalMutation(
+                        "background-cropped.png",
+                        null,
+                        "mutation-2.backup",
+                    ),
+                ),
+            )
+
+            val results = recover(directory)
+
+            assertTrue(results.all(Result<Unit>::isSuccess))
+            assertEquals("metadata", directory.resolve("custom.json").readText())
+            assertEquals("source", directory.resolve("background-src").readText())
+            assertEquals("cropped", directory.resolve("background-cropped.png").readText())
+            assertFalse(transaction.exists())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun retriesThemeImportCleanupAfterCompletedRollback() {
         val root = Files.createTempDirectory("theme-import-").toFile()
         try {
@@ -274,6 +392,34 @@ class ThemeImportTransactionTest {
             assertTrue(results.all(Result<Unit>::isSuccess))
             assertEquals("new metadata", metadata.readText())
             assertFalse(deletedImage.exists())
+            assertFalse(transaction.exists())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun preservesCommittedThemeDeletionDuringRecovery() {
+        val root = Files.createTempDirectory("theme-delete-").toFile()
+        try {
+            val directory = root.resolve("theme").apply { mkdir() }
+            val transaction = createTransactionDirectory(directory, "committed-delete")
+            transaction.resolve("mutation-0.backup").writeText("metadata")
+            transaction.resolve("mutation-1.backup").writeText("source")
+            writeJournal(
+                transaction,
+                listOf(
+                    ThemeImportJournalMutation("custom.json", null, "mutation-0.backup"),
+                    ThemeImportJournalMutation("background-src", null, "mutation-1.backup"),
+                ),
+            )
+            transaction.resolve(THEME_IMPORT_COMMIT_FILE_NAME).writeText("committed")
+
+            val results = recover(directory)
+
+            assertTrue(results.all(Result<Unit>::isSuccess))
+            assertFalse(directory.resolve("custom.json").exists())
+            assertFalse(directory.resolve("background-src").exists())
             assertFalse(transaction.exists())
         } finally {
             root.deleteRecursively()
