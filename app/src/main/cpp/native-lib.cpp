@@ -100,6 +100,41 @@ bool isPunctuationSubConfig(const std::string &addonName,
            path.starts_with(PunctuationSubConfigPrefix);
 }
 
+void fillInputMethodGroupConfig(fcitx::RawConfig &config,
+                                const fcitx::InputMethodGroup &group) {
+    config["Name"] = group.name();
+    const auto itemsConfig = config.get("Items", true);
+    const auto &items = group.inputMethodList();
+    for (size_t index = 0; index < items.size(); index++) {
+        const auto itemConfig = itemsConfig->get(std::to_string(index), true);
+        (*itemConfig)["Name"] = items[index].name();
+        (*itemConfig)["Layout"] = items[index].layout();
+    }
+    config["Default Layout"] = group.defaultLayout();
+    config["DefaultIM"] = group.defaultInputMethod();
+}
+
+bool saveInputMethodProfile(const fcitx::InputMethodManager &manager,
+                            const fcitx::InputMethodGroup &replacement) {
+    fcitx::RawConfig config;
+    const auto groupsConfig = config.get("Groups", true);
+    const auto groupOrderConfig = config.get("GroupOrder", true);
+    const auto groupNames = manager.groups();
+    for (size_t index = 0; index < groupNames.size(); index++) {
+        const auto &groupName = groupNames[index];
+        const auto *group = groupName == replacement.name()
+                                    ? &replacement
+                                    : manager.group(groupName);
+        if (!group) {
+            return false;
+        }
+        const auto groupConfig = groupsConfig->get(std::to_string(index), true);
+        fillInputMethodGroupConfig(*groupConfig, *group);
+        (*groupOrderConfig)[std::to_string(index)] = groupName;
+    }
+    return fcitx::safeSaveAsIni(config, "profile");
+}
+
 } // namespace
 
 
@@ -230,16 +265,22 @@ public:
         return entries;
     }
 
-    void setEnabledInputMethods(std::vector<std::string> &entries) {
+    bool setEnabledInputMethods(const std::vector<std::string> &entries) {
         auto &imMgr = p_instance->inputMethodManager();
         fcitx::InputMethodGroup newGroup(imMgr.currentGroup().name());
         newGroup.setDefaultLayout("us");
         auto &list = newGroup.inputMethodList();
         for (const auto &e: entries) {
-            list.emplace_back(e);
+            if (imMgr.entry(e)) {
+                list.emplace_back(e);
+            }
+        }
+        newGroup.setDefaultInputMethod("");
+        if (!saveInputMethodProfile(imMgr, newGroup)) {
+            return false;
         }
         imMgr.setGroup(std::move(newGroup));
-        imMgr.save();
+        return true;
     }
 
     static fcitx::RawConfig mergeConfigDesc(const fcitx::Configuration &conf) {
@@ -958,7 +999,9 @@ Java_org_fcitx_fcitx5_android_core_Fcitx_setEnabledInputMethods(JNIEnv *env, jcl
         auto string = JRef<jstring>(env, env->GetObjectArrayElement(array, i));
         entries.emplace_back(CString(env, string));
     }
-    Fcitx::Instance().setEnabledInputMethods(entries);
+    if (!Fcitx::Instance().setEnabledInputMethods(entries)) {
+        throwJavaException(env, "Failed to save enabled input methods");
+    }
 }
 
 extern "C"
