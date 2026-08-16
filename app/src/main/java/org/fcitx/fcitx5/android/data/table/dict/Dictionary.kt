@@ -4,6 +4,7 @@
  */
 package org.fcitx.fcitx5.android.data.table.dict
 
+import org.fcitx.fcitx5.android.utils.replaceFileAtomically
 import java.io.File
 
 abstract class Dictionary {
@@ -55,9 +56,9 @@ abstract class Dictionary {
             throw IllegalArgumentException("Dest file name must end with .${Type.Text.ext}")
     }
 
-    protected fun ensureTxt(dest: File) {
+    protected fun writeTxtAtomically(dest: File, write: (File) -> Unit) {
         requireTxt(dest)
-        dest.delete()
+        replaceFileAtomically(dest, write)
     }
 
     protected fun requireBin(dest: File) {
@@ -65,9 +66,9 @@ abstract class Dictionary {
             throw IllegalArgumentException("Dest file name must end with .${Type.LibIME.ext}")
     }
 
-    protected fun ensureBin(dest: File) {
+    protected fun writeBinAtomically(dest: File, write: (File) -> Unit) {
         requireBin(dest)
-        dest.delete()
+        replaceFileAtomically(dest, write)
     }
 
     override fun toString(): String = "${javaClass.simpleName}[$name -> ${file.path}]"

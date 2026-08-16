@@ -56,12 +56,13 @@ class LibIMEDictionary(file: File) : PinyinDictionary() {
     }
 
     override fun toTextDictionary(dest: File): TextDictionary {
-        ensureTxt(dest)
-        PinyinDictManager.pinyinDictConv(
-            file.absolutePath,
-            dest.absolutePath,
-            PinyinDictManager.MODE_BIN_TO_TXT
-        )
+        writeTxtAtomically(dest) { staged ->
+            PinyinDictManager.pinyinDictConv(
+                file.absolutePath,
+                staged.absolutePath,
+                PinyinDictManager.MODE_BIN_TO_TXT
+            )
+        }
         return TextDictionary(dest)
     }
 
@@ -70,8 +71,9 @@ class LibIMEDictionary(file: File) : PinyinDictionary() {
             requireBin(dest)
             return this
         }
-        ensureBin(dest)
-        file.copyTo(dest)
+        writeBinAtomically(dest) { staged ->
+            file.copyTo(staged, overwrite = true)
+        }
         return LibIMEDictionary(dest)
     }
 

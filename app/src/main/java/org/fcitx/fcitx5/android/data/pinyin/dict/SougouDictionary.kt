@@ -26,8 +26,9 @@ class SougouDictionary(file: File) : PinyinDictionary() {
     }
 
     override fun toTextDictionary(dest: File): TextDictionary {
-        ensureTxt(dest)
-        PinyinDictManager.sougouDictConv(file.absolutePath, dest.absolutePath)
+        writeTxtAtomically(dest) { staged ->
+            PinyinDictManager.sougouDictConv(file.absolutePath, staged.absolutePath)
+        }
         return TextDictionary(dest)
     }
 

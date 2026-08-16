@@ -27,18 +27,20 @@ class TextDictionary(file: File) : Dictionary() {
             requireTxt(dest)
             return this
         }
-        ensureTxt(dest)
-        file.copyTo(dest)
+        writeTxtAtomically(dest) { staged ->
+            file.copyTo(staged, overwrite = true)
+        }
         return TextDictionary(dest)
     }
 
     override fun toLibIMEDictionary(dest: File): LibIMEDictionary {
-        ensureBin(dest)
-        TableManager.tableDictConv(
-            file.absolutePath,
-            dest.absolutePath,
-            TableManager.MODE_TXT_TO_BIN
-        )
+        writeBinAtomically(dest) { staged ->
+            TableManager.tableDictConv(
+                file.absolutePath,
+                staged.absolutePath,
+                TableManager.MODE_TXT_TO_BIN
+            )
+        }
         return LibIMEDictionary(dest)
     }
 }

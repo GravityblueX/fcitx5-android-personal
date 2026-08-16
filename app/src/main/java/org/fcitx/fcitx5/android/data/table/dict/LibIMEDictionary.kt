@@ -23,12 +23,13 @@ class LibIMEDictionary(file: File) : Dictionary() {
     }
 
     override fun toTextDictionary(dest: File): TextDictionary {
-        ensureTxt(dest)
-        TableManager.tableDictConv(
-            file.absolutePath,
-            dest.absolutePath,
-            TableManager.MODE_BIN_TO_TXT
-        )
+        writeTxtAtomically(dest) { staged ->
+            TableManager.tableDictConv(
+                file.absolutePath,
+                staged.absolutePath,
+                TableManager.MODE_BIN_TO_TXT
+            )
+        }
         return TextDictionary(dest)
     }
 
@@ -37,9 +38,10 @@ class LibIMEDictionary(file: File) : Dictionary() {
             requireBin(dest)
             return this
         }
-        ensureBin(dest)
-        TableManager.checkTableDictFormat(file.absolutePath)
-        file.copyTo(dest)
+        writeBinAtomically(dest) { staged ->
+            TableManager.checkTableDictFormat(file.absolutePath)
+            file.copyTo(staged, overwrite = true)
+        }
         return LibIMEDictionary(dest)
     }
 }

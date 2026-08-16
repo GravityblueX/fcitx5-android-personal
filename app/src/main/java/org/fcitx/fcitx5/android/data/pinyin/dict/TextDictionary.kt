@@ -26,18 +26,20 @@ class TextDictionary(file: File) : PinyinDictionary() {
             requireTxt(dest)
             return this
         }
-        ensureTxt(dest)
-        file.copyTo(dest)
+        writeTxtAtomically(dest) { staged ->
+            file.copyTo(staged, overwrite = true)
+        }
         return TextDictionary(dest)
     }
 
     override fun toLibIMEDictionary(dest: File): LibIMEDictionary {
-        ensureBin(dest)
-        PinyinDictManager.pinyinDictConv(
-            file.absolutePath,
-            dest.absolutePath,
-            PinyinDictManager.MODE_TXT_TO_BIN
-        )
+        writeBinAtomically(dest) { staged ->
+            PinyinDictManager.pinyinDictConv(
+                file.absolutePath,
+                staged.absolutePath,
+                PinyinDictManager.MODE_TXT_TO_BIN
+            )
+        }
         return LibIMEDictionary(dest)
     }
 }
