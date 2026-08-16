@@ -15,7 +15,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.fcitx.fcitx5.android.R
@@ -26,6 +25,8 @@ import org.fcitx.fcitx5.android.ui.common.PaddingPreferenceFragment
 import org.fcitx.fcitx5.android.ui.common.withLoadingDialog
 import org.fcitx.fcitx5.android.ui.main.MainViewModel
 import org.fcitx.fcitx5.android.utils.addPreference
+import org.fcitx.fcitx5.android.utils.toast
+import timber.log.Timber
 
 abstract class FcitxPreferenceFragment : PaddingPreferenceFragment() {
     abstract fun getPageTitle(): String
@@ -43,18 +44,24 @@ abstract class FcitxPreferenceFragment : PaddingPreferenceFragment() {
     private val fcitx: FcitxConnection
         get() = viewModel.fcitx
 
+    private val configSaver by lazy {
+        val connection = fcitx
+        SequentialSaveRunner<RawConfig>(
+            scope = scope,
+            save = { newConfig ->
+                saveMutex.withLock {
+                    connection.runOnReady {
+                        saveConfig(this, newConfig)
+                    }
+                }
+            },
+            onFailure = { Timber.e(it, "Failed to save Fcitx configuration") }
+        )
+    }
+
     private fun save() {
         if (!configLoaded) return
-        val newConfig = raw["cfg"].deepCopy()
-        val connection = fcitx
-        // launch "saveConfig" job under supervisorJob scope
-        scope.launch {
-            saveMutex.withLock {
-                connection.runOnReady {
-                    saveConfig(this, newConfig)
-                }
-            }
-        }
+        configSaver.submit(raw["cfg"].deepCopy())
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,9 +71,16 @@ abstract class FcitxPreferenceFragment : PaddingPreferenceFragment() {
                 // prevent "back" from navigating away from this Fragment when it's still saving
                 override fun handleOnBackPressed() {
                     lifecycleScope.withLoadingDialog(requireContext(), R.string.saving) {
-                        // complete the parent job and wait all "saveConfig" jobs to finish
-                        supervisorJob.complete()
-                        supervisorJob.join()
+                        val result = if (configLoaded) {
+                            save()
+                            configSaver.awaitIdle()
+                        } else {
+                            Result.success(Unit)
+                        }
+                        result.exceptionOrNull()?.let {
+                            requireContext().toast(it)
+                            return@withLoadingDialog
+                        }
                         scope.cancel()
                         findNavController().popBackStack()
                     }

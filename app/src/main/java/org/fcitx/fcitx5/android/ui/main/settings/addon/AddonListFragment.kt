@@ -8,7 +8,6 @@ import android.view.View
 import androidx.annotation.StringRes
 import androidx.lifecycle.viewModelScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.fcitx.fcitx5.android.R
@@ -18,8 +17,12 @@ import org.fcitx.fcitx5.android.ui.common.BaseDynamicListUi
 import org.fcitx.fcitx5.android.ui.common.CheckBoxListUi
 import org.fcitx.fcitx5.android.ui.common.OnItemChangedListener
 import org.fcitx.fcitx5.android.ui.main.settings.ProgressFragment
+import org.fcitx.fcitx5.android.ui.main.settings.SequentialSaveRunner
 import org.fcitx.fcitx5.android.ui.main.settings.SettingsRoute
+import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.navigateWithAnim
+import org.fcitx.fcitx5.android.utils.toast
+import timber.log.Timber
 
 class AddonListFragment : ProgressFragment(), OnItemChangedListener<AddonInfo> {
 
@@ -27,18 +30,29 @@ class AddonListFragment : ProgressFragment(), OnItemChangedListener<AddonInfo> {
 
     private val addonDisplayNames = mutableMapOf<String, String>()
 
+    private val stateSaver by lazy {
+        val connection = fcitx
+        SequentialSaveRunner<Pair<Array<String>, BooleanArray>>(
+            scope = viewModel.viewModelScope,
+            save = { (ids, state) ->
+                updateMutex.withLock {
+                    connection.runOnReady {
+                        setAddonState(ids, state)
+                    }
+                }
+            },
+            onFailure = {
+                Timber.e(it, "Failed to save addon state")
+                appContext.toast(it)
+            }
+        )
+    }
+
     private fun updateAddonState() {
         if (!isInitialized) return
         val ids = ui.entries.map { it.uniqueName }.toTypedArray()
         val state = ui.entries.map { it.enabled }.toBooleanArray()
-        val connection = fcitx
-        viewModel.viewModelScope.launch {
-            updateMutex.withLock {
-                connection.runOnReady {
-                    setAddonState(ids, state)
-                }
-            }
-        }
+        stateSaver.submit(ids to state)
     }
 
     private fun disableAddon(entry: AddonInfo, reset: () -> Unit) {

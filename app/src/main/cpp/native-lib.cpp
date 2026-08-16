@@ -201,11 +201,17 @@ public:
         return std::make_unique<fcitx::RawConfig>(mergeConfigDesc(configuration));
     }
 
-    void setGlobalConfig(const fcitx::RawConfig &config) {
-        p_instance->globalConfig().load(config, true);
-        if (p_instance->globalConfig().safeSave()) {
-            p_instance->reloadConfig();
+    bool setGlobalConfig(const fcitx::RawConfig &config) {
+        auto &globalConfig = p_instance->globalConfig();
+        fcitx::RawConfig previous;
+        globalConfig.save(previous);
+        globalConfig.load(config, true);
+        if (!globalConfig.safeSave()) {
+            globalConfig.load(previous);
+            return false;
         }
+        p_instance->reloadConfig();
+        return true;
     }
 
     fcitx::AddonInstance *getAddonInstance(const std::string &addon) {
@@ -316,12 +322,12 @@ public:
         return addons;
     }
 
-    void setAddonState(const std::map<std::string, bool> &state) {
+    bool setAddonState(const std::map<std::string, bool> &state) {
         auto &globalConfig = p_instance->globalConfig();
         auto &addonManager = p_instance->addonManager();
-        const auto &enabledAddons = globalConfig.enabledAddons();
+        const auto enabledAddons = globalConfig.enabledAddons();
         std::set<std::string> enabledSet(enabledAddons.begin(), enabledAddons.end());
-        const auto &disabledAddons = globalConfig.disabledAddons();
+        const auto disabledAddons = globalConfig.disabledAddons();
         std::set<std::string> disabledSet(disabledAddons.begin(), disabledAddons.end());
         for (const auto &item: state) {
             const auto *info = addonManager.addonInfo(item.first);
@@ -343,8 +349,13 @@ public:
         }
         globalConfig.setEnabledAddons({enabledSet.begin(), enabledSet.end()});
         globalConfig.setDisabledAddons({disabledSet.begin(), disabledSet.end()});
-        globalConfig.safeSave();
+        if (!globalConfig.safeSave()) {
+            globalConfig.setEnabledAddons(enabledAddons);
+            globalConfig.setDisabledAddons(disabledAddons);
+            return false;
+        }
         p_instance->reloadConfig();
+        return true;
     }
 
     void triggerQuickPhrase() {
@@ -917,7 +928,9 @@ JNIEXPORT void JNICALL
 Java_org_fcitx_fcitx5_android_core_Fcitx_setFcitxGlobalConfig(JNIEnv *env, jclass clazz, jobject config) {
     RETURN_IF_NOT_RUNNING
     auto rawConfig = jobjectToRawConfig(env, config);
-    Fcitx::Instance().setGlobalConfig(rawConfig);
+    if (!Fcitx::Instance().setGlobalConfig(rawConfig)) {
+        throwJavaException(env, "Failed to save global configuration");
+    }
 }
 
 extern "C"
@@ -975,7 +988,9 @@ Java_org_fcitx_fcitx5_android_core_Fcitx_setFcitxAddonState(JNIEnv *env, jclass 
         map.insert({CString(env, jName), enabled[i]});
     }
     env->ReleaseBooleanArrayElements(state, enabled, 0);
-    Fcitx::Instance().setAddonState(map);
+    if (!Fcitx::Instance().setAddonState(map)) {
+        throwJavaException(env, "Failed to save addon state");
+    }
 }
 
 extern "C"
