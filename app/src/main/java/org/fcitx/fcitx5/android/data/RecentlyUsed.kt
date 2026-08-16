@@ -10,7 +10,9 @@ import android.os.Build
 import androidx.core.content.edit
 import kotlinx.serialization.json.Json
 import org.fcitx.fcitx5.android.FcitxApplication
+import org.fcitx.fcitx5.android.utils.removeIfExists
 import timber.log.Timber
+import java.io.File
 
 class RecentlyUsed(val type: String, val limit: Int) {
 
@@ -76,10 +78,16 @@ class RecentlyUsed(val type: String, val limit: Int) {
     }
 
     fun migrate(): List<String>? {
-        if (sharedPreferences.getBoolean(migrationKey, false)) return null
-
         val dir = FcitxApplication.getInstance().directBootAwareContext.filesDir.resolve(DIR_NAME)
         val file = dir.resolve(type)
+        if (sharedPreferences.getBoolean(migrationKey, false)) {
+            cleanupMigratedRecentlyUsed(file, dir).forEach { result ->
+                result.onFailure { failure ->
+                    Timber.w(failure, "Failed to clean migrated RecentlyUsed(type=$type)")
+                }
+            }
+            return null
+        }
         if (file.exists()) {
             try {
                 val lines = file.readLines()
@@ -89,11 +97,10 @@ class RecentlyUsed(val type: String, val limit: Int) {
                         .putBoolean(migrationKey, true)
                         .commit()
                 ) { "Failed to save RecentlyUsed(type=$type)" }
-                if (!file.delete()) {
-                    Timber.w("Failed to remove migrated RecentlyUsed file: ${file.path}")
-                }
-                if (dir.list()?.isEmpty() == true) {
-                    dir.delete()
+                cleanupMigratedRecentlyUsed(file, dir).forEach { result ->
+                    result.onFailure { failure ->
+                        Timber.w(failure, "Failed to clean migrated RecentlyUsed(type=$type)")
+                    }
                 }
                 return lines
             } catch (e: Exception) {
@@ -105,6 +112,15 @@ class RecentlyUsed(val type: String, val limit: Int) {
         return null
     }
 }
+
+internal fun cleanupMigratedRecentlyUsed(file: File, directory: File): List<Result<Unit>> =
+    buildList {
+        val fileCleanup = file.removeIfExists()
+        add(fileCleanup)
+        if (fileCleanup.isSuccess && directory.list()?.isEmpty() == true) {
+            add(directory.removeIfExists())
+        }
+    }
 
 internal fun normalizeRecentlyUsed(items: List<String>, limit: Int): List<String> {
     require(limit > 0) { "Recently used item limit must be positive" }
