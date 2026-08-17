@@ -249,7 +249,15 @@ object DataManager {
 
         // load last run's data descriptor
         val oldDescriptor = destDescriptorFile
-            .runCatching { deserializeDataDescriptor(bufferedReader().use { it.readText() }) }
+            .runCatching {
+                deserializeDataDescriptor(bufferedReader().use { it.readText() })
+                    .withValidatedManagedPaths()
+            }
+            .onFailure { failure ->
+                if (destDescriptorFile.exists()) {
+                    Timber.w(failure, "Ignoring invalid stored data descriptor")
+                }
+            }
             .getOrElse { DataDescriptor("", emptyMap(), emptyMap()) }
 
         // load app's data descriptor
@@ -286,6 +294,11 @@ object DataManager {
                 Timber.w("Path '${e.path}' has already been created by '${e.src}', cannot create symlink")
                 failedPlugins[plugin.packageName] =
                     PluginLoadFailed.PathConflict(plugin, e.path, e.src)
+                continue
+            } catch (e: UnsafeDataDescriptorPath) {
+                Timber.w(e, "Plugin '${plugin.name}' contains an unsafe data path")
+                failedPlugins[plugin.packageName] =
+                    PluginLoadFailed.DataDescriptorParseError(plugin)
                 continue
             }
             pluginAssets[plugin.name] = assets
@@ -352,13 +365,16 @@ object DataManager {
     }
 
     private fun removePath(path: String) =
-        FileUtil.removeFile(dataDir.resolve(path))
+        FileUtil.removeFile(resolveManagedDataPath(dataDir, path))
 
     private fun symlink(source: String, target: String) =
-        FileUtil.symlink(dataDir.resolve(source), dataDir.resolve(target))
+        FileUtil.symlink(
+            resolveManagedDataSource(dataDir, source),
+            resolveManagedDataPath(dataDir, target),
+        )
 
     private fun AssetManager.copyFile(filename: String) {
-        val destination = File(dataDir, filename)
+        val destination = resolveManagedDataPath(dataDir, filename)
         val parent = destination.parentFile ?: error("Cannot resolve parent for '${filename}'")
         parent.ensureDirectory()
         cleanupStagedDataWrites(parent)

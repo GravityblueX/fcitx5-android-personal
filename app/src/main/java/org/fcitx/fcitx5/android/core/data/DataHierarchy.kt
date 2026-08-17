@@ -26,7 +26,8 @@ class DataHierarchy {
      * @throws PathConflict if a non-directory path already exists in the hierarchy
      * @throws SymlinkConflict if a file or directory already exists when creating symlink
      */
-    fun install(descriptor: DataDescriptor, src: FileSource) {
+    fun install(rawDescriptor: DataDescriptor, src: FileSource) {
+        val descriptor = rawDescriptor.withValidatedManagedPaths()
         val newFiles = descriptor.files.mapValues { (path, sha256) ->
             files[path]?.also { old ->
                 // path conflict when at least one of them is not a directory (empty sha256)
@@ -34,23 +35,71 @@ class DataHierarchy {
                     throw PathConflict(path, old.second)
                 }
             }
+            parentDataPaths(path).forEach { parent ->
+                files[parent]?.takeIf { it.first.isNotEmpty() }?.let { old ->
+                    throw PathConflict(path, old.second)
+                }
+                descriptor.files[parent]?.takeIf { it.isNotEmpty() }?.let {
+                    throw PathConflict(path, src)
+                }
+                symlinks[parent]?.let { old ->
+                    throw PathConflict(path, old.second)
+                }
+                descriptor.symlinks[parent]?.let {
+                    throw PathConflict(path, src)
+                }
+            }
+            symlinks[path]?.let { old ->
+                throw PathConflict(path, old.second)
+            }
             Pair(sha256, src)
         }
-        // merge new files only when there is no conflict with existing files
-        files.putAll(newFiles)
         val newSymlinks = descriptor.symlinks.mapValues { (path, source) ->
             // path we try to create is already a file or directory in our hierarchy
-            files[path]?.let { (_, src) ->
-                throw SymlinkConflict(path, src)
+            (files[path] ?: newFiles[path])?.let { (_, existingSrc) ->
+                throw SymlinkConflict(path, existingSrc)
+            }
+            val descendantPrefix = "$path/"
+            files.entries.firstOrNull { it.key.startsWith(descendantPrefix) }
+                ?.let { (_, value) -> throw SymlinkConflict(path, value.second) }
+            newFiles.entries.firstOrNull { it.key.startsWith(descendantPrefix) }
+                ?.let { (_, value) -> throw SymlinkConflict(path, value.second) }
+            parentDataPaths(path).forEach { parent ->
+                files[parent]?.takeIf { it.first.isNotEmpty() }?.let { old ->
+                    throw SymlinkConflict(path, old.second)
+                }
+                newFiles[parent]?.takeIf { it.first.isNotEmpty() }?.let { old ->
+                    throw SymlinkConflict(path, old.second)
+                }
+                symlinks[parent]?.let { old ->
+                    throw SymlinkConflict(path, old.second)
+                }
+                descriptor.symlinks[parent]?.let {
+                    throw SymlinkConflict(path, src)
+                }
             }
             // path we try to create is already a symlink in our hierarchy
             // but it refers to a different path
-            symlinks[path]?.let { (existedSource, src) ->
+            symlinks[path]?.let { (existedSource, existingSrc) ->
                 if (source != existedSource)
-                    throw PathConflict(path, src)
+                    throw PathConflict(path, existingSrc)
+            }
+            symlinks.entries.firstOrNull { it.key.startsWith(descendantPrefix) }
+                ?.let { (_, value) -> throw SymlinkConflict(path, value.second) }
+            descriptor.symlinks.keys.firstOrNull {
+                it != path && it.startsWith(descendantPrefix)
+            }?.let { throw SymlinkConflict(path, src) }
+            sequenceOf(source).plus(parentDataPaths(source)).forEach { sourcePath ->
+                if (sourcePath == path ||
+                    sourcePath in symlinks ||
+                    sourcePath in descriptor.symlinks
+                ) {
+                    throw SymlinkConflict(path, src)
+                }
             }
             Pair(source, src)
         }
+        files.putAll(newFiles)
         symlinks.putAll(newSymlinks)
         descriptorSHA256.add(descriptor.sha256)
     }
@@ -84,21 +133,22 @@ class DataHierarchy {
          * generating [FileAction]s to migrate from the [old] to [new]
          */
         fun diff(old: DataDescriptor, new: DataHierarchy): List<FileAction> {
-            if (old.sha256 == sha256(new))
+            val normalizedOld = old.withValidatedManagedPaths()
+            if (normalizedOld.sha256 == sha256(new))
                 return emptyList()
             val diffFiles = new.files.mapNotNull { (path, v) ->
                 val (sha256, src) = v
                 when {
-                    path !in old.files && sha256.isNotBlank() ->
+                    path !in normalizedOld.files && sha256.isNotBlank() ->
                         FileAction.CreateFile(path, src)
-                    old.files[path] != sha256 ->
+                    normalizedOld.files[path] != sha256 ->
                         if (sha256.isNotBlank())
                             FileAction.UpdateFile(path, src)
                         else null
                     else -> null
                 }
             }.toMutableList<FileAction>().apply {
-                addAll(old.files.filterKeys { it !in new.files }
+                addAll(normalizedOld.files.filterKeys { it !in new.files }
                     .map { (path, sha256) ->
                         if (sha256.isNotBlank())
                             FileAction.DeleteFile(path)
@@ -108,15 +158,17 @@ class DataHierarchy {
             }
             val diffLinks = new.symlinks.mapNotNull { (target, v) ->
                 val (source, _) = v
-                if (old.symlinks[target] == source)
+                if (normalizedOld.symlinks[target] == source)
                 // old link will be overwritten
                     null
                 else
                     FileAction.CreateSymlink(target, source)
             }.toMutableList<FileAction>().apply {
-                addAll(old.symlinks.filterKeys { it !in new.symlinks }.map { (target, _) ->
-                    FileAction.DeleteFile(target)
-                })
+                addAll(
+                    normalizedOld.symlinks
+                        .filterKeys { it !in new.symlinks }
+                        .map { (target, _) -> FileAction.DeleteFile(target) }
+                )
             }
             return diffFiles + diffLinks
         }
