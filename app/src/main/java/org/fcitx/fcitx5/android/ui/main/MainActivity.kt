@@ -35,6 +35,20 @@ import org.fcitx.fcitx5.android.utils.startActivity
 import splitties.dimensions.dp
 import splitties.views.topPadding
 
+internal const val INTERNAL_MAIN_ACTIVITY_ALIAS =
+    "org.fcitx.fcitx5.android.ui.main.InternalMainActivity"
+
+internal fun <T> readInternalSettingsRoute(
+    action: String?,
+    componentClassName: String?,
+    readRoute: () -> T?,
+): T? {
+    if (action != Intent.ACTION_RUN || componentClassName != INTERNAL_MAIN_ACTIVITY_ALIAS) {
+        return null
+    }
+    return readRoute()
+}
+
 class MainActivity : AppCompatActivity() {
 
     private val viewModel: MainViewModel by viewModels()
@@ -122,7 +136,9 @@ class MainActivity : AppCompatActivity() {
                 showPinyinDictionaryImportDialog()
             }
             Intent.ACTION_RUN -> {
-                val route = intent.parcelable<SettingsRoute>(EXTRA_SETTINGS_ROUTE) ?: return
+                val route = readInternalSettingsRoute(action, intent.component?.className) {
+                    intent.parcelable<SettingsRoute>(EXTRA_SETTINGS_ROUTE)
+                } ?: return
                 navController.popBackStack(SettingsRoute.Index, false)
                 navController.navigateWithAnim(route)
             }

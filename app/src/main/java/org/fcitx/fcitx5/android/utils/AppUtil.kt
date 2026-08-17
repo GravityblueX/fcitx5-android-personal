@@ -7,12 +7,14 @@ package org.fcitx.fcitx5.android.utils
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.ui.main.ClipboardEditActivity
+import org.fcitx.fcitx5.android.ui.main.INTERNAL_MAIN_ACTIVITY_ALIAS
 import org.fcitx.fcitx5.android.ui.main.MainActivity
 import org.fcitx.fcitx5.android.ui.main.settings.SettingsRoute
 import kotlin.system.exitProcess
@@ -26,11 +28,11 @@ object AppUtil {
     }
 
     private fun launchMainToDest(context: Context, route: SettingsRoute) {
-        context.startActivity<MainActivity> {
-            action = Intent.ACTION_RUN
+        context.startActivity(Intent(Intent.ACTION_RUN).apply {
+            component = ComponentName(context.packageName, INTERNAL_MAIN_ACTIVITY_ALIAS)
             putExtra(MainActivity.EXTRA_SETTINGS_ROUTE, route)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
-        }
+        })
     }
 
     fun launchMainToKeyboard(context: Context) =

@@ -128,6 +128,11 @@
             </intent-filter>
         </activity>
 
+        <activity-alias
+            android:name=".ui.main.InternalMainActivity"
+            android:exported="false"
+            android:targetActivity=".ui.main.MainActivity" />
+
         <activity
             android:name=".ui.main.ClipboardEditActivity"
             android:autoRemoveFromRecents="true"
