@@ -25,6 +25,7 @@ import org.fcitx.fcitx5.android.utils.replaceFileAtomically
 import org.xmlpull.v1.XmlPullParser
 import timber.log.Timber
 import java.io.File
+import java.io.InputStream
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -65,6 +66,13 @@ object DataManager {
         return json.decodeFromString<DataDescriptor>(raw)
     }
 
+    private fun deserializeDataDescriptor(
+        input: InputStream,
+        maxBytes: Int = MAX_DATA_DESCRIPTOR_BYTES,
+    ): DataDescriptor {
+        return deserializeDataDescriptor(input.readBoundedDataDescriptorText(maxBytes))
+    }
+
     private fun serializeDataDescriptor(descriptor: DataDescriptor): String {
         return json.encodeToString(descriptor)
     }
@@ -80,9 +88,7 @@ object DataManager {
 
     private fun AssetManager.getDataDescriptor(): DataDescriptor {
         return open(BuildConfig.DATA_DESCRIPTOR_NAME)
-            .bufferedReader()
-            .use { it.readText() }
-            .let { deserializeDataDescriptor(it) }
+            .use { deserializeDataDescriptor(it) }
     }
 
     private val loadedPlugins = mutableSetOf<PluginDescriptor>()
@@ -250,7 +256,9 @@ object DataManager {
         // load last run's data descriptor
         val oldDescriptor = destDescriptorFile
             .runCatching {
-                deserializeDataDescriptor(bufferedReader().use { it.readText() })
+                inputStream().use {
+                    deserializeDataDescriptor(it, MAX_STORED_DATA_DESCRIPTOR_BYTES)
+                }
                     .withValidatedManagedPaths()
             }
             .onFailure { failure ->
@@ -279,10 +287,14 @@ object DataManager {
         for (plugin in parsedDescriptors) {
             val pluginContext = appContext.createPackageContext(plugin.packageName, 0)
             val assets = pluginContext.assets
-            val descriptor = runCatching { assets.getDataDescriptor() }.onFailure {
-                Timber.w("Failed to get or decode data descriptor of '${plugin.name}'")
-                Timber.w(it)
-            }.getOrNull() ?: continue
+            val descriptor = try {
+                assets.getDataDescriptor()
+            } catch (failure: Exception) {
+                Timber.w(failure, "Failed to get or decode data descriptor of '${plugin.name}'")
+                failedPlugins[plugin.packageName] =
+                    PluginLoadFailed.DataDescriptorParseError(plugin)
+                continue
+            }
             try {
                 newHierarchy.install(descriptor, FileSource.Plugin(plugin))
             } catch (e: DataHierarchy.PathConflict) {
@@ -295,8 +307,8 @@ object DataManager {
                 failedPlugins[plugin.packageName] =
                     PluginLoadFailed.PathConflict(plugin, e.path, e.src)
                 continue
-            } catch (e: UnsafeDataDescriptorPath) {
-                Timber.w(e, "Plugin '${plugin.name}' contains an unsafe data path")
+            } catch (e: InvalidDataDescriptor) {
+                Timber.w(e, "Plugin '${plugin.name}' contains an invalid data descriptor")
                 failedPlugins[plugin.packageName] =
                     PluginLoadFailed.DataDescriptorParseError(plugin)
                 continue

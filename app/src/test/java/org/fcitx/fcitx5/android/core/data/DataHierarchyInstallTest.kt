@@ -9,6 +9,60 @@ import org.junit.Test
 
 class DataHierarchyInstallTest {
 
+    private fun paddedManagedPath(index: Int): String {
+        val prefix = "usr/$index/"
+        val segment = "a".repeat(MAX_DATA_DESCRIPTOR_PATH_SEGMENT_BYTES)
+        return prefix + List(3) { segment }.joinToString("/")
+    }
+
+    @Test
+    fun leavesHierarchyUnchangedAfterMergedContentLimit() {
+        val hierarchy = DataHierarchy()
+        val firstFiles = (0 until 700).associate { index ->
+            paddedManagedPath(index) to "a".repeat(MAX_DATA_DESCRIPTOR_HASH_BYTES)
+        }
+        val secondFiles = (700 until 1400).associate { index ->
+            paddedManagedPath(index) to "a".repeat(MAX_DATA_DESCRIPTOR_HASH_BYTES)
+        }
+        hierarchy.install(DataDescriptor("main", firstFiles), FileSource.Main)
+
+        assertThrows(DataDescriptorLimitExceeded::class.java) {
+            hierarchy.install(DataDescriptor("failed-plugin", secondFiles), FileSource.Main)
+        }
+
+        hierarchy.install(
+            DataDescriptor("replacement-plugin", mapOf("usr/replacement" to "replacement")),
+            FileSource.Main,
+        )
+    }
+
+    @Test
+    fun leavesHierarchyUnchangedAfterMergedEntryLimit() {
+        val hierarchy = DataHierarchy()
+        val baselineFiles = (0 until MAX_DATA_DESCRIPTOR_ENTRIES - 1).associate { index ->
+            "usr/baseline-$index" to "file"
+        }
+        hierarchy.install(DataDescriptor("main", baselineFiles), FileSource.Main)
+
+        assertThrows(DataDescriptorLimitExceeded::class.java) {
+            hierarchy.install(
+                DataDescriptor(
+                    "failed-plugin",
+                    mapOf(
+                        "usr/overflow-first" to "first",
+                        "usr/overflow-second" to "second",
+                    ),
+                ),
+                FileSource.Main,
+            )
+        }
+
+        hierarchy.install(
+            DataDescriptor("replacement-plugin", mapOf("usr/overflow-first" to "replacement")),
+            FileSource.Main,
+        )
+    }
+
     @Test
     fun rejectsFilesBelowSymlinkTargets() {
         val hierarchy = DataHierarchy()

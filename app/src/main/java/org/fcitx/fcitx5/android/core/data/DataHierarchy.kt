@@ -16,6 +16,7 @@ class DataHierarchy {
     private val files = mutableMapOf<String, Pair<SHA256, FileSource>>()
     private val descriptorSHA256 = mutableSetOf<SHA256>()
     private val symlinks = mutableMapOf<String, Pair<String, FileSource>>()
+    private var contentBytes = 0L
 
     data class PathConflict(val path: String, val src: FileSource) : Exception()
     data class SymlinkConflict(val path: String, val src: FileSource) : Exception()
@@ -99,9 +100,40 @@ class DataHierarchy {
             }
             Pair(source, src)
         }
+        val mergedEntryCount = files.size + newFiles.keys.count { it !in files } +
+            symlinks.size + newSymlinks.keys.count { it !in symlinks }
+        if (mergedEntryCount > MAX_DATA_DESCRIPTOR_ENTRIES) {
+            throw DataDescriptorLimitExceeded("merged entry count", MAX_DATA_DESCRIPTOR_ENTRIES)
+        }
+        val replacedFileBytes = newFiles.keys.sumOf { path ->
+            files[path]?.let { (hash, _) -> path.contentBytes() + hash.contentBytes() } ?: 0L
+        }
+        val replacedSymlinkBytes = newSymlinks.keys.sumOf { path ->
+            symlinks[path]?.let { (source, _) -> path.contentBytes() + source.contentBytes() } ?: 0L
+        }
+        val addedFileBytes = newFiles.entries.sumOf { (path, value) ->
+            path.contentBytes() + value.first.contentBytes()
+        }
+        val addedSymlinkBytes = newSymlinks.entries.sumOf { (path, value) ->
+            path.contentBytes() + value.first.contentBytes()
+        }
+        val addedDescriptorBytes = if (descriptor.sha256 in descriptorSHA256) {
+            0L
+        } else {
+            descriptor.sha256.contentBytes()
+        }
+        val mergedContentBytes = contentBytes - replacedFileBytes - replacedSymlinkBytes +
+            addedFileBytes + addedSymlinkBytes + addedDescriptorBytes
+        if (mergedContentBytes > MAX_DATA_HIERARCHY_CONTENT_BYTES) {
+            throw DataDescriptorLimitExceeded(
+                "merged content size",
+                MAX_DATA_HIERARCHY_CONTENT_BYTES,
+            )
+        }
         files.putAll(newFiles)
         symlinks.putAll(newSymlinks)
         descriptorSHA256.add(descriptor.sha256)
+        contentBytes = mergedContentBytes
     }
 
     /**
@@ -114,6 +146,8 @@ class DataHierarchy {
             symlinks.mapValues { it.value.first })
 
     companion object {
+        private fun String.contentBytes() = encodeToByteArray().size.toLong()
+
         private val digest by lazy { MessageDigest.getInstance("SHA-256") }
 
         /**

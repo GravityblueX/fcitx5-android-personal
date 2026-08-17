@@ -7,10 +7,129 @@ package org.fcitx.fcitx5.android.core.data
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.nio.file.Files
 
 class DataDescriptorPathTest {
+
+    private fun managedPathOfLength(length: Int): String {
+        var remaining = length - "usr/".length
+        val segments = mutableListOf<String>()
+        while (remaining > 0) {
+            val segmentLength = minOf(MAX_DATA_DESCRIPTOR_PATH_SEGMENT_BYTES, remaining)
+            segments.add("a".repeat(segmentLength))
+            remaining -= segmentLength
+            if (remaining > 0) remaining--
+        }
+        return "usr/${segments.joinToString("/")}"
+    }
+
+    @Test
+    fun boundsEncodedDescriptorSize() {
+        val accepted = ByteArray(MAX_DATA_DESCRIPTOR_BYTES) { ' '.code.toByte() }
+        assertEquals(
+            MAX_DATA_DESCRIPTOR_BYTES,
+            ByteArrayInputStream(accepted).readBoundedDataDescriptorText().length,
+        )
+
+        val oversized = ByteArray(MAX_DATA_DESCRIPTOR_BYTES + 64) { ' '.code.toByte() }
+        val input = ByteArrayInputStream(oversized)
+        assertThrows(DataDescriptorLimitExceeded::class.java) {
+            input.readBoundedDataDescriptorText()
+        }
+        assertEquals(63, input.available())
+    }
+
+    @Test
+    fun boundsDescriptorEntryCount() {
+        val files = (0 until MAX_DATA_DESCRIPTOR_ENTRIES).associate { index ->
+            "usr/file-$index" to "file"
+        }
+        assertEquals(
+            MAX_DATA_DESCRIPTOR_ENTRIES,
+            DataDescriptor("descriptor", files).withValidatedManagedPaths().files.size,
+        )
+
+        assertThrows(DataDescriptorLimitExceeded::class.java) {
+            DataDescriptor(
+                "descriptor",
+                files,
+                mapOf("usr/link" to "usr/source"),
+            ).withValidatedManagedPaths()
+        }
+    }
+
+    @Test
+    fun boundsManagedPathComplexity() {
+        val maximumLengthPath = managedPathOfLength(MAX_DATA_DESCRIPTOR_PATH_LENGTH)
+        DataDescriptor("descriptor", mapOf(maximumLengthPath to "file"))
+            .withValidatedManagedPaths()
+
+        assertThrows(DataDescriptorLimitExceeded::class.java) {
+            DataDescriptor(
+                "descriptor",
+                mapOf(managedPathOfLength(MAX_DATA_DESCRIPTOR_PATH_LENGTH + 1) to "file"),
+            ).withValidatedManagedPaths()
+        }
+
+        val maximumSegmentsPath =
+            "usr/" + List(MAX_DATA_DESCRIPTOR_PATH_SEGMENTS - 1) { "a" }.joinToString("/")
+        DataDescriptor("descriptor", mapOf(maximumSegmentsPath to "file"))
+            .withValidatedManagedPaths()
+
+        assertThrows(DataDescriptorLimitExceeded::class.java) {
+            val excessiveSegmentsPath = "$maximumSegmentsPath/a"
+            DataDescriptor("descriptor", mapOf(excessiveSegmentsPath to "file"))
+                .withValidatedManagedPaths()
+        }
+
+        assertThrows(DataDescriptorLimitExceeded::class.java) {
+            val excessiveSegmentPath =
+                "usr/${"a".repeat(MAX_DATA_DESCRIPTOR_PATH_SEGMENT_BYTES + 1)}"
+            DataDescriptor("descriptor", mapOf(excessiveSegmentPath to "file"))
+                .withValidatedManagedPaths()
+        }
+
+        assertThrows(DataDescriptorLimitExceeded::class.java) {
+            val excessiveEncodedSegmentPath = "usr/${"界".repeat(86)}"
+            DataDescriptor("descriptor", mapOf(excessiveEncodedSegmentPath to "file"))
+                .withValidatedManagedPaths()
+        }
+
+        assertThrows(DataDescriptorLimitExceeded::class.java) {
+            val excessiveEncodedPath =
+                "usr/" + List(5) { "界".repeat(80) }.joinToString("/")
+            DataDescriptor("descriptor", mapOf(excessiveEncodedPath to "file"))
+                .withValidatedManagedPaths()
+        }
+    }
+
+    @Test
+    fun boundsDescriptorHashLength() {
+        val maximumHash = "a".repeat(MAX_DATA_DESCRIPTOR_HASH_BYTES)
+        DataDescriptor(maximumHash, mapOf("usr/file" to maximumHash))
+            .withValidatedManagedPaths()
+
+        assertThrows(DataDescriptorLimitExceeded::class.java) {
+            DataDescriptor("a".repeat(MAX_DATA_DESCRIPTOR_HASH_BYTES + 1), emptyMap())
+                .withValidatedManagedPaths()
+        }
+        assertThrows(DataDescriptorLimitExceeded::class.java) {
+            DataDescriptor(
+                "descriptor",
+                mapOf("usr/file" to "a".repeat(MAX_DATA_DESCRIPTOR_HASH_BYTES + 1)),
+            ).withValidatedManagedPaths()
+        }
+    }
+
+    @Test
+    fun acceptsEmptyServiceOnlyDescriptor() {
+        val descriptor = DataDescriptor("service", emptyMap()).withValidatedManagedPaths()
+
+        assertEquals(emptyMap<String, String>(), descriptor.files)
+        assertEquals(emptyMap<String, String>(), descriptor.symlinks)
+    }
 
     @Test
     fun normalizesManagedDescriptorPaths() {
@@ -54,6 +173,8 @@ class DataDescriptorPathTest {
             "usr//share/file",
             "usr/./share/file",
             "usr/share/../file",
+            "usr/share/\u0000file",
+            "usr/share/\u0001file",
         ).forEach { path ->
             val failure = assertThrows(UnsafeDataDescriptorPath::class.java) {
                 DataDescriptor("descriptor", mapOf(path to "file"))
