@@ -14,6 +14,7 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.InputStream
 import java.nio.file.Files
 import java.util.concurrent.Callable
 import java.util.concurrent.CyclicBarrier
@@ -193,11 +194,43 @@ class ThemeFileTransactionTest {
                     "new content".byteInputStream(),
                     directory,
                     "background-src",
-                    publish = { _, _ -> error("Unexpected publish") },
                 )
             }
 
             assertEquals("existing", existing.readText())
+            assertEquals(listOf("background-src"), directory.list()?.sorted())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun doesNotReplaceThemeFileCreatedWhileContentIsStaged() {
+        val root = Files.createTempDirectory("theme-publish-").toFile()
+        try {
+            val directory = root.resolve("destination").apply { mkdir() }
+            val destination = directory.resolve("background-src")
+            var contentRead = false
+            val stream = object : InputStream() {
+                private var emitted = false
+
+                override fun read(): Int {
+                    if (!contentRead) {
+                        destination.writeText("concurrent content")
+                        contentRead = true
+                    }
+                    if (emitted) return -1
+                    emitted = true
+                    return 1
+                }
+            }
+
+            assertThrows(FileAlreadyExistsException::class.java) {
+                publishNewThemeFile(stream, directory, "background-src")
+            }
+
+            assertTrue(contentRead)
+            assertEquals("concurrent content", destination.readText())
             assertEquals(listOf("background-src"), directory.list()?.sorted())
         } finally {
             root.deleteRecursively()

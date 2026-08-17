@@ -1,6 +1,5 @@
 package org.fcitx.fcitx5.android.data.theme
 
-import android.system.Os
 import kotlinx.serialization.json.Json
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.utils.appContext
@@ -9,6 +8,7 @@ import org.fcitx.fcitx5.android.utils.ensureDirectory
 import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
 import org.fcitx.fcitx5.android.utils.errorRuntime
 import org.fcitx.fcitx5.android.utils.extract
+import org.fcitx.fcitx5.android.utils.moveToWithoutReplacing
 import org.fcitx.fcitx5.android.utils.removeIfExists
 import org.fcitx.fcitx5.android.utils.replaceFileAtomically
 import org.fcitx.fcitx5.android.utils.resolveDirectChild
@@ -17,6 +17,7 @@ import org.fcitx.fcitx5.android.utils.withTempDir
 import timber.log.Timber
 import java.io.File
 import java.io.FileFilter
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.UUID
@@ -376,7 +377,10 @@ internal fun publishNewThemeFile(
     directory: File,
     fileName: String,
     publish: (File, File) -> Unit = { staged, destination ->
-        Os.rename(staged.path, destination.path)
+        if (!staged.moveToWithoutReplacing(destination)) {
+            if (destination.exists()) throw FileAlreadyExistsException(destination)
+            throw IOException("Cannot publish theme file: ${destination.path}")
+        }
     },
 ): File {
     directory.ensureDirectory()
@@ -394,7 +398,6 @@ internal fun publishNewThemeFile(
     ) {
         staged.outputStream().use { output -> stream.copyTo(output) }
         runThemeFileOperation {
-            if (destination.exists()) throw FileAlreadyExistsException(destination)
             publish(staged, destination)
             check(destination.isFile) { "Failed to publish theme file: ${destination.path}" }
             destination
