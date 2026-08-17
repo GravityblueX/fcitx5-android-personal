@@ -11,6 +11,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.util.concurrent.Callable
 import java.util.concurrent.CyclicBarrier
@@ -60,6 +61,84 @@ class PinyinDictManagerTest {
         assertTrue(isPinyinImportStagingFile(".pinyin-import-123.staged"))
         assertFalse(isPinyinImportStagingFile("pinyin-import-123.staged"))
         assertFalse(isPinyinImportStagingFile(".pinyin-import-123.dict"))
+    }
+
+    @Test
+    fun publishesNewPinyinDictionaryAtomically() {
+        val directory = Files.createTempDirectory("pinyin-publish-").toFile()
+        try {
+            val staged = directory.resolve(".staged").apply { writeText("dictionary") }
+            val destination = directory.resolve("custom.dict")
+
+            val published = publishPinyinDictionary(staged, destination)
+
+            assertEquals(destination, published)
+            assertEquals("dictionary", destination.readText())
+            assertFalse(staged.exists())
+            assertEquals(listOf("custom.dict"), directory.list()?.sorted())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun preservesExistingPinyinDictionaryDuringPublish() {
+        val directory = Files.createTempDirectory("pinyin-publish-").toFile()
+        try {
+            val staged = directory.resolve(".staged").apply { writeText("new dictionary") }
+            val destination = directory.resolve("custom.dict").apply {
+                writeText("existing dictionary")
+            }
+
+            assertThrows(FileAlreadyExistsException::class.java) {
+                publishPinyinDictionary(staged, destination)
+            }
+
+            assertEquals("existing dictionary", destination.readText())
+            assertEquals("new dictionary", staged.readText())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun preservesPinyinDictionaryCreatedAfterValidation() {
+        val directory = Files.createTempDirectory("pinyin-publish-").toFile()
+        try {
+            val staged = directory.resolve(".staged").apply { writeText("new dictionary") }
+            val destination = directory.resolve("custom.dict")
+
+            assertThrows(FileAlreadyExistsException::class.java) {
+                publishPinyinDictionary(
+                    staged,
+                    destination,
+                    validate = { destination.writeText("concurrent dictionary") },
+                )
+            }
+
+            assertEquals("concurrent dictionary", destination.readText())
+            assertEquals("new dictionary", staged.readText())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun reportsPinyinPublishFailureWithoutDeletingStaging() {
+        val directory = Files.createTempDirectory("pinyin-publish-").toFile()
+        try {
+            val staged = directory.resolve(".staged").apply { writeText("dictionary") }
+            val destination = directory.resolve("custom.dict")
+
+            assertThrows(IOException::class.java) {
+                publishPinyinDictionary(staged, destination, move = { _, _ -> false })
+            }
+
+            assertEquals("dictionary", staged.readText())
+            assertFalse(destination.exists())
+        } finally {
+            directory.deleteRecursively()
+        }
     }
 
     @Test

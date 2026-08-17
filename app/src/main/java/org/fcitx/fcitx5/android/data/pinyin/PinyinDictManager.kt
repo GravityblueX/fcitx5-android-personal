@@ -4,7 +4,6 @@
  */
 package org.fcitx.fcitx5.android.data.pinyin
 
-import android.system.Os
 import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.data.DataManager
 import org.fcitx.fcitx5.android.data.pinyin.dict.BuiltinDictionary
@@ -17,6 +16,7 @@ import org.fcitx.fcitx5.android.utils.appContext
 import org.fcitx.fcitx5.android.utils.externalFilesDirOrFilesDir
 import org.fcitx.fcitx5.android.utils.errorArg
 import org.fcitx.fcitx5.android.utils.ensureDirectory
+import org.fcitx.fcitx5.android.utils.moveToWithoutReplacing
 import org.fcitx.fcitx5.android.utils.removeIfExists
 import org.fcitx.fcitx5.android.utils.resolveDirectChild
 import org.fcitx.fcitx5.android.utils.runWithCleanup
@@ -96,18 +96,25 @@ object PinyinDictManager {
                 },
             ) {
                 converted.file.copyTo(staged, overwrite = true)
-                runPinyinDictionaryOperation {
-                    if (pinyinDictionaryEntryExists(
-                            pinyinDicDir,
-                            builtinPinyinDictDir,
-                            target.entryName,
-                        )
-                    ) {
-                        errorArg(R.string.dict_already_exists)
-                    }
-                    Os.rename(staged.path, destination.path)
-                    LibIMEDictionary(destination).also { Timber.d("Converted $raw to $it") }
+                val published = try {
+                    publishPinyinDictionary(
+                        staged,
+                        destination,
+                        validate = {
+                            if (pinyinDictionaryEntryExists(
+                                    pinyinDicDir,
+                                    builtinPinyinDictDir,
+                                    target.entryName,
+                                )
+                            ) {
+                                throw FileAlreadyExistsException(destination)
+                            }
+                        },
+                    )
+                } catch (_: FileAlreadyExistsException) {
+                    errorArg(R.string.dict_already_exists)
                 }
+                LibIMEDictionary(published).also { Timber.d("Converted $raw to $it") }
             }
         }
     }
@@ -179,6 +186,25 @@ object PinyinDictManager {
 
 internal fun isPinyinImportStagingFile(fileName: String): Boolean =
     fileName.startsWith(".pinyin-import-") && fileName.endsWith(".staged")
+
+internal fun publishPinyinDictionary(
+    staged: File,
+    destination: File,
+    validate: () -> Unit = {},
+    move: (File, File) -> Boolean = { source, target ->
+        source.moveToWithoutReplacing(target)
+    },
+): File = runPinyinDictionaryOperation {
+    validate()
+    if (!move(staged, destination)) {
+        if (destination.exists()) throw FileAlreadyExistsException(destination)
+        throw IOException("Cannot publish pinyin dictionary: ${destination.path}")
+    }
+    check(destination.isFile) {
+        "Failed to publish pinyin dictionary: ${destination.path}"
+    }
+    destination
+}
 
 internal data class PinyinDictionaryImportTarget(
     val sourceFileName: String,
