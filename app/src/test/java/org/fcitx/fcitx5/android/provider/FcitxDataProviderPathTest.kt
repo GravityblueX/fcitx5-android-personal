@@ -18,6 +18,31 @@ import java.nio.file.Files
 
 class FcitxDataProviderPathTest {
 
+    private val internalArtifactNames = listOf(
+        ".document-copy-123e4567-e89b-12d3-a456-426614174000.staged",
+        ".document-delete-123e4567-e89b-12d3-a456-426614174000.staged",
+        "file-install-123.staged",
+        ".quickphrase-import-123.staged",
+        ".pinyin-import-123.staged",
+        ".theme-install-123.staged",
+        "theme-123.staged",
+        ".theme-import-123.transaction",
+    )
+
+    private val visibleArtifactLookalikes = listOf(
+        ".document-copy-not-a-uuid.staged",
+        "file-install-123.tmp",
+        ".quickphrase-import-123.tmp",
+        ".pinyin-import-123.tmp",
+        ".theme-install-123.tmp",
+        "theme-123.staged.backup",
+        ".theme-import-123.transaction.backup",
+        ".notes",
+        "draft.staged",
+        "table-dict-123.dict",
+        "table-import-123.journal",
+    )
+
     private val removeRecursively: (File) -> Result<Unit> = { file ->
         runCatching {
             check(file.deleteRecursively() || !file.exists()) {
@@ -209,32 +234,41 @@ class FcitxDataProviderPathTest {
     }
 
     @Test
-    fun rejectsReservedDocumentOperationStagingNames() {
-        assertThrows(IllegalArgumentException::class.java) {
-            safeDocumentDisplayName(
-                ".document-copy-123e4567-e89b-12d3-a456-426614174000.staged"
-            )
+    fun rejectsReservedInternalArtifactNames() {
+        internalArtifactNames.forEach { fileName ->
+            assertThrows(IllegalArgumentException::class.java) {
+                safeDocumentDisplayName(fileName)
+            }
+            assertThrows(IllegalArgumentException::class.java) {
+                safeDocumentDisplayName("directory/$fileName")
+            }
         }
-        assertThrows(IllegalArgumentException::class.java) {
-            safeDocumentDisplayName(
-                ".document-delete-123e4567-e89b-12d3-a456-426614174000.staged"
-            )
+
+        visibleArtifactLookalikes.forEach { fileName ->
+            assertEquals(fileName, safeDocumentDisplayName(fileName))
         }
+
         assertEquals("visible.txt", safeDocumentDisplayName("directory/visible.txt"))
     }
 
     @Test
-    fun identifiesStagingPathsAndTheirDescendants() {
+    fun identifiesInternalArtifactsAndTheirDescendants() {
         val root = File("root")
-        val staging = root.resolve(
-            ".document-delete-123e4567-e89b-12d3-a456-426614174000.staged"
-        )
 
-        assertFalse(isDocumentStagingPath(root, root))
-        assertTrue(isDocumentStagingPath(staging, root))
-        assertTrue(isDocumentStagingPath(staging.resolve("child.txt"), root))
-        assertFalse(isDocumentStagingPath(root.resolve("ordinary/child.txt"), root))
-        assertFalse(isDocumentStagingPath(File("outside/child.txt"), root))
+        internalArtifactNames.forEach { fileName ->
+            assertTrue(isInternalDocumentArtifactName(fileName))
+            val artifact = root.resolve(fileName)
+            assertTrue(isInternalDocumentArtifactPath(artifact, root))
+            assertTrue(isInternalDocumentArtifactPath(artifact.resolve("child.txt"), root))
+        }
+        visibleArtifactLookalikes.forEach { fileName ->
+            assertFalse(isInternalDocumentArtifactName(fileName))
+            assertFalse(isInternalDocumentArtifactPath(root.resolve(fileName), root))
+        }
+
+        assertFalse(isInternalDocumentArtifactPath(root, root))
+        assertFalse(isInternalDocumentArtifactPath(root.resolve("ordinary/child.txt"), root))
+        assertFalse(isInternalDocumentArtifactPath(File("outside/child.txt"), root))
     }
 
     @Test
@@ -246,10 +280,33 @@ class FcitxDataProviderPathTest {
             val missing = root.resolve("missing.txt")
             val outside = container.resolve("outside.txt").apply { writeText("outside") }
             val staging = createDocumentCopyStaging(root, isDirectory = false)
+            val fileInstallStaging = root.resolve("file-install-123.staged").apply {
+                writeText("partial")
+            }
+            val transaction = root.resolve(".theme-import-123.transaction").apply { mkdir() }
+            val transactionJournal = transaction.resolve("journal.json").apply {
+                writeText("internal")
+            }
+            val ordinaryStaging = root.resolve("draft.staged").apply { writeText("visible") }
+            val legitimateTableDictionary = root.resolve("table-dict-123.dict").apply {
+                writeText("visible")
+            }
 
             assertEquals(
                 existing.canonicalFile,
                 resolveExistingDocumentPath(existing, root, "root/existing.txt"),
+            )
+            assertEquals(
+                ordinaryStaging.canonicalFile,
+                resolveExistingDocumentPath(ordinaryStaging, root, "root/draft.staged"),
+            )
+            assertEquals(
+                legitimateTableDictionary.canonicalFile,
+                resolveExistingDocumentPath(
+                    legitimateTableDictionary,
+                    root,
+                    "root/table-dict-123.dict",
+                ),
             )
             assertThrows(FileNotFoundException::class.java) {
                 resolveExistingDocumentPath(missing, root, "root/missing.txt")
@@ -259,6 +316,20 @@ class FcitxDataProviderPathTest {
             }
             assertThrows(FileNotFoundException::class.java) {
                 resolveExistingDocumentPath(staging, root, "root/${staging.name}")
+            }
+            assertThrows(FileNotFoundException::class.java) {
+                resolveExistingDocumentPath(
+                    fileInstallStaging,
+                    root,
+                    "root/${fileInstallStaging.name}",
+                )
+            }
+            assertThrows(FileNotFoundException::class.java) {
+                resolveExistingDocumentPath(
+                    transactionJournal,
+                    root,
+                    "root/${transaction.name}/${transactionJournal.name}",
+                )
             }
             assertFalse(missing.exists())
         } finally {
@@ -397,6 +468,16 @@ class FcitxDataProviderPathTest {
             val unrelated = root.resolve(".document-copy-not-a-uuid.staged").apply {
                 writeText("keep")
             }
+            val fileInstallStaging = root.resolve("file-install-123.staged").apply {
+                writeText("keep")
+            }
+            val quickPhraseStaging = regularDirectory
+                .resolve(".quickphrase-import-123.staged")
+                .apply { writeText("keep") }
+            val themeTransaction = root.resolve(".theme-import-123.transaction").apply { mkdir() }
+            val themeJournal = themeTransaction.resolve("journal.json").apply {
+                writeText("keep")
+            }
 
             val results = cleanupStagedDocuments(root, removeRecursively)
 
@@ -407,6 +488,10 @@ class FcitxDataProviderPathTest {
             assertFalse(stagedDeletion.exists())
             assertTrue(regularDirectory.isDirectory)
             assertTrue(unrelated.isFile)
+            assertTrue(fileInstallStaging.isFile)
+            assertTrue(quickPhraseStaging.isFile)
+            assertTrue(themeTransaction.isDirectory)
+            assertTrue(themeJournal.isFile)
         } finally {
             root.deleteRecursively()
         }

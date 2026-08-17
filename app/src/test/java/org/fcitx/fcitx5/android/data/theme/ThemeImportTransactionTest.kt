@@ -76,6 +76,9 @@ class ThemeImportTransactionTest {
                 "$THEME_IMPORT_TRANSACTION_PREFIX-file$THEME_IMPORT_TRANSACTION_SUFFIX"
             ).apply { writeText("keep") }
 
+            assertTrue(isThemeImportTransactionName(transaction.name))
+            assertFalse(isThemeImportTransactionName(missingSuffix.name))
+            assertTrue(isThemeImportTransactionName(matchingFile.name))
             assertTrue(isThemeImportTransactionDirectory(transaction))
             assertFalse(isThemeImportTransactionDirectory(missingSuffix))
             assertFalse(isThemeImportTransactionDirectory(matchingFile))

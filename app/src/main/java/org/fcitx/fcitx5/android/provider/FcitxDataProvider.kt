@@ -14,7 +14,13 @@ import android.provider.DocumentsContract.Document
 import android.provider.DocumentsContract.Root
 import android.provider.DocumentsProvider
 import android.webkit.MimeTypeMap
+import org.fcitx.fcitx5.android.data.pinyin.isPinyinImportStagingFile
+import org.fcitx.fcitx5.android.data.quickphrase.isQuickPhraseImportStagingFile
+import org.fcitx.fcitx5.android.data.theme.isLegacyThemeMetadataStagingFile
+import org.fcitx.fcitx5.android.data.theme.isThemeImportTransactionName
+import org.fcitx.fcitx5.android.data.theme.isThemeInstallStagingFile
 import org.fcitx.fcitx5.android.utils.FileUtil
+import org.fcitx.fcitx5.android.utils.isFileInstallStagingFile
 import org.fcitx.fcitx5.android.utils.moveToWithoutReplacing
 import org.fcitx.fcitx5.android.utils.safeFileName
 import org.fcitx.fcitx5.android.R
@@ -79,18 +85,27 @@ internal fun isDocumentStagingFileName(fileName: String): Boolean {
     return uuid.toString().equals(id, ignoreCase = true)
 }
 
+internal fun isInternalDocumentArtifactName(fileName: String): Boolean =
+    isDocumentStagingFileName(fileName) ||
+            isFileInstallStagingFile(fileName) ||
+            isQuickPhraseImportStagingFile(fileName) ||
+            isPinyinImportStagingFile(fileName) ||
+            isThemeInstallStagingFile(fileName) ||
+            isLegacyThemeMetadataStagingFile(fileName) ||
+            isThemeImportTransactionName(fileName)
+
 internal fun safeDocumentDisplayName(displayName: String): String =
     displayName.safeFileName().also { safeName ->
-        require(!isDocumentStagingFileName(safeName)) {
-            "Document name is reserved for internal staging: $safeName"
+        require(!isInternalDocumentArtifactName(safeName)) {
+            "Document name is reserved for an internal artifact: $safeName"
         }
     }
 
-internal fun isDocumentStagingPath(file: File, root: File): Boolean {
+internal fun isInternalDocumentArtifactPath(file: File, root: File): Boolean {
     var current = file
     while (current != root) {
         if (!isSameOrDescendant(current, root)) return false
-        if (isDocumentStagingFileName(current.name)) return true
+        if (isInternalDocumentArtifactName(current.name)) return true
         current = current.parentFile ?: return false
     }
     return false
@@ -112,8 +127,8 @@ internal fun resolveExistingDocumentPath(
     if (!isSameOrDescendant(file, baseDir)) {
         throw FileNotFoundException("documentId=$documentId is outside the data directory")
     }
-    if (isDocumentStagingPath(file, baseDir)) {
-        throw FileNotFoundException("documentId=$documentId is an internal staging path")
+    if (isInternalDocumentArtifactPath(file, baseDir)) {
+        throw FileNotFoundException("documentId=$documentId is an internal artifact path")
     }
     if (!file.exists()) {
         throw FileNotFoundException("documentId=$documentId does not exist")
@@ -294,7 +309,7 @@ class FcitxDataProvider : DocumentsProvider() {
         val canonical = file.canonicalFile
         canonical == file.absoluteFile.normalize() &&
                 isSameOrDescendant(canonical, baseDir) &&
-                !isDocumentStagingPath(canonical, baseDir)
+                !isInternalDocumentArtifactPath(canonical, baseDir)
     }.getOrDefault(false)
 
     @Throws(FileNotFoundException::class)
@@ -346,9 +361,7 @@ class FcitxDataProvider : DocumentsProvider() {
         sortOrder: String?
     ) = MatrixCursor(projection ?: DEFAULT_DOCUMENT_PROJECTION).apply {
         fileFromDocId(parentDocumentId).listFiles()
-            ?.filter { file ->
-                isSafeDocumentPath(file) && !isDocumentStagingFileName(file.name)
-            }
+            ?.filter(::isSafeDocumentPath)
             ?.forEach { newRowFromFile(it) }
     }
 
@@ -439,9 +452,7 @@ class FcitxDataProvider : DocumentsProvider() {
         val children = source.listFiles()
             ?: throw IOException("Cannot list source directory: ${source.path}")
         children
-            .filter { child ->
-                isSafeDocumentPath(child) && !isDocumentStagingFileName(child.name)
-            }
+            .filter(::isSafeDocumentPath)
             .forEach { child ->
                 val childDestination = destination.resolve(child.name)
                 if (!reserveDocumentDestination(childDestination, child.isDirectory)) {
@@ -529,12 +540,9 @@ class FcitxDataProvider : DocumentsProvider() {
     ) = MatrixCursor(projection ?: DEFAULT_DOCUMENT_PROJECTION).apply {
         val q = query.lowercase()
         fileFromDocId(rootId).walkTopDown()
-            .onEnter { file ->
-                isSafeDocumentPath(file) && !isDocumentStagingFileName(file.name)
-            }
+            .onEnter(::isSafeDocumentPath)
             .filter { file ->
                 isSafeDocumentPath(file) &&
-                        !isDocumentStagingFileName(file.name) &&
                         file.name.lowercase().contains(q)
             }
             .take(SEARCH_RESULTS_LIMIT)

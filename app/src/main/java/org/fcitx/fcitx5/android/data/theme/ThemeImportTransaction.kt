@@ -67,10 +67,12 @@ private fun themeImportJournalFile(transactionDirectory: File): File =
 private fun themeImportCommitFile(transactionDirectory: File): File =
     transactionDirectory.resolveDirectChild(THEME_IMPORT_COMMIT_FILE_NAME)
 
+internal fun isThemeImportTransactionName(fileName: String): Boolean =
+    fileName.startsWith(THEME_IMPORT_TRANSACTION_PREFIX) &&
+            fileName.endsWith(THEME_IMPORT_TRANSACTION_SUFFIX)
+
 internal fun isThemeImportTransactionDirectory(file: File): Boolean =
-    file.isDirectory &&
-            file.name.startsWith(THEME_IMPORT_TRANSACTION_PREFIX) &&
-            file.name.endsWith(THEME_IMPORT_TRANSACTION_SUFFIX)
+    file.isDirectory && isThemeImportTransactionName(file.name)
 
 internal fun hasUnresolvedThemeImportTransaction(directory: File): Boolean =
     directory.listFiles()
