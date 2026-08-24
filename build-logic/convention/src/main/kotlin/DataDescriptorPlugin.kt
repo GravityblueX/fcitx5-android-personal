@@ -23,10 +23,9 @@ import org.gradle.kotlin.dsl.register
 import org.gradle.work.ChangeType
 import org.gradle.work.Incremental
 import org.gradle.work.InputChanges
-import org.jetbrains.kotlin.com.google.common.hash.Hashing
-import org.jetbrains.kotlin.com.google.common.io.ByteSource
 import java.io.File
 import java.nio.charset.Charset
+import java.security.MessageDigest
 
 interface DataDescriptorPluginExtension {
     /**
@@ -78,7 +77,7 @@ class DataDescriptorPlugin : Plugin<Project> {
         )
 
         @get:Incremental
-        @get:PathSensitive(PathSensitivity.NAME_ONLY)
+        @get:PathSensitive(PathSensitivity.RELATIVE)
         @get:InputDirectory
         abstract val inputDir: DirectoryProperty
 
@@ -97,11 +96,10 @@ class DataDescriptorPlugin : Plugin<Project> {
             if (symlinks.keys.intersect(files.keys).isNotEmpty())
                 throw IllegalArgumentException("Symlink target cannot be path in files")
             val descriptor = DataDescriptor(
-                Hashing.sha256()
-                    .hashString(
-                        (files + symlinks).entries.joinToString { it.key + it.value },
-                        Charset.defaultCharset()
-                    ).toString(),
+                sha256(
+                    (files + symlinks).entries.joinToString { it.key + it.value }
+                        .toByteArray(Charset.defaultCharset())
+                ),
                 files,
                 symlinks
             )
@@ -112,8 +110,40 @@ class DataDescriptorPlugin : Plugin<Project> {
             json.decodeFromString<DataDescriptor>(file.readText()).files
 
         companion object {
-            fun sha256(file: File): String =
-                ByteSource.wrap(file.readBytes()).hash(Hashing.sha256()).toString()
+            private val lowercaseHexDigits = "0123456789abcdef".toCharArray()
+
+            private fun ByteArray.toLowercaseHex(): String {
+                val characters = CharArray(size * 2)
+                forEachIndexed { index, byte ->
+                    val value = byte.toInt() and 0xff
+                    characters[index * 2] = lowercaseHexDigits[value ushr 4]
+                    characters[index * 2 + 1] = lowercaseHexDigits[value and 0x0f]
+                }
+                return characters.concatToString()
+            }
+
+            private fun sha256(bytes: ByteArray): String =
+                MessageDigest.getInstance("SHA-256").digest(bytes).toLowercaseHex()
+
+            fun sha256(file: File): String {
+                val digest = MessageDigest.getInstance("SHA-256")
+                file.inputStream().use { input ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    while (true) {
+                        val count = input.read(buffer)
+                        when {
+                            count < 0 -> break
+                            count > 0 -> digest.update(buffer, 0, count)
+                            else -> {
+                                val next = input.read()
+                                if (next < 0) break
+                                digest.update(next.toByte())
+                            }
+                        }
+                    }
+                }
+                return digest.digest().toLowercaseHex()
+            }
         }
 
         @TaskAction
