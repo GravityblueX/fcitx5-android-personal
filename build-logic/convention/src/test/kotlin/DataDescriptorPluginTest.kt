@@ -7,6 +7,7 @@ import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -23,18 +24,29 @@ class DataDescriptorPluginTest {
         .withArguments(DataDescriptorPlugin.TASK, "--stacktrace")
         .build()
 
-    private fun setUpProject() {
-        projectDirectory.newFile("settings.gradle").writeText(
-            "rootProject.name = 'data-descriptor-test'"
-        )
-        projectDirectory.newFile("build.gradle").writeText(
+    private fun writeBuildFile(symlinks: List<Pair<String, String>> = emptyList()) {
+        val symlinkConfiguration = symlinks.joinToString("\n") { (target, source) ->
+            "    symlinks.put('$target', '$source')"
+        }
+        projectDirectory.root.resolve("build.gradle").writeText(
             """
             plugins {
                 id 'base'
                 id 'org.fcitx.fcitx5.android.data-descriptor'
             }
+
+            generateDataDescriptor {
+            $symlinkConfiguration
+            }
             """.trimIndent()
         )
+    }
+
+    private fun setUpProject(symlinks: List<Pair<String, String>> = emptyList()) {
+        projectDirectory.newFile("settings.gradle").writeText(
+            "rootProject.name = 'data-descriptor-test'"
+        )
+        writeBuildFile(symlinks)
     }
 
     @Test
@@ -88,5 +100,55 @@ class DataDescriptorPluginTest {
         )
         assertTrue("nested/child" in generated.files)
         assertFalse(generated.files.keys.any { '\\' in it })
+    }
+
+    @Test
+    fun distinguishesFramedSymlinkMappingsInIdentity() {
+        setUpProject(
+            listOf("usr/a" to "usr/b, usr/cusr/d")
+        )
+        val descriptor = projectDirectory.root.resolve(
+            "src/main/assets/${DataDescriptorPlugin.FILE_NAME}"
+        )
+
+        runDescriptorTask()
+        val first = json.decodeFromString<DataDescriptorPlugin.DataDescriptorTask.DataDescriptor>(
+            descriptor.readText()
+        )
+
+        writeBuildFile(
+            listOf(
+                "usr/a" to "usr/b",
+                "usr/c" to "usr/d",
+            )
+        )
+        runDescriptorTask()
+        val second = json.decodeFromString<DataDescriptorPlugin.DataDescriptorTask.DataDescriptor>(
+            descriptor.readText()
+        )
+
+        assertNotEquals(first.symlinks, second.symlinks)
+        assertNotEquals(first.sha256, second.sha256)
+    }
+
+    @Test
+    fun producesSameDescriptorForReorderedSymlinks() {
+        val firstOrder = listOf(
+            "usr/link-b" to "usr/source-b",
+            "usr/link-a" to "usr/source-a",
+        )
+        setUpProject(firstOrder)
+        val descriptor = projectDirectory.root.resolve(
+            "src/main/assets/${DataDescriptorPlugin.FILE_NAME}"
+        )
+
+        runDescriptorTask()
+        val first = descriptor.readText()
+        assertTrue(descriptor.delete())
+
+        writeBuildFile(firstOrder.reversed())
+        runDescriptorTask()
+
+        assertEquals(first, descriptor.readText())
     }
 }

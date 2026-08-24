@@ -24,7 +24,7 @@ import org.gradle.work.ChangeType
 import org.gradle.work.Incremental
 import org.gradle.work.InputChanges
 import java.io.File
-import java.nio.charset.Charset
+import java.nio.ByteBuffer
 import java.security.MessageDigest
 
 interface DataDescriptorPluginExtension {
@@ -93,15 +93,14 @@ class DataDescriptorPlugin : Plugin<Project> {
         private val file by lazy { outputFile.get().asFile }
 
         private fun serialize(files: Map<String, String>, symlinks: Map<String, String>) {
-            if (symlinks.keys.intersect(files.keys).isNotEmpty())
+            val sortedFiles = files.toSortedMap()
+            val sortedSymlinks = symlinks.toSortedMap()
+            if (sortedSymlinks.keys.intersect(sortedFiles.keys).isNotEmpty())
                 throw IllegalArgumentException("Symlink target cannot be path in files")
             val descriptor = DataDescriptor(
-                sha256(
-                    (files + symlinks).entries.joinToString { it.key + it.value }
-                        .toByteArray(Charset.defaultCharset())
-                ),
-                files,
-                symlinks
+                descriptorSha256(sortedFiles, sortedSymlinks),
+                sortedFiles,
+                sortedSymlinks
             )
             file.writeText(json.encodeToString(descriptor))
         }
@@ -122,8 +121,34 @@ class DataDescriptorPlugin : Plugin<Project> {
                 return characters.concatToString()
             }
 
-            private fun sha256(bytes: ByteArray): String =
-                MessageDigest.getInstance("SHA-256").digest(bytes).toLowercaseHex()
+            private fun MessageDigest.updateInt(value: Int) {
+                update(ByteBuffer.allocate(Int.SIZE_BYTES).putInt(value).array())
+            }
+
+            private fun MessageDigest.updateLengthPrefixed(value: String) {
+                val bytes = value.encodeToByteArray()
+                updateInt(bytes.size)
+                update(bytes)
+            }
+
+            private fun MessageDigest.updateEntries(entries: Map<String, String>) {
+                updateInt(entries.size)
+                entries.forEach { (key, value) ->
+                    updateLengthPrefixed(key)
+                    updateLengthPrefixed(value)
+                }
+            }
+
+            private fun descriptorSha256(
+                files: Map<String, String>,
+                symlinks: Map<String, String>,
+            ): String {
+                val digest = MessageDigest.getInstance("SHA-256")
+                digest.updateLengthPrefixed("DataDescriptorIdentityV1")
+                digest.updateEntries(files)
+                digest.updateEntries(symlinks)
+                return digest.digest().toLowercaseHex()
+            }
 
             fun sha256(file: File): String {
                 val digest = MessageDigest.getInstance("SHA-256")
@@ -185,7 +210,7 @@ class DataDescriptorPlugin : Plugin<Project> {
                     map[p.toDescriptorPath()] = ""
                 }
             }
-            serialize(map.toSortedMap(), symlinks.get())
+            serialize(map, symlinks.get())
         }
     }
 }
