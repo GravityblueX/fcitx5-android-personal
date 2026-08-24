@@ -28,18 +28,20 @@ verification_details() {
   "$apksigner" verify --verbose --print-certs "$1" 2>&1
 }
 
-fingerprint() {
-  verification_details "$1" | awk '/certificate SHA-256 digest:/ { print $NF; exit }'
+fingerprints() {
+  verification_details "$1" |
+    awk '/certificate SHA-256 digest:/ { print $NF }' |
+    LC_ALL=C sort -u
 }
 
 manifest() {
   "$aapt2" dump xmltree --file AndroidManifest.xml "$1"
 }
 
-host_fingerprint="$(fingerprint "$host_apk")"
+host_fingerprints="$(fingerprints "$host_apk")"
 host_package="$("$aapt2" dump packagename "$host_apk")"
 
-if [[ -z "$host_fingerprint" ]]; then
+if [[ -z "$host_fingerprints" ]]; then
   echo "Could not read a host signing certificate: $host_apk" >&2
   echo "apksigner: $apksigner" >&2
   verification_details "$host_apk" >&2 || true
@@ -60,9 +62,9 @@ handwriting_seen=false
 clipboard_filter_seen=false
 
 for plugin_apk in "${plugin_apks[@]}"; do
-  plugin_fingerprint="$(fingerprint "$plugin_apk")"
-  if [[ "$plugin_fingerprint" != "$host_fingerprint" ]]; then
-    echo "Plugin signing certificate differs from the debug host: $plugin_apk" >&2
+  plugin_fingerprints="$(fingerprints "$plugin_apk")"
+  if [[ "$plugin_fingerprints" != "$host_fingerprints" ]]; then
+    echo "Plugin signing certificate set differs from the debug host: $plugin_apk" >&2
     exit 1
   fi
 
