@@ -57,7 +57,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Run unit tests and build release APKs
-        run: ./gradlew :app:testDebugUnitTest :app:assembleRelease :app:assembleReleasePlugins --stacktrace
+        run: ./gradlew :app:testDebugUnitTest :app:assembleRelease :assembleReleasePlugins --stacktrace
 
       - name: Generate APK checksums
         run: bash scripts/generate-release-checksums.sh
