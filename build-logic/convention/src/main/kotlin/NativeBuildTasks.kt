@@ -18,6 +18,7 @@ import org.gradle.api.tasks.TaskAction
 import org.gradle.kotlin.dsl.property
 import org.gradle.kotlin.dsl.withType
 import org.gradle.process.ExecSpec
+import org.gradle.work.DisableCachingByDefault
 import java.io.File
 
 fun ExternalNativeBuildJsonTask.abiModel(): CxxAbiModel {
@@ -47,6 +48,7 @@ fun Project.getCxxAbiModelProperty(): Property<CxxAbiModel> {
     return abiModel
 }
 
+@DisableCachingByDefault(because = "Runs external native build and install commands with shared outputs")
 abstract class CMakeBuildInstallTask : DefaultTask() {
     @get:Input
     @get:Optional

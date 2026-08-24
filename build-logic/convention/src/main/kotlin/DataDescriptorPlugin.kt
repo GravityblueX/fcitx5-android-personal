@@ -21,6 +21,7 @@ import org.gradle.api.tasks.TaskAction
 import org.gradle.kotlin.dsl.create
 import org.gradle.kotlin.dsl.register
 import org.gradle.work.ChangeType
+import org.gradle.work.DisableCachingByDefault
 import org.gradle.work.Incremental
 import org.gradle.work.InputChanges
 import java.io.File
@@ -68,6 +69,7 @@ class DataDescriptorPlugin : Plugin<Project> {
         }
     }
 
+    @DisableCachingByDefault(because = "Reads from and writes to the same assets directory")
     abstract class DataDescriptorTask : DefaultTask() {
         @Serializable
         data class DataDescriptor(

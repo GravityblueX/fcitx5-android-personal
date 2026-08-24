@@ -14,6 +14,7 @@ import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.register
+import org.gradle.work.DisableCachingByDefault
 
 /**
  * Add task `generateBuildMetadata${Variant}`
@@ -56,6 +57,7 @@ class BuildMetadataPlugin : Plugin<Project> {
         }
     }
 
+    @DisableCachingByDefault(because = "Writes into the Android package task's output directory")
     abstract class BuildMetadataTask : DefaultTask() {
         @Serializable
         data class BuildMetadata(
