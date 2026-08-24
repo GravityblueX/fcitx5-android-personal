@@ -44,7 +44,12 @@ if ! host_verification="$(verification_details "$host_apk")"; then
   exit 1
 fi
 host_fingerprints="$(fingerprints <<<"$host_verification")"
-host_package="$("$aapt2" dump packagename "$host_apk")"
+if ! host_package="$("$aapt2" dump packagename "$host_apk" 2>&1)"; then
+  echo "Could not read the host package name: $host_apk" >&2
+  echo "aapt2: $aapt2" >&2
+  printf '%s\n' "$host_package" >&2
+  exit 1
+fi
 
 if [[ -z "$host_fingerprints" ]]; then
   echo "Could not read a host signing certificate: $host_apk" >&2
@@ -55,6 +60,7 @@ fi
 
 if [[ -z "$host_package" ]]; then
   echo "Could not read the host package name: $host_apk" >&2
+  echo "aapt2: $aapt2" >&2
   exit 1
 fi
 
@@ -83,7 +89,17 @@ for plugin_apk in "${plugin_apks[@]}"; do
     exit 1
   fi
 
-  plugin_manifest="$(manifest "$plugin_apk")"
+  if ! plugin_manifest="$(manifest "$plugin_apk" 2>&1)"; then
+    echo "Could not read plugin manifest: $plugin_apk" >&2
+    echo "aapt2: $aapt2" >&2
+    printf '%s\n' "$plugin_manifest" >&2
+    exit 1
+  fi
+  if [[ -z "$plugin_manifest" ]]; then
+    echo "Could not read plugin manifest: $plugin_apk" >&2
+    echo "aapt2: $aapt2" >&2
+    exit 1
+  fi
   manifest_action="$host_package.plugin.MANIFEST"
   if ! grep -Fq "$manifest_action" <<<"$plugin_manifest"; then
     echo "Plugin is missing the host-specific discovery action: $manifest_action" >&2
