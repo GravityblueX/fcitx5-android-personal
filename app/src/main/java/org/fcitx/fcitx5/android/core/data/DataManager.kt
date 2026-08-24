@@ -313,7 +313,7 @@ object DataManager {
                     PluginLoadFailed.DataDescriptorParseError(plugin)
                 continue
             }
-            pluginAssets[plugin.name] = assets
+            pluginAssets[plugin.runtimeId] = assets
             loadedPlugins.add(plugin)
             Timber.d("Merged data hierarchy of ${plugin.name}")
         }
@@ -327,7 +327,7 @@ object DataManager {
             when (it) {
                 is FileAction.CreateFile -> {
                     val assets = if (it.src is FileSource.Plugin)
-                        pluginAssets.getValue(it.src.descriptor.name)
+                        pluginAssets.getValue(it.src.descriptor.runtimeId)
                     else appContext.assets
                     assets.copyFile(it.path)
                 }
@@ -339,7 +339,7 @@ object DataManager {
                 }
                 is FileAction.UpdateFile -> {
                     val assets = if (it.src is FileSource.Plugin)
-                        pluginAssets.getValue(it.src.descriptor.name)
+                        pluginAssets.getValue(it.src.descriptor.runtimeId)
                     else appContext.assets
                     assets.copyFile(it.path)
                 }

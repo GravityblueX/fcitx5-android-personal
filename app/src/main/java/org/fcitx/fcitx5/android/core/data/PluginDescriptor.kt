@@ -35,6 +35,7 @@ data class PluginDescriptor(
     val nativeLibraryDir: String
 ) {
     val name = packageName.removePrefix(pluginPackagePrefix).removeSuffix(pluginPackageSuffix)
+    internal val runtimeId get() = packageName
 
     companion object {
         const val pluginPackagePrefix = "org.fcitx.fcitx5.android.plugin."

@@ -73,10 +73,10 @@ object FcitxPluginServices {
     private val connections = mutableMapOf<String, PluginServiceConnection>()
 
     private fun connectPlugin(descriptor: PluginDescriptor): Boolean = synchronized(connectionLock) {
-        if (connections.containsKey(descriptor.name)) return@synchronized true
+        if (connections.containsKey(descriptor.runtimeId)) return@synchronized true
         for (action in compatiblePluginServiceActions) {
-            val connection = PluginServiceConnection(descriptor.name) { deadConnection ->
-                disconnectPlugin(descriptor.name, deadConnection)
+            val connection = PluginServiceConnection(descriptor.runtimeId) { deadConnection ->
+                disconnectPlugin(descriptor.runtimeId, deadConnection)
             }
             try {
                 val result = appContext.bindService(
@@ -85,7 +85,7 @@ object FcitxPluginServices {
                     Context.BIND_AUTO_CREATE
                 )
                 if (result) {
-                    connections[descriptor.name] = connection
+                    connections[descriptor.runtimeId] = connection
                     Timber.d("Bound to plugin ${descriptor.name} with action $action")
                     return@synchronized true
                 }
@@ -109,24 +109,22 @@ object FcitxPluginServices {
     }
 
     private fun disconnectPlugin(
-        name: String,
+        runtimeId: String,
         expectedConnection: PluginServiceConnection? = null,
     ) {
         val connection = synchronized(connectionLock) {
-            val currentConnection = connections[name] ?: return@synchronized null
+            val currentConnection = connections[runtimeId] ?: return@synchronized null
             if (expectedConnection != null && currentConnection !== expectedConnection) {
                 return@synchronized null
             }
-            connections.remove(name)
+            connections.remove(runtimeId)
         } ?: return
         appContext.unbindService(connection)
-        Timber.d("Unbound plugin: $name")
+        Timber.d("Unbound plugin: $runtimeId")
     }
 
     fun disconnectPackage(packageName: String) {
-        DataManager.getLoadedPlugins()
-            .firstOrNull { it.packageName == packageName }
-            ?.let { disconnectPlugin(it.name) }
+        disconnectPlugin(packageName)
     }
 
     fun connectPackage(packageName: String): Boolean {
@@ -143,9 +141,9 @@ object FcitxPluginServices {
         val activeConnections = synchronized(connectionLock) {
             connections.toList().also { connections.clear() }
         }
-        activeConnections.forEach { (name, connection) ->
+        activeConnections.forEach { (runtimeId, connection) ->
             appContext.unbindService(connection)
-            Timber.d("Unbound plugin: $name")
+            Timber.d("Unbound plugin: $runtimeId")
         }
     }
 
