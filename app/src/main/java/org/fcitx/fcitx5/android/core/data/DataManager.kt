@@ -143,15 +143,23 @@ object DataManager {
 
     private fun queryPluginActivities(pm: PackageManager): List<ResolveInfo> =
         compatiblePluginIntents.flatMap { action ->
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                pm.queryIntentActivities(
-                    Intent(action),
-                    PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong())
-                )
-            } else {
-                pm.queryIntentActivities(Intent(action), PackageManager.MATCH_ALL)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    pm.queryIntentActivities(
+                        Intent(action),
+                        PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong())
+                    )
+                } else {
+                    pm.queryIntentActivities(Intent(action), PackageManager.MATCH_ALL)
+                }
+            } catch (failure: Exception) {
+                Timber.w(failure, "Failed to query plugin activities for '$action'")
+                emptyList()
             }
-        }.distinctBy { it.activityInfo.packageName }
+        }.mapNotNull { resolveInfo ->
+            val packageName = resolveInfo.activityInfo?.packageName ?: return@mapNotNull null
+            packageName to resolveInfo
+        }.distinctBy { it.first }.map { it.second }
 
     fun findPluginActivity(packageName: String): ComponentName? =
         queryPluginActivities(appContext.packageManager)
@@ -174,36 +182,26 @@ object DataManager {
         }
     }
 
-    fun detectPlugins(): PluginSet {
-        val toLoad = mutableSetOf<PluginDescriptor>()
-        val preloadFailed = mutableMapOf<String, PluginLoadFailed>()
+    private fun loadPluginDescriptor(
+        pm: PackageManager,
+        packageName: String,
+    ): PluginDiscoveryResult {
+        val res = pm.getResourcesForApplication(packageName)
 
-        val pm = appContext.packageManager
-
-        val pluginPackages = queryPluginActivities(pm).map {
-            it.activityInfo.packageName
+        @SuppressLint("DiscouragedApi")
+        val resId = res.getIdentifier("plugin", "xml", packageName)
+        if (resId == 0) {
+            Timber.w("Failed to get the plugin descriptor of $packageName")
+            return PluginDiscoveryResult.Failed(PluginLoadFailed.MissingPluginDescriptor)
         }
-
-        Timber.d("Detected plugin packages: ${pluginPackages.joinToString()}")
-
-        // Parse plugin.xml
-        for (packageName in pluginPackages) {
-            val res = pm.getResourcesForApplication(packageName)
-
-            @SuppressLint("DiscouragedApi")
-            val resId = res.getIdentifier("plugin", "xml", packageName)
-            if (resId == 0) {
-                Timber.w("Failed to get the plugin descriptor of $packageName")
-                failedPlugins[packageName] = PluginLoadFailed.MissingPluginDescriptor
-                continue
-            }
-            val parser = res.getXml(resId)
+        val parser = res.getXml(resId)
+        var domain: String? = null
+        var apiVersion: String? = null
+        var description: String? = null
+        var hasService = false
+        var text: String? = null
+        try {
             var eventType = parser.eventType
-            var domain: String? = null
-            var apiVersion: String? = null
-            var description: String? = null
-            var hasService = false
-            var text: String? = null
             while ((eventType != XmlPullParser.END_DOCUMENT)) {
                 when (eventType) {
                     XmlPullParser.TEXT -> text = parser.text
@@ -216,49 +214,66 @@ object DataManager {
                 }
                 eventType = parser.next()
             }
+        } finally {
             parser.close()
+        }
 
-            if (description?.startsWith("@string/") == true) {
-                // Replace "@string/" with string resource
-                val s = description.substring(8)
-                if (s.isJavaIdentifier()) {
-                    @SuppressLint("DiscouragedApi")
-                    val id = res.getIdentifier(s, "string", packageName)
-                    if (id != 0) description = res.getString(id)
-                }
-            }
-
-            if (apiVersion != null && description != null) {
-                if (PluginDescriptor.pluginAPI == apiVersion) {
-                    val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        pm.getPackageInfo(
-                            packageName,
-                            PackageManager.PackageInfoFlags.of(PackageManager.GET_META_DATA.toLong())
-                        )
-                    } else {
-                        pm.getPackageInfo(packageName, PackageManager.GET_META_DATA)
-                    }
-                    toLoad.add(
-                        PluginDescriptor(
-                            packageName,
-                            apiVersion,
-                            domain,
-                            description,
-                            hasService,
-                            info.versionName ?: "",
-                            info.applicationInfo?.nativeLibraryDir ?: ""
-                        )
-                    )
-                } else {
-                    Timber.w("$packageName's api version [$apiVersion] doesn't match with the current [${PluginDescriptor.pluginAPI}]")
-                    preloadFailed[packageName] = PluginLoadFailed.PluginAPIIncompatible(apiVersion)
-                }
-            } else {
-                Timber.w("Failed to parse plugin descriptor of $packageName")
-                preloadFailed[packageName] = PluginLoadFailed.PluginDescriptorParseError
+        if (description?.startsWith("@string/") == true) {
+            // Replace "@string/" with string resource
+            val s = description.substring(8)
+            if (s.isJavaIdentifier()) {
+                @SuppressLint("DiscouragedApi")
+                val id = res.getIdentifier(s, "string", packageName)
+                if (id != 0) description = res.getString(id)
             }
         }
-        return PluginSet(toLoad, preloadFailed)
+
+        if (apiVersion == null || description == null) {
+            Timber.w("Failed to parse plugin descriptor of $packageName")
+            return PluginDiscoveryResult.Failed(PluginLoadFailed.PluginDescriptorParseError)
+        }
+        if (PluginDescriptor.pluginAPI != apiVersion) {
+            Timber.w("$packageName's api version [$apiVersion] doesn't match with the current [${PluginDescriptor.pluginAPI}]")
+            return PluginDiscoveryResult.Failed(
+                PluginLoadFailed.PluginAPIIncompatible(apiVersion)
+            )
+        }
+        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pm.getPackageInfo(
+                packageName,
+                PackageManager.PackageInfoFlags.of(PackageManager.GET_META_DATA.toLong())
+            )
+        } else {
+            pm.getPackageInfo(packageName, PackageManager.GET_META_DATA)
+        }
+        return PluginDiscoveryResult.Loaded(
+            PluginDescriptor(
+                packageName,
+                apiVersion,
+                domain,
+                description,
+                hasService,
+                info.versionName ?: "",
+                info.applicationInfo?.nativeLibraryDir ?: ""
+            )
+        )
+    }
+
+    fun detectPlugins(): PluginSet {
+        val pm = appContext.packageManager
+        val pluginPackages = queryPluginActivities(pm).map {
+            it.activityInfo.packageName
+        }
+
+        Timber.d("Detected plugin packages: ${pluginPackages.joinToString()}")
+
+        return discoverPluginPackages(
+            pluginPackages,
+            loadPlugin = { packageName -> loadPluginDescriptor(pm, packageName) },
+            onException = { packageName, failure ->
+                Timber.w(failure, "Failed to inspect plugin package '$packageName'")
+            },
+        )
     }
 
     fun sync() = lock.withLock {
