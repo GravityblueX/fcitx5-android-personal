@@ -23,8 +23,7 @@ class DataDescriptorPluginTest {
         .withArguments(DataDescriptorPlugin.TASK, "--stacktrace")
         .build()
 
-    @Test
-    fun tracksRelativePathWhenSameNamedAssetMoves() {
+    private fun setUpProject() {
         projectDirectory.newFile("settings.gradle").writeText(
             "rootProject.name = 'data-descriptor-test'"
         )
@@ -36,6 +35,11 @@ class DataDescriptorPluginTest {
             }
             """.trimIndent()
         )
+    }
+
+    @Test
+    fun tracksRelativePathWhenSameNamedAssetMoves() {
+        setUpProject()
         val assets = projectDirectory.newFolder("src", "main", "assets")
         val original = assets.resolve("first/shared.conf").apply {
             parentFile.mkdirs()
@@ -66,5 +70,23 @@ class DataDescriptorPluginTest {
         assertTrue(generated.contains("second/shared.conf"))
         assertFalse(original.exists())
         assertTrue(moved.exists())
+    }
+
+    @Test
+    fun usesPortableSeparatorsForDirectoryEntries() {
+        setUpProject()
+        val assets = projectDirectory.newFolder("src", "main", "assets")
+        assets.resolve("nested/child/file.conf").apply {
+            parentFile.mkdirs()
+            writeText("content")
+        }
+
+        runDescriptorTask()
+
+        val generated = json.decodeFromString<DataDescriptorPlugin.DataDescriptorTask.DataDescriptor>(
+            assets.resolve(DataDescriptorPlugin.FILE_NAME).readText()
+        )
+        assertTrue("nested/child" in generated.files)
+        assertFalse(generated.files.keys.any { '\\' in it })
     }
 }

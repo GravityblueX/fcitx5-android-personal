@@ -160,8 +160,10 @@ class DataDescriptorPlugin : Plugin<Project> {
                     ?.getOrNull()
                     ?: mutableMapOf()
 
+            fun File.toDescriptorPath(): String = path.replace(File.separatorChar, '/')
+
             fun File.allParents(): List<File> =
-                if (parentFile == null || parentFile.path in map)
+                if (parentFile == null || parentFile.toDescriptorPath() in map)
                     listOf()
                 else
                     listOf(parentFile) + parentFile.allParents()
@@ -170,7 +172,7 @@ class DataDescriptorPlugin : Plugin<Project> {
                     return@forEach
                 logger.log(LogLevel.DEBUG, "${change.changeType}: ${change.normalizedPath}")
                 val relativeFile = change.file.relativeTo(file.parentFile)
-                val key = relativeFile.path.replace(File.separatorChar, '/')
+                val key = relativeFile.toDescriptorPath()
                 if (change.changeType == ChangeType.REMOVED || key in excludes.get()) {
                     map.remove(key)
                 } else {
@@ -180,7 +182,7 @@ class DataDescriptorPlugin : Plugin<Project> {
             // calculate dirs
             inputDir.asFileTree.forEach {
                 it.relativeTo(file.parentFile).allParents().forEach { p ->
-                    map[p.path] = ""
+                    map[p.toDescriptorPath()] = ""
                 }
             }
             serialize(map.toSortedMap(), symlinks.get())
