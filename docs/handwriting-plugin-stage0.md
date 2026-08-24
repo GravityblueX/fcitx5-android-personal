@@ -6,11 +6,9 @@
 
 ### 1. 插件发现与数据加载
 
-1. 插件 APK 通过一个导出的 Activity 暴露插件清单 Intent。
-   - 当前主程序自身动作：`${BuildConfig.APPLICATION_ID}.plugin.MANIFEST`
-   - 兼容的上游动作：
-     - `org.fcitx.fcitx5.android.plugin.MANIFEST`
-     - `org.fcitx.fcitx5.android.debug.plugin.MANIFEST`
+1. 插件 APK 通过一个导出的 Activity 暴露当前主程序专用的插件清单 Intent：
+   `${BuildConfig.APPLICATION_ID}.plugin.MANIFEST`。旧版 Fcitx17 插件使用的上游动作仅作为
+   同签名升级兼容入口保留，不会绕过身份校验。
 2. `DataManager.queryPluginActivities()` 使用 `PackageManager.queryIntentActivities()` 查找插件，再从目标 APK 的 `res/xml/plugin.xml` 读取：
    - `apiVersion`
    - `domain`
@@ -420,8 +418,8 @@ plugin/handwriting-mlkit/
    - 若未来要同时支持官方 Fcitx5 Android，需要官方签名、官方认可的新权限方案，或设计不依赖 signature 权限的安全授权协议。
 
 2. **插件信任边界**
-   - 当前静态插件发现没有做签名白名单；API 校验只是 `plugin.xml` 中的版本字符串。
-   - 数据层会阻止路径冲突，但不会证明 APK 来源可信。
+   - 静态插件发现要求包名符合插件前缀、构建变体匹配且与主程序同签名。
+   - 数据层还会阻止路径冲突并限制描述符与资产资源消耗。
    - 手写 Provider 必须依赖 signature 权限，并校验协议版本，不能因为插件被发现就信任其 Binder。
 
 3. **Binder 数据大小**
@@ -454,7 +452,7 @@ plugin/handwriting-mlkit/
 
 10. **当前加载器细节**
     - `pluginSchema.xsd` 不是运行时校验器。
-    - `PluginDescriptor` 文档要求包名前缀，但 `DataManager.detectPlugins()` 当前没有显式执行该前缀校验。
+    - `PluginDescriptor` 的包名前缀和构建变体要求由 `DataManager.detectPlugins()` 显式执行。
     - `PluginLoadFailed` 定义了缺少/损坏数据描述符的错误类型，但当前同步路径在读取失败时主要记录日志并跳过；后续插件错误体验可能需要单独改善，但不应与阶段 1 原型混在同一提交。
 
 ## 结论

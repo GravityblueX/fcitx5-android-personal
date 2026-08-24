@@ -14,22 +14,13 @@ import android.os.Messenger
 import org.fcitx.fcitx5.android.BuildConfig
 import org.fcitx.fcitx5.android.core.data.DataManager
 import org.fcitx.fcitx5.android.core.data.PluginDescriptor
+import org.fcitx.fcitx5.android.core.data.evaluatePluginTrust
 import org.fcitx.fcitx5.android.utils.appContext
 import timber.log.Timber
 
 object FcitxPluginServices {
 
     const val PLUGIN_SERVICE_ACTION = "${BuildConfig.APPLICATION_ID}.plugin.SERVICE"
-    private const val OFFICIAL_PLUGIN_SERVICE_ACTION =
-        "org.fcitx.fcitx5.android.plugin.SERVICE"
-    private const val OFFICIAL_DEBUG_PLUGIN_SERVICE_ACTION =
-        "org.fcitx.fcitx5.android.debug.plugin.SERVICE"
-
-    private val compatiblePluginServiceActions = linkedSetOf(
-        PLUGIN_SERVICE_ACTION,
-        OFFICIAL_PLUGIN_SERVICE_ACTION,
-        OFFICIAL_DEBUG_PLUGIN_SERVICE_ACTION
-    )
     private val builtInReplacementPackages = setOf(
         "org.fcitx.fcitx5.android.plugin.handwriting.mlkit",
         "org.fcitx.fcitx5.android.plugin.handwriting.mlkit.debug",
@@ -72,31 +63,44 @@ object FcitxPluginServices {
     private val connectionLock = Any()
     private val connections = mutableMapOf<String, PluginServiceConnection>()
 
+    private fun isTrustedPlugin(descriptor: PluginDescriptor): Boolean = try {
+        evaluatePluginTrust(
+            descriptor.packageName,
+            BuildConfig.DEBUG,
+            appContext.packageManager.checkSignatures(
+                appContext.packageName,
+                descriptor.packageName,
+            ),
+        ) == null
+    } catch (failure: Exception) {
+        Timber.w(failure, "Failed to verify plugin ${descriptor.packageName}")
+        false
+    }
+
     private fun connectPlugin(descriptor: PluginDescriptor): Boolean = synchronized(connectionLock) {
         if (connections.containsKey(descriptor.runtimeId)) return@synchronized true
-        for (action in compatiblePluginServiceActions) {
-            val connection = PluginServiceConnection(descriptor.runtimeId) { deadConnection ->
-                disconnectPlugin(descriptor.runtimeId, deadConnection)
-            }
-            try {
-                val result = appContext.bindService(
-                    Intent(action).apply { setPackage(descriptor.packageName) },
-                    connection,
-                    Context.BIND_AUTO_CREATE
-                )
-                if (result) {
-                    connections[descriptor.runtimeId] = connection
-                    Timber.d("Bound to plugin ${descriptor.name} with action $action")
-                    return@synchronized true
-                }
-                appContext.unbindService(connection)
-            } catch (e: Exception) {
-                // Official service plugins may require the official app's signature permission.
-                Timber.w("Cannot bind to plugin ${descriptor.name} with action $action")
-                Timber.w(e)
-            }
+        if (!isTrustedPlugin(descriptor)) {
+            Timber.w("Refusing to bind untrusted plugin ${descriptor.packageName}")
+            return@synchronized false
         }
-        Timber.w("No compatible service found for plugin: ${descriptor.name}")
+        val connection = PluginServiceConnection(descriptor.runtimeId) { deadConnection ->
+            disconnectPlugin(descriptor.runtimeId, deadConnection)
+        }
+        try {
+            val result = appContext.bindService(
+                Intent(PLUGIN_SERVICE_ACTION).apply { setPackage(descriptor.packageName) },
+                connection,
+                Context.BIND_AUTO_CREATE
+            )
+            if (result) {
+                connections[descriptor.runtimeId] = connection
+                Timber.d("Bound to plugin ${descriptor.name}")
+                return@synchronized true
+            }
+        } catch (failure: Exception) {
+            Timber.w(failure, "Cannot bind to plugin ${descriptor.name}")
+        }
+        Timber.w("No service found for plugin: ${descriptor.name}")
         false
     }
 

@@ -1,11 +1,37 @@
 package org.fcitx.fcitx5.android.core.data
 
+import android.content.pm.PackageManager
 import org.xmlpull.v1.XmlPullParser
 
 internal const val MAX_PLUGIN_XML_EVENTS = 4096
 internal const val MAX_PLUGIN_XML_TEXT_CHARS = 64 * 1024
 
 internal class InvalidPluginXml(message: String) : IllegalArgumentException(message)
+
+internal enum class PluginTrustFailure {
+    InvalidPackageName,
+    SignatureMismatch,
+}
+
+internal fun evaluatePluginTrust(
+    packageName: String,
+    isDebugBuild: Boolean,
+    signatureResult: Int,
+): PluginTrustFailure? {
+    val prefix = PluginDescriptor.pluginPackagePrefix
+    val hasDebugSuffix = packageName.endsWith(".debug")
+    val basePackageName = if (hasDebugSuffix) packageName.removeSuffix(".debug") else packageName
+    if (!basePackageName.startsWith(prefix) ||
+        basePackageName.length == prefix.length ||
+        hasDebugSuffix != isDebugBuild
+    ) {
+        return PluginTrustFailure.InvalidPackageName
+    }
+    if (signatureResult != PackageManager.SIGNATURE_MATCH) {
+        return PluginTrustFailure.SignatureMismatch
+    }
+    return null
+}
 
 internal data class ParsedPluginXml(
     val apiVersion: String?,

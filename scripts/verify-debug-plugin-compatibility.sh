@@ -66,10 +66,16 @@ for plugin_apk in "${plugin_apks[@]}"; do
     exit 1
   fi
 
+  plugin_manifest="$(manifest "$plugin_apk")"
+  manifest_action="$host_package.plugin.MANIFEST"
+  if ! grep -Fq "$manifest_action" <<<"$plugin_manifest"; then
+    echo "Plugin is missing the host-specific discovery action: $manifest_action" >&2
+    exit 1
+  fi
+
   case "$(basename "$plugin_apk")" in
     *handwriting*)
       handwriting_seen=true
-      plugin_manifest="$(manifest "$plugin_apk")"
       for expected in         "$host_package.permission.IPC"         "$host_package.permission.PLUGIN"         "$host_package.plugin.ACTIVATE"         "$host_package.plugin.SERVICE"; do
         if ! grep -Fq "$expected" <<<"$plugin_manifest"; then
           echo "Handwriting plugin is missing expected host integration: $expected" >&2
@@ -79,7 +85,6 @@ for plugin_apk in "${plugin_apks[@]}"; do
       ;;
     *clipboard_filter*)
       clipboard_filter_seen=true
-      plugin_manifest="$(manifest "$plugin_apk")"
       for expected in         "$host_package.permission.IPC"         "$host_package.permission.PLUGIN"         "$host_package.plugin.SERVICE"; do
         if ! grep -Fq "$expected" <<<"$plugin_manifest"; then
           echo "Clipboard filter plugin is missing expected host integration: $expected" >&2

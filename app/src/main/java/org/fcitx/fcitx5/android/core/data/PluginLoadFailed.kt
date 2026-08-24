@@ -15,6 +15,8 @@ sealed interface PluginLoadFailed {
 
     data object PluginDescriptorParseError : PluginLoadFailed
 
+    data object UntrustedPlugin : PluginLoadFailed
+
     data class MissingDataDescriptor(
         val plugin: PluginDescriptor
     ) : PluginLoadFailed

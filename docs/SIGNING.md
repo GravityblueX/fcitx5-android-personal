@@ -13,7 +13,10 @@ The **Personal build** workflow reads these GitHub Actions secrets:
 
 The build convention applies this key to every release app and plugin. They must
 share the same certificate because service plugins use signature-level
-permissions.
+permissions. The host also verifies the package-name pattern and matching signing
+certificate before reading plugin assets or adding native libraries to Fcitx's
+search path. Legacy discovery actions remain available for upgrades from older
+Fcitx17 plugin APKs, but they do not bypass the signature check.
 
 ## Key handling
 

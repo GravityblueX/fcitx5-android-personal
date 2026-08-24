@@ -21,7 +21,8 @@
         <intent>
             <action android:name="${applicationId}.plugin.MANIFEST" />
         </intent>
-        <!-- Official release/debug plugins keep the upstream discovery actions. -->
+        <!-- Legacy Fcitx17 plugins used the upstream actions. Runtime signature verification
+             prevents plugins signed by a different project from crossing the trust boundary. -->
         <intent>
             <action android:name="org.fcitx.fcitx5.android.plugin.MANIFEST" />
         </intent>
@@ -45,14 +46,6 @@
         android:protectionLevel="signature" />
 
     <uses-permission android:name="${applicationId}.permission.PLUGIN" />
-    <!-- Requested for official service plugins; Android grants it only when their permission
-         definition permits this signing certificate. Static data plugins do not need it. -->
-    <uses-permission
-        android:name="org.fcitx.fcitx5.android.permission.PLUGIN"
-        tools:ignore="CustomPermissionTypo" />
-    <uses-permission
-        android:name="org.fcitx.fcitx5.android.debug.permission.PLUGIN"
-        tools:ignore="CustomPermissionTypo" />
 
     <application
         android:name=".FcitxApplication"

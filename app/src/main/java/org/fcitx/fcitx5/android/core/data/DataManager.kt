@@ -41,15 +41,14 @@ object DataManager {
     )
 
     const val PLUGIN_INTENT = "${BuildConfig.APPLICATION_ID}.plugin.MANIFEST"
-    private const val OFFICIAL_PLUGIN_INTENT =
+    private const val LEGACY_RELEASE_PLUGIN_INTENT =
         "org.fcitx.fcitx5.android.plugin.MANIFEST"
-    private const val OFFICIAL_DEBUG_PLUGIN_INTENT =
+    private const val LEGACY_DEBUG_PLUGIN_INTENT =
         "org.fcitx.fcitx5.android.debug.plugin.MANIFEST"
 
-    private val compatiblePluginIntents = linkedSetOf(
+    private val compatiblePluginIntents = listOf(
         PLUGIN_INTENT,
-        OFFICIAL_PLUGIN_INTENT,
-        OFFICIAL_DEBUG_PLUGIN_INTENT
+        if (BuildConfig.DEBUG) LEGACY_DEBUG_PLUGIN_INTENT else LEGACY_RELEASE_PLUGIN_INTENT,
     )
 
     private val lock = ReentrantLock()
@@ -140,8 +139,22 @@ object DataManager {
         if (runImmediately) block()
     }
 
-    private fun queryPluginActivities(pm: PackageManager): List<ResolveInfo> =
-        compatiblePluginIntents.flatMap { action ->
+    private fun PackageManager.trustFailureFor(packageName: String): PluginTrustFailure? =
+        evaluatePluginTrust(
+            packageName,
+            BuildConfig.DEBUG,
+            checkSignatures(appContext.packageName, packageName),
+        )
+
+    private fun PackageManager.isTrustedPluginPackage(packageName: String): Boolean = try {
+        trustFailureFor(packageName) == null
+    } catch (failure: Exception) {
+        Timber.w(failure, "Failed to verify plugin package '$packageName'")
+        false
+    }
+
+    private fun queryPluginActivities(pm: PackageManager): List<ResolveInfo> {
+        val matches = compatiblePluginIntents.flatMap { action ->
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     pm.queryIntentActivities(
@@ -158,23 +171,37 @@ object DataManager {
         }.mapNotNull { resolveInfo ->
             val packageName = resolveInfo.activityInfo?.packageName ?: return@mapNotNull null
             packageName to resolveInfo
-        }.distinctBy { it.first }.map { it.second }
+        }.distinctBy { it.first }.mapNotNull { (packageName, resolveInfo) ->
+            if (pm.isTrustedPluginPackage(packageName)) {
+                resolveInfo
+            } else {
+                Timber.w("Ignoring untrusted plugin package '$packageName'")
+                null
+            }
+        }
+        return matches
+    }
 
-    fun findPluginActivity(packageName: String): ComponentName? =
-        queryPluginActivities(appContext.packageManager)
+    fun findPluginActivity(packageName: String): ComponentName? {
+        val pm = appContext.packageManager
+        if (!pm.isTrustedPluginPackage(packageName)) return null
+        return queryPluginActivities(pm)
             .firstOrNull { it.activityInfo.packageName == packageName }
             ?.let { ComponentName(it.activityInfo.packageName, it.activityInfo.name) }
+    }
 
     fun findPluginActivationActivity(packageName: String): ComponentName? {
+        val pm = appContext.packageManager
+        if (!pm.isTrustedPluginPackage(packageName)) return null
         val intent = Intent("${BuildConfig.APPLICATION_ID}.plugin.ACTIVATE")
             .setPackage(packageName)
         val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            appContext.packageManager.resolveActivity(
+            pm.resolveActivity(
                 intent,
                 PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong()),
             )
         } else {
-            appContext.packageManager.resolveActivity(intent, PackageManager.MATCH_ALL)
+            pm.resolveActivity(intent, PackageManager.MATCH_ALL)
         }
         return info?.activityInfo?.let {
             ComponentName(it.packageName, it.name)
@@ -185,6 +212,11 @@ object DataManager {
         pm: PackageManager,
         packageName: String,
     ): PluginDiscoveryResult {
+        val trustFailure = pm.trustFailureFor(packageName)
+        if (trustFailure != null) {
+            Timber.w("Rejected plugin package '$packageName': $trustFailure")
+            return PluginDiscoveryResult.Failed(PluginLoadFailed.UntrustedPlugin)
+        }
         val res = pm.getResourcesForApplication(packageName)
 
         @SuppressLint("DiscouragedApi")
@@ -301,11 +333,23 @@ object DataManager {
         newHierarchy.install(mainDescriptor, FileSource.Main)
 
         val pluginAssets = mutableMapOf<String, AssetManager>()
+        val pm = appContext.packageManager
 
         // Add plugin's one by one
         for (plugin in parsedDescriptors) {
-            val pluginContext = appContext.createPackageContext(plugin.packageName, 0)
-            val assets = pluginContext.assets
+            if (!pm.isTrustedPluginPackage(plugin.packageName)) {
+                Timber.w("Plugin package '${plugin.packageName}' is no longer trusted")
+                failedPlugins[plugin.packageName] = PluginLoadFailed.UntrustedPlugin
+                continue
+            }
+            val assets = try {
+                appContext.createPackageContext(plugin.packageName, 0).assets
+            } catch (failure: Exception) {
+                Timber.w(failure, "Failed to open plugin package '${plugin.packageName}'")
+                failedPlugins[plugin.packageName] =
+                    PluginLoadFailed.DataDescriptorParseError(plugin)
+                continue
+            }
             val descriptor = try {
                 assets.getDataDescriptor()
                     .withValidatedManagedPaths()

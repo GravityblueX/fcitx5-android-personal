@@ -1,6 +1,8 @@
 package org.fcitx.fcitx5.android.core.data
 
+import android.content.pm.PackageManager
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Test
 
@@ -71,5 +73,71 @@ class PluginDiscoveryTest {
         assertEquals(1, inspections)
         assertEquals(setOf(descriptor(packageName)), result.loaded)
         assertEquals(emptyMap<String, PluginLoadFailed>(), result.failed)
+    }
+
+    @Test
+    fun trustsMatchingReleasePluginIdentity() {
+        assertNull(
+            evaluatePluginTrust(
+                "${PluginDescriptor.pluginPackagePrefix}rime",
+                isDebugBuild = false,
+                signatureResult = PackageManager.SIGNATURE_MATCH,
+            )
+        )
+        assertNull(
+            evaluatePluginTrust(
+                "${PluginDescriptor.pluginPackagePrefix}rime.debug",
+                isDebugBuild = true,
+                signatureResult = PackageManager.SIGNATURE_MATCH,
+            )
+        )
+    }
+
+    @Test
+    fun rejectsMismatchedPluginSignature() {
+        assertEquals(
+            PluginTrustFailure.SignatureMismatch,
+            evaluatePluginTrust(
+                "${PluginDescriptor.pluginPackagePrefix}rime",
+                isDebugBuild = false,
+                signatureResult = PackageManager.SIGNATURE_NO_MATCH,
+            ),
+        )
+    }
+
+    @Test
+    fun rejectsWrongPackagePrefixOrBuildVariant() {
+        assertEquals(
+            PluginTrustFailure.InvalidPackageName,
+            evaluatePluginTrust(
+                "example.plugin.rime",
+                isDebugBuild = false,
+                signatureResult = PackageManager.SIGNATURE_MATCH,
+            ),
+        )
+        assertEquals(
+            PluginTrustFailure.InvalidPackageName,
+            evaluatePluginTrust(
+                PluginDescriptor.pluginPackagePrefix,
+                isDebugBuild = false,
+                signatureResult = PackageManager.SIGNATURE_MATCH,
+            ),
+        )
+        assertEquals(
+            PluginTrustFailure.InvalidPackageName,
+            evaluatePluginTrust(
+                "${PluginDescriptor.pluginPackagePrefix}rime.debug",
+                isDebugBuild = false,
+                signatureResult = PackageManager.SIGNATURE_MATCH,
+            ),
+        )
+        assertEquals(
+            PluginTrustFailure.InvalidPackageName,
+            evaluatePluginTrust(
+                "${PluginDescriptor.pluginPackagePrefix}rime",
+                isDebugBuild = true,
+                signatureResult = PackageManager.SIGNATURE_MATCH,
+            ),
+        )
     }
 }
