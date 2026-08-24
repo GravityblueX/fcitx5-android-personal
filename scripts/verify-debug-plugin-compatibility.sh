@@ -29,8 +29,7 @@ verification_details() {
 }
 
 fingerprints() {
-  verification_details "$1" |
-    awk '/certificate SHA-256 digest:/ { print $NF }' |
+  awk '/certificate SHA-256 digest:/ { print $NF }' |
     LC_ALL=C sort -u
 }
 
@@ -38,13 +37,19 @@ manifest() {
   "$aapt2" dump xmltree --file AndroidManifest.xml "$1"
 }
 
-host_fingerprints="$(fingerprints "$host_apk")"
+if ! host_verification="$(verification_details "$host_apk")"; then
+  echo "Could not verify the host APK: $host_apk" >&2
+  echo "apksigner: $apksigner" >&2
+  printf '%s\n' "$host_verification" >&2
+  exit 1
+fi
+host_fingerprints="$(fingerprints <<<"$host_verification")"
 host_package="$("$aapt2" dump packagename "$host_apk")"
 
 if [[ -z "$host_fingerprints" ]]; then
   echo "Could not read a host signing certificate: $host_apk" >&2
   echo "apksigner: $apksigner" >&2
-  verification_details "$host_apk" >&2 || true
+  printf '%s\n' "$host_verification" >&2
   exit 1
 fi
 
@@ -62,7 +67,17 @@ handwriting_seen=false
 clipboard_filter_seen=false
 
 for plugin_apk in "${plugin_apks[@]}"; do
-  plugin_fingerprints="$(fingerprints "$plugin_apk")"
+  if ! plugin_verification="$(verification_details "$plugin_apk")"; then
+    echo "Could not verify plugin APK: $plugin_apk" >&2
+    printf '%s\n' "$plugin_verification" >&2
+    exit 1
+  fi
+  plugin_fingerprints="$(fingerprints <<<"$plugin_verification")"
+  if [[ -z "$plugin_fingerprints" ]]; then
+    echo "Could not read a plugin signing certificate: $plugin_apk" >&2
+    printf '%s\n' "$plugin_verification" >&2
+    exit 1
+  fi
   if [[ "$plugin_fingerprints" != "$host_fingerprints" ]]; then
     echo "Plugin signing certificate set differs from the debug host: $plugin_apk" >&2
     exit 1
