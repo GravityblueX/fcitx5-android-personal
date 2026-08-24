@@ -2,7 +2,13 @@
 set -euo pipefail
 
 output_file="${1:-SHA256SUMS.txt}"
-mapfile -d '' apk_files < <(find app/build/outputs/apk/release plugin -type f -name "*.apk" -path "*/build/outputs/apk/release/*" -print0 | sort -z)
+apk_list="$(mktemp)"
+trap 'rm -f -- "$apk_list"' EXIT
+if ! find app/build/outputs/apk/release plugin -type f -name "*.apk" -path "*/build/outputs/apk/release/*" -print0 | sort -z > "$apk_list"; then
+  echo "Could not discover release APKs" >&2
+  exit 1
+fi
+mapfile -d '' apk_files < "$apk_list"
 
 if [ "${#apk_files[@]}" -eq 0 ]; then
   echo "No release APKs found" >&2
@@ -16,7 +22,17 @@ if [ -n "$duplicate_names" ]; then
   exit 1
 fi
 
-: > "$output_file"
+checksum_lines=()
 for apk in "${apk_files[@]}"; do
-  printf '%s  %s\n' "$(sha256sum "$apk" | cut -d ' ' -f 1)" "$(basename "$apk")" >> "$output_file"
+  if ! checksum_output="$(sha256sum -- "$apk")"; then
+    echo "Could not calculate SHA-256 checksum: $apk" >&2
+    exit 1
+  fi
+  checksum="${checksum_output%% *}"
+  if [[ ! "$checksum" =~ ^[[:xdigit:]]{64}$ ]]; then
+    echo "sha256sum returned an invalid digest for: $apk" >&2
+    exit 1
+  fi
+  checksum_lines+=("$checksum  $(basename -- "$apk")")
 done
+printf '%s\n' "${checksum_lines[@]}" > "$output_file"
