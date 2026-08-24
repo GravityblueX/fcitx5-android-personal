@@ -16,11 +16,25 @@ if [[ -z "$android_home" ]]; then
   exit 1
 fi
 
-apksigner="$(find "$android_home/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
-aapt2="$(find "$android_home/build-tools" -type f -name aapt2 | sort -V | tail -n 1)"
+build_tools="$android_home/build-tools"
+if [[ ! -d "$build_tools" ]]; then
+  echo "Android build-tools directory does not exist: $build_tools" >&2
+  exit 1
+fi
+
+if ! apksigner="$(find "$build_tools" -type f -name apksigner | sort -V | tail -n 1)"; then
+  echo "Could not search Android build-tools for apksigner: $build_tools" >&2
+  exit 1
+fi
+if ! aapt2="$(find "$build_tools" -type f -name aapt2 | sort -V | tail -n 1)"; then
+  echo "Could not search Android build-tools for aapt2: $build_tools" >&2
+  exit 1
+fi
 
 if [[ -z "$apksigner" || -z "$aapt2" ]]; then
-  echo "Could not locate apksigner and aapt2 in $android_home/build-tools." >&2
+  echo "Missing required Android build tools in $build_tools:" >&2
+  [[ -n "$apksigner" ]] || echo "  - apksigner" >&2
+  [[ -n "$aapt2" ]] || echo "  - aapt2" >&2
   exit 1
 fi
 
