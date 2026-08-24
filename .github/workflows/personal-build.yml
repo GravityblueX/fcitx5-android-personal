@@ -73,8 +73,28 @@ jobs:
 
       - name: Verify debug app and plugin integration
         run: |
-          mapfile -t plugins < <(find plugin -path "*/build/outputs/apk/debug/*.apk" -type f | sort)
-          bash scripts/verify-debug-plugin-compatibility.sh "$(find app/build/outputs/apk/debug -name "*.apk" -type f | head -n 1)" "${plugins[@]}"
+          host_apk_list=$(mktemp)
+          plugin_apk_list=$(mktemp)
+          trap 'rm -f -- "$host_apk_list" "$plugin_apk_list"' EXIT
+          if ! find app/build/outputs/apk/debug -maxdepth 1 -name "*.apk" -type f -print0 | sort -z > "$host_apk_list"; then
+            echo "::error title=Host APK discovery failed::Could not enumerate debug host APKs"
+            exit 1
+          fi
+          if ! find plugin -path "*/build/outputs/apk/debug/*.apk" -type f -print0 | sort -z > "$plugin_apk_list"; then
+            echo "::error title=Plugin APK discovery failed::Could not enumerate debug plugin APKs"
+            exit 1
+          fi
+          mapfile -d '' host_apks < "$host_apk_list"
+          mapfile -d '' plugins < "$plugin_apk_list"
+          if (( ${#host_apks[@]} != 1 )); then
+            echo "::error title=Unexpected debug host APK count::Expected exactly one debug host APK, found ${#host_apks[@]}"
+            exit 1
+          fi
+          if (( ${#plugins[@]} == 0 )); then
+            echo "::error title=Missing debug plugins::No debug plugin APKs were found"
+            exit 1
+          fi
+          bash scripts/verify-debug-plugin-compatibility.sh "${host_apks[0]}" "${plugins[@]}"
 
       - name: Upload quality reports
         if: ${{ always() }}
