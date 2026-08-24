@@ -22,7 +22,6 @@ import org.fcitx.fcitx5.android.utils.ensureDirectory
 import org.fcitx.fcitx5.android.utils.isJavaIdentifier
 import org.fcitx.fcitx5.android.utils.removeIfExists
 import org.fcitx.fcitx5.android.utils.replaceFileAtomically
-import org.xmlpull.v1.XmlPullParser
 import timber.log.Timber
 import java.io.File
 import java.io.InputStream
@@ -195,29 +194,14 @@ object DataManager {
             return PluginDiscoveryResult.Failed(PluginLoadFailed.MissingPluginDescriptor)
         }
         val parser = res.getXml(resId)
-        var domain: String? = null
-        var apiVersion: String? = null
-        var description: String? = null
-        var hasService = false
-        var text: String? = null
-        try {
-            var eventType = parser.eventType
-            while ((eventType != XmlPullParser.END_DOCUMENT)) {
-                when (eventType) {
-                    XmlPullParser.TEXT -> text = parser.text
-                    XmlPullParser.END_TAG -> when (parser.name) {
-                        "apiVersion" -> apiVersion = text
-                        "domain" -> domain = text
-                        "description" -> description = text
-                        "hasService" -> hasService = text?.lowercase() == "true"
-                    }
-                }
-                eventType = parser.next()
-            }
+        val parsed = try {
+            parsePluginXml(parser)
         } finally {
             parser.close()
         }
 
+        val apiVersion = parsed.apiVersion?.trim()
+        var description = parsed.description?.trim()
         if (description?.startsWith("@string/") == true) {
             // Replace "@string/" with string resource
             val s = description.substring(8)
@@ -228,7 +212,10 @@ object DataManager {
             }
         }
 
-        if (apiVersion == null || description == null) {
+        if (apiVersion.isNullOrEmpty() ||
+            description.isNullOrBlank() ||
+            description.length > MAX_PLUGIN_XML_TEXT_CHARS
+        ) {
             Timber.w("Failed to parse plugin descriptor of $packageName")
             return PluginDiscoveryResult.Failed(PluginLoadFailed.PluginDescriptorParseError)
         }
@@ -250,9 +237,9 @@ object DataManager {
             PluginDescriptor(
                 packageName,
                 apiVersion,
-                domain,
+                parsed.domain?.trim()?.ifEmpty { null },
                 description,
-                hasService,
+                parsed.hasService,
                 info.versionName ?: "",
                 info.applicationInfo?.nativeLibraryDir ?: ""
             )
