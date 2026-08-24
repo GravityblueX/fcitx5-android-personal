@@ -10,6 +10,8 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 import org.gradle.kotlin.dsl.configure
@@ -23,13 +25,16 @@ import org.gradle.work.DisableCachingByDefault
 class BuildMetadataPlugin : Plugin<Project> {
 
     override fun apply(target: Project) {
+        val metadataVersionName = target.buildVersionName
+        val metadataCommitHash = target.buildCommitHash
+        val metadataTimestamp = target.buildTimestamp
         target.extensions.configure<ApplicationExtension> {
             buildFeatures {
                 buildConfig = true
             }
             defaultConfig {
-                buildConfigField("String", "BUILD_GIT_HASH", "\"${target.buildCommitHash}\"")
-                buildConfigField("long", "BUILD_TIME", target.buildTimestamp)
+                buildConfigField("String", "BUILD_GIT_HASH", "\"$metadataCommitHash\"")
+                buildConfigField("long", "BUILD_TIME", metadataTimestamp)
                 buildConfigField("String", "DATA_DESCRIPTOR_NAME", "\"${DataDescriptorPlugin.FILE_NAME}\"")
             }
         }
@@ -48,6 +53,9 @@ class BuildMetadataPlugin : Plugin<Project> {
                             val suffix = if (it == ":app") "" else it.replace(':', '.')
                             "build-metadata${suffix}.json"
                         }
+                        versionName.set(metadataVersionName)
+                        commitHash.set(metadataCommitHash)
+                        timestamp.set(metadataTimestamp)
                         outputFile.set(packageTask.outputDirectory.file(fileName))
                     }.also {
                         target.tasks.getByName("assemble${variantName}").dependsOn(it)
@@ -66,15 +74,22 @@ class BuildMetadataPlugin : Plugin<Project> {
             val timestamp: String
         )
 
+        @get:Input
+        abstract val versionName: Property<String>
+
+        @get:Input
+        abstract val commitHash: Property<String>
+
+        @get:Input
+        abstract val timestamp: Property<String>
+
         @get:OutputFile
         abstract val outputFile: RegularFileProperty
 
         @TaskAction
         fun execute() {
-            with(project) {
-                val metadata = BuildMetadata(buildVersionName, buildCommitHash, buildTimestamp)
-                outputFile.get().asFile.writeText(json.encodeToString(metadata))
-            }
+            val metadata = BuildMetadata(versionName.get(), commitHash.get(), timestamp.get())
+            outputFile.get().asFile.writeText(json.encodeToString(metadata))
         }
     }
 }
