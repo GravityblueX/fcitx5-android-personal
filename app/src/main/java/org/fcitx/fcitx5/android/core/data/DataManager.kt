@@ -295,7 +295,15 @@ object DataManager {
         )
     }
 
-    fun sync() = lock.withLock {
+    fun sync() = runLockedThenDispatchCallbacks(
+        lock,
+        lockedBlock = ::syncLocked,
+        onCallbackFailure = { failure ->
+            Timber.e(failure, "Data sync callback failed")
+        },
+    )
+
+    private fun syncLocked(): List<() -> Unit> {
         synced = false
         loadedPlugins.clear()
         failedPlugins.clear()
@@ -475,8 +483,8 @@ object DataManager {
             }
         }
         synced = true
-        callbacks.toList().also { callbacks.clear() }.forEach { it() }
         Timber.d("Synced")
+        return callbacks.toList().also { callbacks.clear() }
     }
 
     private fun removePath(path: String) =
@@ -534,4 +542,19 @@ internal fun cleanupStagedDataWrites(directory: File) {
             }
         }
     cleanupStagedFileInstalls(directory)
+}
+
+internal fun runLockedThenDispatchCallbacks(
+    lock: ReentrantLock,
+    lockedBlock: () -> List<() -> Unit>,
+    onCallbackFailure: (Exception) -> Unit,
+) {
+    val callbacks = lock.withLock(lockedBlock)
+    callbacks.forEach { callback ->
+        try {
+            callback()
+        } catch (failure: Exception) {
+            onCallbackFailure(failure)
+        }
+    }
 }
