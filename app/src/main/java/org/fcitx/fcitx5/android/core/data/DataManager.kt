@@ -91,6 +91,23 @@ object DataManager {
             .use { deserializeDataDescriptor(it) }
     }
 
+    private fun AssetManager.validateDataDescriptorAssets(descriptor: DataDescriptor) {
+        var totalBytes = 0L
+        descriptor.files.forEach { (path, sha256) ->
+            if (sha256.isBlank()) return@forEach
+            open(path).use { input ->
+                val availableBytes = input.available().toLong()
+                if (availableBytes > MAX_MANAGED_DATA_FILE_BYTES) {
+                    throw ManagedDataAssetTooLarge(MAX_MANAGED_DATA_FILE_BYTES)
+                }
+                totalBytes += availableBytes
+                if (totalBytes > MAX_PLUGIN_DATA_BYTES) {
+                    throw ManagedDataAssetTooLarge(MAX_PLUGIN_DATA_BYTES)
+                }
+            }
+        }
+    }
+
     private val loadedPlugins = mutableSetOf<PluginDescriptor>()
     private val failedPlugins = mutableMapOf<String, PluginLoadFailed>()
 
@@ -289,8 +306,10 @@ object DataManager {
             val assets = pluginContext.assets
             val descriptor = try {
                 assets.getDataDescriptor()
+                    .withValidatedManagedPaths()
+                    .also { assets.validateDataDescriptorAssets(it) }
             } catch (failure: Exception) {
-                Timber.w(failure, "Failed to get or decode data descriptor of '${plugin.name}'")
+                Timber.w(failure, "Failed to validate data assets of '${plugin.name}'")
                 failedPlugins[plugin.packageName] =
                     PluginLoadFailed.DataDescriptorParseError(plugin)
                 continue
@@ -320,6 +339,33 @@ object DataManager {
 
         Timber.d("Hierarchy created")
 
+        val newDescriptor = newHierarchy.downToDataDescriptor()
+        var remainingSyncBytes = MAX_MANAGED_DATA_SYNC_BYTES
+        val remainingPluginBytes = pluginAssets.keys
+            .associateWith { MAX_PLUGIN_DATA_BYTES }
+            .toMutableMap()
+
+        fun copyLimit(source: FileSource): Long {
+            val remainingSourceBytes = if (source is FileSource.Plugin) {
+                remainingPluginBytes.getValue(source.descriptor.runtimeId)
+            } else {
+                MAX_MANAGED_DATA_SYNC_BYTES
+            }
+            return minOf(
+                MAX_MANAGED_DATA_FILE_BYTES,
+                remainingSyncBytes,
+                remainingSourceBytes,
+            )
+        }
+
+        fun consumeCopyBudget(source: FileSource, copiedBytes: Long) {
+            remainingSyncBytes -= copiedBytes
+            if (source is FileSource.Plugin) {
+                remainingPluginBytes[source.descriptor.runtimeId] =
+                    remainingPluginBytes.getValue(source.descriptor.runtimeId) - copiedBytes
+            }
+        }
+
         // Compute the difference of the created one and the old one
         // Run actions to migrate to the new hierarchy
         DataHierarchy.diff(oldDescriptor, newHierarchy).sortedByDescending { it.ordinal }.forEach {
@@ -329,7 +375,12 @@ object DataManager {
                     val assets = if (it.src is FileSource.Plugin)
                         pluginAssets.getValue(it.src.descriptor.runtimeId)
                     else appContext.assets
-                    assets.copyFile(it.path)
+                    val copiedBytes = assets.copyFile(
+                        it.path,
+                        newDescriptor.files.getValue(it.path),
+                        copyLimit(it.src),
+                    )
+                    consumeCopyBudget(it.src, copiedBytes)
                 }
                 is FileAction.DeleteDir -> {
                     removePath(it.path).getOrThrow()
@@ -341,7 +392,12 @@ object DataManager {
                     val assets = if (it.src is FileSource.Plugin)
                         pluginAssets.getValue(it.src.descriptor.runtimeId)
                     else appContext.assets
-                    assets.copyFile(it.path)
+                    val copiedBytes = assets.copyFile(
+                        it.path,
+                        newDescriptor.files.getValue(it.path),
+                        copyLimit(it.src),
+                    )
+                    consumeCopyBudget(it.src, copiedBytes)
                 }
                 is FileAction.CreateSymlink -> {
                     removePath(it.path).getOrThrow()
@@ -352,7 +408,7 @@ object DataManager {
         // save the new hierarchy as the data descriptor to be used in the next run
         replaceFileAtomically(destDescriptorFile) { staged ->
             staged.bufferedWriter().use {
-                it.write(serializeDataDescriptor(newHierarchy.downToDataDescriptor()))
+                it.write(serializeDataDescriptor(newDescriptor))
             }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -385,16 +441,24 @@ object DataManager {
             resolveManagedDataPath(dataDir, target),
         )
 
-    private fun AssetManager.copyFile(filename: String) {
+    private fun AssetManager.copyFile(
+        filename: String,
+        expectedSHA256: String,
+        maxBytes: Long,
+    ): Long {
         val destination = resolveManagedDataPath(dataDir, filename)
         val parent = destination.parentFile ?: error("Cannot resolve parent for '${filename}'")
         parent.ensureDirectory()
         cleanupStagedDataWrites(parent)
+        var copiedBytes = 0L
         replaceFileAtomically(destination) { staged ->
             open(filename).use { input ->
-                staged.outputStream().use { output -> input.copyTo(output) }
+                staged.outputStream().use { output ->
+                    copiedBytes = input.copyManagedDataAsset(output, expectedSHA256, maxBytes)
+                }
             }
         }
+        return copiedBytes
     }
 
     fun deleteAndSync() {
