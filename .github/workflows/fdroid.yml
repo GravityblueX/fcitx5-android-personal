@@ -108,11 +108,14 @@ jobs:
           curl "${curl_options[@]}" --output "$metadata" "https://github.com/${{ github.repository }}/raw/${{ github.sha }}/app/org.fcitx.fcitx5.android.yml"
           sed -i s/%ts/$timestamp/g "$metadata"
           sed -i s/%abi/${{ matrix.abi }}/g "$metadata"
-          yq -i ".Builds[0] |=
-              (.versionName = \"$versionName\") |=
-              (.versionCode = $versionCode) |=
-              (.commit = \"$commitHash\")
-          " "$metadata"
+          VERSION_NAME="$versionName" \
+          VERSION_CODE="$versionCode" \
+          COMMIT_HASH="$commitHash" \
+          yq -i '.Builds[0] |=
+              (.versionName = strenv(VERSION_NAME)) |=
+              (.versionCode = env(VERSION_CODE)) |=
+              (.commit = strenv(COMMIT_HASH))
+          ' "$metadata"
           prebuiltTreeURL=$(curl "${curl_options[@]}" \
               -H "Accept: application/vnd.github+json" \
               -H "Authorization: Bearer ${{ github.token }}" \
