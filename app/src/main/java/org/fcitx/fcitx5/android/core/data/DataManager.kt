@@ -300,8 +300,6 @@ object DataManager {
         loadedPlugins.clear()
         failedPlugins.clear()
 
-        dataDir.ensureDirectory()
-        cleanupStagedDataWrites(dataDir)
         val destDescriptorFile = File(dataDir, BuildConfig.DATA_DESCRIPTOR_NAME)
 
         // load last run's data descriptor
@@ -310,7 +308,7 @@ object DataManager {
                 inputStream().use {
                     deserializeDataDescriptor(it, MAX_STORED_DATA_DESCRIPTOR_BYTES)
                 }
-                    .withValidatedManagedPaths()
+                    .withValidatedManagedAssets()
             }
             .onFailure { failure ->
                 if (destDescriptorFile.exists()) {
@@ -321,6 +319,7 @@ object DataManager {
 
         // load app's data descriptor
         val mainDescriptor = appContext.assets.getDataDescriptor()
+            .withValidatedManagedAssets()
 
         val (parsedDescriptors, failed) = detectPlugins()
         failedPlugins.putAll(failed)
@@ -352,7 +351,7 @@ object DataManager {
             }
             val descriptor = try {
                 assets.getDataDescriptor()
-                    .withValidatedManagedPaths()
+                    .withValidatedManagedAssets()
                     .also { assets.validateDataDescriptorAssets(it) }
             } catch (failure: Exception) {
                 Timber.w(failure, "Failed to validate data assets of '${plugin.name}'")
@@ -386,6 +385,8 @@ object DataManager {
         Timber.d("Hierarchy created")
 
         val newDescriptor = newHierarchy.downToDataDescriptor()
+        dataDir.ensureDirectory()
+        cleanupStagedDataWrites(dataDir)
         var remainingSyncBytes = MAX_MANAGED_DATA_SYNC_BYTES
         val remainingPluginBytes = pluginAssets.keys
             .associateWith { MAX_PLUGIN_DATA_BYTES }

@@ -40,6 +40,7 @@ internal const val MAX_DATA_DESCRIPTOR_PATH_LENGTH = 1024
 internal const val MAX_DATA_DESCRIPTOR_PATH_BYTES = 1024
 internal const val MAX_DATA_DESCRIPTOR_PATH_SEGMENTS = 64
 internal const val MAX_DATA_DESCRIPTOR_PATH_SEGMENT_BYTES = 255
+internal const val SHA256_HEX_LENGTH = 64
 
 internal sealed class InvalidDataDescriptor(message: String) : IllegalArgumentException(message)
 
@@ -48,6 +49,9 @@ internal class DataDescriptorLimitExceeded(val resource: String, val limit: Int)
 
 internal class UnsafeDataDescriptorPath(val path: String) :
     InvalidDataDescriptor("Unsafe data descriptor path: $path")
+
+internal class InvalidDataDescriptorHash(val path: String) :
+    InvalidDataDescriptor("Invalid SHA-256 for data descriptor path: $path")
 
 internal fun InputStream.readBoundedDataDescriptorText(
     maxBytes: Int = MAX_DATA_DESCRIPTOR_BYTES,
@@ -176,6 +180,21 @@ internal fun DataDescriptor.withValidatedManagedPaths(): DataDescriptor {
         files = normalizedFiles,
         symlinks = normalizedSymlinks,
     )
+}
+
+private fun String.isSHA256Hex(): Boolean =
+    length == SHA256_HEX_LENGTH && all { character ->
+        character in '0'..'9' || character in 'a'..'f' || character in 'A'..'F'
+    }
+
+internal fun DataDescriptor.withValidatedManagedAssets(): DataDescriptor {
+    val descriptor = withValidatedManagedPaths()
+    descriptor.files.forEach { (path, hash) ->
+        if (hash.isNotEmpty() && !hash.isSHA256Hex()) {
+            throw InvalidDataDescriptorHash(path)
+        }
+    }
+    return descriptor
 }
 
 internal fun resolveManagedDataPath(

@@ -124,6 +124,44 @@ class DataDescriptorPathTest {
     }
 
     @Test
+    fun validatesManagedAssetHashes() {
+        val lowercaseHash = "0123456789abcdef".repeat(4)
+        val uppercaseHash = lowercaseHash.uppercase()
+        val descriptor = DataDescriptor(
+            "implementation-specific-identity",
+            mapOf(
+                "usr" to "",
+                "usr/lowercase" to lowercaseHash,
+                "usr/uppercase" to uppercaseHash,
+            ),
+        ).withValidatedManagedAssets()
+
+        assertEquals("", descriptor.files.getValue("usr"))
+        assertEquals(lowercaseHash, descriptor.files.getValue("usr/lowercase"))
+        assertEquals(uppercaseHash, descriptor.files.getValue("usr/uppercase"))
+    }
+
+    @Test
+    fun rejectsMalformedManagedAssetHashes() {
+        listOf(
+            " ",
+            "a".repeat(SHA256_HEX_LENGTH - 1),
+            "a".repeat(SHA256_HEX_LENGTH + 1),
+            "g".repeat(SHA256_HEX_LENGTH),
+            "a".repeat(SHA256_HEX_LENGTH - 1) + "界",
+        ).forEach { hash ->
+            val failure = assertThrows(InvalidDataDescriptorHash::class.java) {
+                DataDescriptor(
+                    "descriptor",
+                    mapOf("usr/invalid" to hash),
+                ).withValidatedManagedAssets()
+            }
+
+            assertEquals("usr/invalid", failure.path)
+        }
+    }
+
+    @Test
     fun acceptsEmptyServiceOnlyDescriptor() {
         val descriptor = DataDescriptor("service", emptyMap()).withValidatedManagedPaths()
 
