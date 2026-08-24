@@ -168,21 +168,44 @@ class DataHierarchy {
          */
         fun diff(old: DataDescriptor, new: DataHierarchy): List<FileAction> {
             val normalizedOld = old.withValidatedManagedPaths()
-            if (normalizedOld.sha256 == sha256(new))
-                return emptyList()
+            val newPaths = new.files.keys + new.symlinks.keys
+            val newParentPaths = newPaths.asSequence()
+                .flatMap(::parentDataPaths)
+                .toSet()
+            val preDeletes = buildSet {
+                normalizedOld.symlinks.keys.forEach { path ->
+                    if (path !in new.symlinks &&
+                        (path in new.files || path in newParentPaths)
+                    ) {
+                        add(path)
+                    }
+                }
+                normalizedOld.files.forEach { (path, oldHash) ->
+                    val newHash = new.files[path]?.first
+                    val changesType = newHash != null &&
+                        oldHash.isEmpty() != newHash.isEmpty()
+                    if (changesType || (oldHash.isNotEmpty() && path in newParentPaths)) {
+                        add(path)
+                    }
+                }
+            }
             val diffFiles = new.files.mapNotNull { (path, v) ->
                 val (sha256, src) = v
                 when {
                     path !in normalizedOld.files && sha256.isNotBlank() ->
                         FileAction.CreateFile(path, src)
                     normalizedOld.files[path] != sha256 ->
-                        if (sha256.isNotBlank())
-                            FileAction.UpdateFile(path, src)
-                        else null
+                        when {
+                            sha256.isBlank() -> null
+                            path in preDeletes -> FileAction.CreateFile(path, src)
+                            else -> FileAction.UpdateFile(path, src)
+                        }
                     else -> null
                 }
             }.toMutableList<FileAction>().apply {
-                addAll(normalizedOld.files.filterKeys { it !in new.files }
+                addAll(normalizedOld.files.filterKeys {
+                    it !in new.files && it !in preDeletes
+                }
                     .map { (path, sha256) ->
                         if (sha256.isNotBlank())
                             FileAction.DeleteFile(path)
@@ -200,11 +223,11 @@ class DataHierarchy {
             }.toMutableList<FileAction>().apply {
                 addAll(
                     normalizedOld.symlinks
-                        .filterKeys { it !in new.symlinks }
+                        .filterKeys { it !in new.symlinks && it !in preDeletes }
                         .map { (target, _) -> FileAction.DeleteFile(target) }
                 )
             }
-            return diffFiles + diffLinks
+            return preDeletes.map(FileAction::DeleteBeforeCreate) + diffFiles + diffLinks
         }
     }
 }

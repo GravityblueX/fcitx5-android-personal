@@ -426,6 +426,9 @@ object DataManager {
         DataHierarchy.diff(oldDescriptor, newHierarchy).sortedByDescending { it.ordinal }.forEach {
             Timber.d("Action: $it")
             when (it) {
+                is FileAction.DeleteBeforeCreate -> {
+                    removePath(it.path).getOrThrow()
+                }
                 is FileAction.CreateFile -> {
                     val assets = if (it.src is FileSource.Plugin)
                         pluginAssets.getValue(it.src.descriptor.runtimeId)
