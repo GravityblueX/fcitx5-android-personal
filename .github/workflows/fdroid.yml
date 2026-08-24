@@ -69,7 +69,12 @@ jobs:
           set -x
           # prevent prebuilder from writing to build summary file
           unset GITHUB_ACTIONS GITHUB_STEP_SUMMARY
-          curl -Lo /usr/bin/yq "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64"
+          yq_version=v4.53.6
+          yq_sha256=c5f056448f973ae7d39b5401949648a78f2dc1947d6a8eb65be60d5c504b9385
+          curl --fail --location --silent --show-error \
+              --output /usr/bin/yq \
+              "https://github.com/mikefarah/yq/releases/download/$yq_version/yq_linux_amd64"
+          echo "$yq_sha256  /usr/bin/yq" | sha256sum --check -
           chmod +x /usr/bin/yq
           build_metadata=$(curl "https://jenkins.fcitx-im.org/job/android/job/fcitx5-android/$BUILD_NUMBER/artifact/out/build-metadata.json")
           versionName=$(echo $build_metadata | yq ".versionName")
