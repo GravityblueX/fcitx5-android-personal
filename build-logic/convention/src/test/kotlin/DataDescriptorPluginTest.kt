@@ -103,6 +103,26 @@ class DataDescriptorPluginTest {
     }
 
     @Test
+    fun includesNestedAssetNamedDescriptor() {
+        setUpProject()
+        val assets = projectDirectory.newFolder("src", "main", "assets")
+        val nestedDescriptor = assets.resolve("usr/share/${DataDescriptorPlugin.FILE_NAME}").apply {
+            parentFile.mkdirs()
+            writeText("nested descriptor content")
+        }
+
+        runDescriptorTask()
+
+        val generated = json.decodeFromString<DataDescriptorPlugin.DataDescriptorTask.DataDescriptor>(
+            assets.resolve(DataDescriptorPlugin.FILE_NAME).readText()
+        )
+        assertEquals(
+            DataDescriptorPlugin.DataDescriptorTask.sha256(nestedDescriptor),
+            generated.files["usr/share/${DataDescriptorPlugin.FILE_NAME}"],
+        )
+    }
+
+    @Test
     fun distinguishesFramedSymlinkMappingsInIdentity() {
         setUpProject(
             listOf("usr/a" to "usr/b, usr/cusr/d")

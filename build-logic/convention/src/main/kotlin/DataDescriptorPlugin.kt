@@ -192,8 +192,9 @@ class DataDescriptorPlugin : Plugin<Project> {
                     listOf()
                 else
                     listOf(parentFile) + parentFile.allParents()
+            val normalizedOutputFile = file.absoluteFile.normalize()
             inputChanges.getFileChanges(inputDir).forEach { change ->
-                if (change.file.name == file.name)
+                if (change.file.absoluteFile.normalize() == normalizedOutputFile)
                     return@forEach
                 logger.log(LogLevel.DEBUG, "${change.changeType}: ${change.normalizedPath}")
                 val relativeFile = change.file.relativeTo(file.parentFile)
